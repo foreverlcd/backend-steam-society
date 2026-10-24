@@ -18,15 +18,15 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
-  it('/ (GET)', () => {
+  it('/v1 (GET)', () => {
     return request(app.getHttpServer())
-      .get('/')
+      .get('/v1')
       .expect(200)
       .expect('Hello World!');
   });
 
   it('does not expose X-Powered-By', async () => {
-    const response = await request(app.getHttpServer()).get('/').expect(200);
+    const response = await request(app.getHttpServer()).get('/v1').expect(200);
 
     expect(response.headers['x-powered-by']).toBeUndefined();
     expect(response.headers['x-content-type-options']).toBe('nosniff');

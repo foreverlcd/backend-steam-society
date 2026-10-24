@@ -29,4 +29,8 @@ describe('parseWebOrigins', () => {
       parseWebOrigins('http://localhost:3001, http://localhost:3001/'),
     ).toEqual(['http://localhost:3001']);
   });
+
+  it('rejects wildcard origins because CORS uses credentials', () => {
+    expect(() => parseWebOrigins('*')).toThrow(/\*/);
+  });
 });
