@@ -25,10 +25,59 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
-## Project setup
+## Requisitos
+
+- Node.js 24
+- pnpm
+- Docker con Docker Compose
+
+## Levantar el proyecto desde cero
+
+1. Instala las dependencias:
 
 ```bash
-$ pnpm install
+pnpm install
+```
+
+2. Crea tu archivo de entorno a partir del ejemplo y rellena los valores:
+
+```bash
+cp .env.example .env
+```
+
+Variables esperadas: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
+`DATABASE_URL` y `WEB_ORIGIN`.
+
+3. Levanta PostgreSQL:
+
+```bash
+docker compose up -d postgres
+```
+
+4. Genera el cliente de Prisma. No se versiona, así que hay que crearlo en cada
+   clon del repositorio:
+
+```bash
+pnpm db:generate
+```
+
+5. Aplica las migraciones:
+
+```bash
+pnpm db:migrate
+```
+
+6. Arranca la API en modo watch:
+
+```bash
+pnpm start:dev
+```
+
+7. Comprueba que responde:
+
+```bash
+curl http://localhost:3000/health
+# {"status":"ok","db":"up"}
 ```
 
 ## Base de datos (Prisma 7)
@@ -36,34 +85,36 @@ $ pnpm install
 La API usa Prisma 7 con el driver adapter de PostgreSQL. El esquema vive en
 `prisma/schema.prisma` y la configuración del CLI en `prisma.config.ts`.
 
-Variables necesarias en `.env` (copia `.env.example` como punto de partida):
+Comandos disponibles:
 
 ```bash
-POSTGRES_USER=steam
-POSTGRES_PASSWORD=cambia_esto_local
-POSTGRES_DB=steam_society
-DATABASE_URL="postgresql://steam:cambia_esto_local@127.0.0.1:5433/steam_society?schema=public"
-```
-
-Con el contenedor de PostgreSQL levantado (`docker compose up -d postgres`):
-
-```bash
-# Crear o actualizar la migración en desarrollo
-$ pnpm db:migrate
+# Crear o aplicar migraciones en desarrollo
+pnpm db:migrate
 
 # Regenerar el cliente tras cambiar el esquema
-$ pnpm db:generate
+pnpm db:generate
 
 # Validar el esquema y la configuración
-$ pnpm db:validate
+pnpm db:validate
 
 # Abrir Prisma Studio
-$ pnpm db:studio
+pnpm db:studio
 ```
 
 `src/generated/prisma/` no se versiona: se recrea con `pnpm db:generate`. Ejecuta
 ese comando después de un `git clone` o de cambiar `prisma/schema.prisma`, antes
 de compilar o arrancar la API.
+
+## CORS
+
+`WEB_ORIGIN` define los orígenes permitidos por CORS, separados por coma:
+
+```bash
+WEB_ORIGIN="http://localhost:3001,https://app.example.com"
+```
+
+Si la variable no está definida o está vacía, CORS queda desactivado y solo se
+permiten peticiones del mismo origen.
 
 ## Compile and run the project
 
