@@ -31,6 +31,40 @@
 $ pnpm install
 ```
 
+## Base de datos (Prisma 7)
+
+La API usa Prisma 7 con el driver adapter de PostgreSQL. El esquema vive en
+`prisma/schema.prisma` y la configuración del CLI en `prisma.config.ts`.
+
+Variables necesarias en `.env` (copia `.env.example` como punto de partida):
+
+```bash
+POSTGRES_USER=steam
+POSTGRES_PASSWORD=cambia_esto_local
+POSTGRES_DB=steam_society
+DATABASE_URL="postgresql://steam:cambia_esto_local@127.0.0.1:5433/steam_society?schema=public"
+```
+
+Con el contenedor de PostgreSQL levantado (`docker compose up -d postgres`):
+
+```bash
+# Crear o actualizar la migración en desarrollo
+$ pnpm db:migrate
+
+# Regenerar el cliente tras cambiar el esquema
+$ pnpm db:generate
+
+# Validar el esquema y la configuración
+$ pnpm db:validate
+
+# Abrir Prisma Studio
+$ pnpm db:studio
+```
+
+`src/generated/prisma/` no se versiona: se recrea con `pnpm db:generate`. Ejecuta
+ese comando después de un `git clone` o de cambiar `prisma/schema.prisma`, antes
+de compilar o arrancar la API.
+
 ## Compile and run the project
 
 ```bash

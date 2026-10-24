@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# Prisma Client generado (se recrea con pnpm db:generate)
+src/generated/
+
 # Environment variables and secrets
 .env
 .env.*
