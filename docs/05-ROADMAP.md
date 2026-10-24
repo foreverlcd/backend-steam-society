@@ -24,7 +24,7 @@ Repo web (Next.js) en sesión aparte con su propio `AGENTS.md`. Una página que 
 ### 1.3: Perfiles, onboarding y aprobación (ETAPA VIGENTE)
 Seeds provisorios de áreas STEAM e idiomas (el equipo entregará las listas definitivas) · perfiles de mentora y mentee · onboarding versionado como configuración (`ONBOARDING_VERSION = 1`) · estado de la mentora (`04-STATE-MACHINES.md`) y aprobación por admin con `audit_log`.
 **API:** `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`; admin `GET /v1/admin/mentors?status=`, `POST /v1/admin/mentors/:id/approve|reject|suspend|reactivate`.
-**Aceptación:** una mentora no `approved` no es visible por ninguna ruta pública; cada aprobación o rechazo deja registro de auditoría; validación estricta de entradas.
+**Aceptación:** una mentora no `approved` no es visible por ninguna ruta pública; cada aprobación o rechazo deja registro de auditoría; validación estricta de entradas; `submit` rechaza un onboarding incompleto y `GET|PUT /v1/me/onboarding` expone `completion`.
 
 ### 1.4: Ofertas y disponibilidad
 CRUD de ofertas (varias por mentora; archivar en vez de borrar) · reglas de disponibilidad con zona IANA · cálculo de slots (`GET /v1/mentors/:id/slots`) respetando antelación mínima y máxima, sesiones existentes y duración de la oferta. Evaluar librería de fechas con soporte IANA [PENDIENTE P-07].

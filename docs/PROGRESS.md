@@ -7,7 +7,7 @@
 - Docker Compose: Postgres 18.6-alpine en `127.0.0.1:5433` y Mailpit `v1.27` (SMTP `1025`, bandeja `8025`).
 - Prisma 7.10.1: `prisma.config.ts`, `PrismaService` (PrismaPg) y `PrismaModule` NO global en `src/shared/prisma/`.
 - Modelo `Area`: `id` uuid v7 por defecto de base (`uuidv7()`), `name` único, `parent_id` opcional con FK `ON DELETE RESTRICT`, `active` default `true`, `created_at` `timestamptz(3)`, `@@map("area")`.
-- Migraciones aplicadas en desarrollo y en `steam_society_test`: `20261024173759_add_area`, `20261024212009_fix_area_columns_and_uuidv7`, `20261024214215_add_identity`, `20261024215500_add_user_birth_date_check`, `20261024222451_add_profiles_and_audit`.
+- Migraciones aplicadas en desarrollo y en `steam_society_test`: `20261024173759_add_area`, `20261024212009_fix_area_columns_and_uuidv7`, `20261024214215_add_identity`, `20261024215500_add_user_birth_date_check`, `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage`.
 - `GET /health` (sin prefijo): 200 `{status:'ok',db:'up'}` / 503 `{status:'error',db:'down'}`. El fallo se registra con `Logger` usando solo el nombre del error y su código de Prisma (nunca el mensaje ni la cadena de conexión).
 - CORS: `WEB_ORIGIN` separada por comas; `parseWebOrigins()` normaliza. Sin variable, CORS desactivado. Con orígenes, `credentials: true`.
 - `X-Powered-By` eliminada con `app.useSecurityHeaders()` (NestJS 12.1+); `configureApp()` centraliza seguridad, CORS, CSRF, sesión, prefijo `/v1` y el pipe de validación.
@@ -19,7 +19,7 @@
   - CSRF con `enableCsrfProtection({ trustedOrigins })`; rate limit por IP + correo en login y recuperación con `@nestjs/throttler`.
   - Seed de admin con `ADMIN_EMAIL`/`ADMIN_PASSWORD`; nunca por registro público. Probado en `steam_society_test`: `admin|active|$argon2id`.
   - Validación con Zod 4 + `StandardSchemaValidationPipe`; `ConfigModule` valida el entorno al arrancar y falla rápido si falta `SESSION_SECRET` o es corto.
-- Tests: 65 unitarios (10 archivos) + 26 e2e, verdes. `pnpm build`, `pnpm lint`, `pnpm test` y `pnpm test:e2e` verdes.
+- Tests: 73 unitarios (11 archivos) + 27 e2e, verdes. `pnpm build`, `pnpm lint`, `pnpm test` y `pnpm test:e2e` verdes.
 - README reescrito: puesta en marcha, variables, API, sesiones/CSRF/CORS, Mailpit, seed y base de tests.
 - `feat/1.2-identity` fusionada en `main` con merge commit `64e8559` (`--no-ff`) y subida a `origin/main`; las ramas `feat/1.1a-prisma-postgres`, `chore/hardening-basics` y `feat/1.2-identity` también tienen upstream.
 - Commits de la sesión anterior en `main`: `fd884b7` (area + migración inicial), `5c9102d` (health contrato), `e8f2333` (CORS), `69f6598` (README).
@@ -39,7 +39,7 @@
 - [ ] Revisión del diff por el desarrollador y revisión senior de la zona roja.
 
 ## Etapa 1.3: perfiles, onboarding y aprobación
-- [x] Tablas `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response` y `audit_log`; enums `mentor_status` y `education_level`; migración `20261024222451_add_profiles_and_audit`.
+- [x] Tablas `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response` y `audit_log`; enums `mentor_status`, `education_level` y `career_stage`; migraciones `20261024222451_add_profiles_and_audit` y `20261024224250_add_career_stage`.
 - [x] CHECKs de país, experiencia, antelación y versión; trigger `audit_log_append_only` para bloquear `UPDATE` y `DELETE`.
 - [x] Seeds provisionales: idiomas `es`, `en`, `qu`; áreas Ciencia, Tecnología, Ingeniería y Matemáticas con subáreas.
 - [x] `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`.
@@ -47,6 +47,8 @@
 - [x] Admin: `GET /v1/admin/mentors?status=`, `approve`, `reject`, `suspend`, `reactivate`; rechazo con motivo.
 - [x] Máquina de estados pura y test exhaustivo; transiciones admin + `audit_log` en una transacción; perfil editable sin cambiar estado.
 - [x] Tests de rol, validación, versión de onboarding, jerarquía de áreas, auditoría append-only y flujo completo de aprobación.
+- [x] Hardening: `completion: { complete, missing }` en onboarding, `submit` rechaza incompletos con `ONBOARDING_INCOMPLETE`, test de contrato config↔Zod.
+- [x] Hardening: edad derivada de `birth_date` (fuera del onboarding) y `career_stage` exacto con backfill; `education_level` queda como proyección gruesa.
 - [ ] Revisión del diff por el desarrollador.
 
 ## Decisiones tomadas en esta sesión
@@ -58,7 +60,9 @@
 - P-02 aceptada (ADR-017) y aplicada a los esquemas de perfiles/onboarding.
 - ADR-018: onboarding versionado (`ONBOARDING_VERSION = 1`) y perfil editable siempre; editar no cambia `status`.
 - `years_experience` se deriva del rango (`3-5` → 3, `6-9` → 6, `10+` → 10) y la respuesta original queda en `onboarding_response`.
-- `education_level` se deriva de la etapa de la mentee; la etapa exacta queda en `onboarding_response`.
+- `career_stage` guarda la etapa exacta de la mentee; `education_level` queda como proyección gruesa para compatibilidad.
+- La edad no se guarda en el onboarding: se deriva de `user.birth_date` para mostrarla.
+- La completitud se calcula desde la config; el frontend no duplica las reglas de obligatoriedad.
 - El área principal se guarda como respuesta y también en la tabla de áreas junto con las subáreas; la jerarquía se valida en el servicio.
 
 ## Pendiente / riesgos para revisión con lupa
@@ -70,17 +74,19 @@
 - `auth_session` no tiene FK a `user` (el `userId` vive en el JSON); la revocación es SQL sobre `sess->>'userId'`. Revisar si conviene mover el `userId` a una columna propia más adelante y borrar sesiones al eliminar una cuenta.
 - El envío de correo de recuperación es fire-and-forget; si falla, se registra solo el nombre del error y el token queda válido hasta caducar. Revisar si se necesita reintento/outbox.
 - Helmet completo: se mantienen los defaults de `useSecurityHeaders()`; revisar CSP/HSTS con el frontend real.
-- 1.3: el onboarding acepta guardados parciales; no hay endpoint de "onboarding completo". La completitud la controla el frontend hasta que producto defina el criterio.
-- 1.3: el perfil `approved` sigue editable por decisión de producto; si se quiere re-revisión al cambiar campos sensibles, es una regla nueva.
-- 1.3: `age` se guarda como respuesta, aunque la fuente de verdad es `user.birth_date`; revisar si el frontend debe derivarla y dejar de enviarla.
+- 1.3: el onboarding acepta guardados parciales; `completion` ya se calcula en servidor y `submit` bloquea incompletos. El frontend debe consumir `completion` y no duplicar la regla.
+- 1.3: el perfil `approved` sigue editable por decisión de producto; las ediciones post-aprobación no se auditan. Si se quiere re-revisión al cambiar campos sensibles, es una regla nueva.
+- 1.3: `onboarding_response` puede conservar filas antiguas de `age`; `GET /v1/me/onboarding` filtra a los códigos vigentes. Decidir si se hace una limpieza de datos en una migración posterior.
+- 1.3: falta `GET /v1/admin/mentors/:id` con las respuestas completas del onboarding (LinkedIn, rol, apoyos, industrias, niveles y disponibilidad) para que el admin revise con contexto antes de aprobar.
 - 1.3: los seeds de áreas e idiomas son provisionales; el equipo de producto debe entregar las listas definitivas.
 - 1.3: no hay ruta pública de catálogo todavía; la regla "solo `approved` visible" se implementará al crear esa ruta en 1.6.
 
 ## Siguiente
 1. Revisar `git diff main...HEAD` de `feat/1.3-profiles-onboarding` y mergear cuando esté aprobado.
 2. Revisión senior de la zona roja de autenticación antes de producción.
-3. Etapa 1.1b: repo web (Next.js) en sesión aparte; aquí solo se verifica CORS/CSRF con cookies.
-4. Etapa 1.4: disponibilidad y ofertas; el onboarding ya deja preferencias de horario, pero las reglas reales llegan en 1.4.
+3. Frontend 1.1b: crear `frontend-steam-society` (Next.js) y empezar por scaffold + API client + auth; después onboarding.
+4. Antes de la vista admin del frontend, añadir `GET /v1/admin/mentors/:id` con onboarding completo.
+5. Etapa 1.4: disponibilidad y ofertas; el onboarding ya deja preferencias de horario, pero las reglas reales llegan en 1.4.
 
 ## Registro de sesiones
 | Fecha | Qué se hizo | Quién |
@@ -92,3 +98,4 @@
 | 2026-10-24 | 1.2 Identidad: sesiones, Argon2id, recuperación, CSRF, rate limit, seed, tests y docs | Agente (pendiente de revisión) |
 | 2026-10-24 | Merge de `feat/1.2-identity` en `main` (`64e8559`), remoto `origin` configurado, tests verdes; push bloqueado por permisos | Agente (instrucción del desarrollador) |
 | 2026-10-24 | 1.3 Perfiles/onboarding/aprobación: esquema, seeds, endpoints, máquina de estados, auditoría, tests y docs | Agente (pendiente de revisión) |
+| 2026-10-24 | Hardening 1.3: completitud calculada, submit incompleto bloqueado, contrato config↔Zod, edad derivada y `career_stage` exacto | Agente (pendiente de revisión) |

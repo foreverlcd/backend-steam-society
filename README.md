@@ -148,9 +148,10 @@ usuaria. En local, abre `http://127.0.0.1:8025` para ver el correo de Mailpit.
 ### Perfiles, onboarding y aprobación
 
 - `mentor` y `mentee` editan su propio perfil; un `admin` no tiene perfil de mentoría.
-- El onboarding usa `ONBOARDING_VERSION = 1`. `GET /v1/me/onboarding` devuelve las preguntas, las respuestas guardadas y las opciones de áreas/idiomas. `PUT` acepta guardados parciales y responde `409 ONBOARDING_VERSION_MISMATCH` si la versión no coincide.
+- El onboarding usa `ONBOARDING_VERSION = 1`. `GET /v1/me/onboarding` devuelve las preguntas, las respuestas guardadas, las opciones de áreas/idiomas y `completion: { complete, missing }`. `PUT` acepta guardados parciales y responde `409 ONBOARDING_VERSION_MISMATCH` si la versión no coincide.
 - Las áreas principales son raíces (Ciencia, Tecnología, Ingeniería, Matemáticas) y las subáreas deben ser hijas activas de la raíz elegida.
-- Una mentora pasa de `draft` a `pending_review` con `POST /v1/me/profile/submit`. Solo un `admin` puede aprobar, rechazar, suspender o reactivar. Cada transición queda en `audit_log`, que es append-only.
+- La edad no se envía en el onboarding: se deriva de `birth_date`. La etapa exacta de la mentee se guarda en `career_stage`; `education_level` queda como proyección gruesa.
+- Una mentora pasa de `draft` a `pending_review` con `POST /v1/me/profile/submit`; si faltan respuestas obligatorias, responde `400 ONBOARDING_INCOMPLETE` con `details.missing`. Solo un `admin` puede aprobar, rechazar, suspender o reactivar. Cada transición queda en `audit_log`, que es append-only.
 - Editar el perfil no cambia el estado; una mentora aprobada puede corregir sus datos y el admin conserva la suspensión como control.
 - `pnpm db:seed` crea el admin y siembra los idiomas y las áreas provisionales.
 
