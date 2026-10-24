@@ -6,3 +6,14 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model Area {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  parentId  String?  @db.Uuid
+  parent    Area?    @relation("AreaHierarchy", fields: [parentId], references: [id])
+  children  Area[]   @relation("AreaHierarchy")
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("area")
+}
