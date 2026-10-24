@@ -8,12 +8,13 @@ datasource db {
 }
 
 model Area {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   name      String   @unique
-  parentId  String?  @db.Uuid
-  parent    Area?    @relation("AreaHierarchy", fields: [parentId], references: [id])
+  parentId  String?  @map("parent_id") @db.Uuid
+  parent    Area?    @relation("AreaHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
   children  Area[]   @relation("AreaHierarchy")
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@map("area")
 }
