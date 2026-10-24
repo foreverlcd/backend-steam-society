@@ -27,6 +27,18 @@ erDiagram
     timestamptz created_at
     timestamptz deleted_at
   }
+  AUTH_SESSION {
+    string sid PK
+    json sess
+    timestamp expire
+  }
+  PASSWORD_RESET_TOKEN {
+    uuid id PK
+    uuid user_id FK
+    string token_hash UK
+    timestamptz expires_at
+    timestamptz used_at
+  }
   MENTOR_PROFILE {
     uuid user_id PK
     string headline
@@ -94,6 +106,7 @@ erDiagram
   }
   USER ||--o| MENTOR_PROFILE : "rol mentor"
   USER ||--o| MENTEE_PROFILE : "rol mentee"
+  USER ||--o{ PASSWORD_RESET_TOKEN : "solicita"
   USER ||--o{ AVAILABILITY_RULE : define
   USER ||--o{ ONBOARDING_RESPONSE : responde
   USER ||--o{ AUDIT_LOG : "actor"
@@ -134,8 +147,9 @@ erDiagram
 Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, active, suspended, deleted)` · `mentor_status(draft, pending_review, approved, rejected, suspended)` · `education_level(school, undergraduate, graduate, career_change, other)` · `offering_type(one_to_one, group)` · `session_status(open, cancelled, completed)` · `booking_status(requested, awaiting_payment, confirmed, declined, cancelled, expired, completed, no_show)` · `cancel_actor(mentee, mentor, admin, system)` · `no_show_party(mentee, mentor)`.
 
 **identity**
-- `user`: `id`, `email` (UK, minúsculas), `password_hash` (null si la autenticación es externa), `role`, `status`, `first_name`, `last_name`, `birth_date` (date; obligatoria en el registro, nula solo para admins de seed; DA-01), `timezone` (IANA, default `America/Lima`), `locale` (default `es`), `email_verified_at`, `created_at`, `updated_at`, `deleted_at`.
-- Tablas de credenciales, sesiones y tokens de recuperación: **PENDIENTE** (P-01). `user` debe quedar compatible con la opción elegida.
+- `user`: `id`, `email` (UK, minúsculas; CHECK `email = lower(email)`), `password_hash` (null si la autenticación es externa), `role`, `status`, `first_name`, `last_name`, `birth_date` (date; obligatoria en el registro, nula solo para admins de seed; DA-01; CHECK `user_birth_date_required_check`), `timezone` (IANA, default `America/Lima`), `locale` (default `es`), `email_verified_at`, `created_at`, `updated_at`, `deleted_at`.
+- `auth_session`: `sid` (varchar PK), `sess` (json), `expire` (timestamp(6)); la usa `connect-pg-simple` para las sesiones de autenticación. Se llama `auth_session`, no `session`, porque `session` queda reservado para las sesiones de mentoría de la etapa 1.5. No tiene FK: el `userId` vive dentro del JSON de `sess`; la revocación masiva se hace con SQL sobre `sess->>'userId'`.
+- `password_reset_token`: `id` (uuid v7), `user_id` (FK a `user`, `ON DELETE CASCADE`), `token_hash` (UK; SHA-256 hexadecimal del token, nunca el token en claro), `expires_at` (`timestamptz(3)`, 1 hora), `used_at` (`timestamptz(3)`, un solo uso), `created_at`. El token se consume de forma atómica (`UPDATE ... WHERE used_at IS NULL`).
 - `consent` (reservada para DA-04, no crear aún).
 
 **profiles**
@@ -182,7 +196,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 | Etapa | Tablas nuevas |
 |---|---|
 | 1.1a | `area` |
-| 1.2 | `user` + tablas de autenticación según P-01 |
+| 1.2 | `user`, `auth_session`, `password_reset_token` |
 | 1.3 | `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response`, `audit_log` |
 | 1.4 | `availability_rule`, `offering` |
 | 1.5 | `session`, `booking` + SQL a mano (exclusión y CHECK) |

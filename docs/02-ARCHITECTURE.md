@@ -47,6 +47,8 @@ src/
   modules/
     profiles/                (capas)
       profiles.controller.ts · profiles.service.ts · dto/ · profiles.module.ts
+    auth/                    identidad y sesiones (1.2)
+      auth.controller.ts · auth.service.ts · auth.schemas.ts · auth.module.ts
     scheduling/              (hexagonal)
       domain/                reglas puras: sin Nest ni Prisma
       application/           casos de uso y puertos (interfaces)

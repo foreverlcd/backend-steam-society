@@ -1,29 +1,11 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Steam Society · API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend de Steam Society: plataforma de mentorías para acercar a más mujeres a
+carreras STEAM. Este repositorio contiene solo la API (NestJS 12); el frontend
+(Next.js) vive en otro repositorio.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+La documentación de producto, arquitectura, modelo de datos y decisiones está en
+[`docs/`](docs/). El estado vivo está en [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Requisitos
 
@@ -45,17 +27,30 @@ pnpm install
 cp .env.example .env
 ```
 
-Variables esperadas: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
-`DATABASE_URL` y `WEB_ORIGIN`.
+Variables principales:
 
-3. Levanta PostgreSQL:
+- `DATABASE_URL`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`.
+- `SESSION_SECRET`: mínimo 32 caracteres. Genera uno con
+  `openssl rand -base64 48`.
+- `SESSION_COOKIE_SECURE`: `false` solo en desarrollo local sobre HTTP; `true`
+  en producción (cookie `__Host-sid`).
+- `WEB_ORIGIN`: orígenes del frontend separados por coma. Se usa para CORS con
+  credenciales y para la protección CSRF.
+- `APP_URL`, `SMTP_URL`, `SMTP_FROM`: enlace de recuperación y correo saliente.
+  En local, Mailpit expone SMTP en `127.0.0.1:1025` y la bandeja en
+  `http://127.0.0.1:8025`.
+- `ADMIN_EMAIL`, `ADMIN_PASSWORD`: solo para `pnpm db:seed`. El registro público
+  nunca crea administradores.
+
+No versiones `.env` ni compartas sus valores.
+
+3. Levanta PostgreSQL y Mailpit:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres mailpit
 ```
 
-4. Genera el cliente de Prisma. No se versiona, así que hay que crearlo en cada
-   clon del repositorio:
+4. Genera el cliente de Prisma (no se versiona):
 
 ```bash
 pnpm db:generate
@@ -67,13 +62,20 @@ pnpm db:generate
 pnpm db:migrate
 ```
 
-6. Arranca la API en modo watch:
+6. Crea el admin inicial (opcional, pero necesario para las rutas de admin de
+   etapas posteriores):
+
+```bash
+pnpm db:seed
+```
+
+7. Arranca la API en modo watch:
 
 ```bash
 pnpm start:dev
 ```
 
-7. Comprueba que responde:
+8. Comprueba que responde:
 
 ```bash
 curl http://localhost:3000/health
@@ -85,138 +87,114 @@ La API falla rápido si PostgreSQL no responde al arrancar: `PrismaService` llam
 después de que la API ya está levantada. Cuando la base vuelve, `/health` responde
 `200` otra vez sin reiniciar la API.
 
+## API
+
+`/health` queda fuera del prefijo de versión. El resto de rutas usa `/v1`.
+
+| Método | Ruta | Autenticación | Descripción |
+|---|---|---|---|
+| GET | `/health` | Pública | Estado de la API y de la base |
+| POST | `/v1/auth/register` | Pública | Registro `mentee` o `mentor` |
+| POST | `/v1/auth/login` | Pública | Crea la sesión |
+| POST | `/v1/auth/logout` | Sesión | Destruye la sesión |
+| POST | `/v1/auth/password/forgot` | Pública | Solicita enlace de recuperación |
+| POST | `/v1/auth/password/reset` | Pública | Consume el token y cambia la contraseña |
+| GET | `/v1/me` | Sesión | Devuelve la usuaria autenticada |
+
+Ejemplo de registro:
+
+```bash
+curl -i -X POST http://localhost:3000/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "email": "ada@example.com",
+    "password": "correct-horse-battery",
+    "role": "mentee",
+    "birthDate": "2000-01-01"
+  }'
+```
+
+### Sesiones, CSRF y CORS
+
+- La sesión viaja en una cookie `HttpOnly`; en producción se llama
+  `__Host-sid`, es `Secure` y `SameSite=Lax`, y dura 7 días.
+- En desarrollo sobre HTTP se usa `sid` porque los navegadores no aceptan una
+  cookie `__Host-` sin `Secure`. No uses `SESSION_COOKIE_SECURE=false` en
+  producción.
+- CORS usa `credentials: true` solo con los orígenes explícitos de
+  `WEB_ORIGIN`; nunca `*`.
+- Las peticiones que cambian estado desde otro origen pasan por la protección
+  CSRF de NestJS 12. El frontend debe estar en `WEB_ORIGIN`.
+- El login y la recuperación están limitados por IP + correo con
+  `@nestjs/throttler`.
+
+### Recuperación de contraseña
+
+El endpoint `forgot` responde siempre `202` para no revelar si el correo existe.
+El token es aleatorio de 32 bytes, se guarda solo su hash SHA-256, caduca en una
+hora y es de un solo uso. Al cambiarla se revocan todas las sesiones de esa
+usuaria. En local, abre `http://127.0.0.1:8025` para ver el correo de Mailpit.
+
 ## Base de datos (Prisma 7)
 
-La API usa Prisma 7 con el driver adapter de PostgreSQL. El esquema vive en
-`prisma/schema.prisma` y la configuración del CLI en `prisma.config.ts`.
+El esquema vive en `prisma/schema.prisma` y la configuración del CLI en
+`prisma.config.ts`. Las tablas de autenticación son `user`, `auth_session` y
+`password_reset_token`; `session` queda reservado para las sesiones de mentoría
+de la etapa 1.5.
 
 Comandos disponibles:
 
 ```bash
-# Crear o aplicar migraciones en desarrollo
-pnpm db:migrate
-
-# Regenerar el cliente tras cambiar el esquema
-pnpm db:generate
-
-# Validar el esquema y la configuración
-pnpm db:validate
-
-# Abrir Prisma Studio
-pnpm db:studio
+pnpm db:migrate    # Crear o aplicar migraciones en desarrollo
+pnpm db:generate   # Regenerar el cliente tras cambiar el esquema
+pnpm db:validate   # Validar el esquema y la configuración
+pnpm db:seed       # Crear/actualizar el admin desde ADMIN_EMAIL y ADMIN_PASSWORD
+pnpm db:studio     # Abrir Prisma Studio
 ```
 
-`src/generated/prisma/` no se versiona: se recrea con `pnpm db:generate`. Ejecuta
-ese comando después de un `git clone` o de cambiar `prisma/schema.prisma`, antes
-de compilar o arrancar la API.
+`src/generated/prisma/` no se versiona: se recrea con `pnpm db:generate`.
+Ejecuta ese comando después de un `git clone` o de cambiar
+`prisma/schema.prisma`, antes de compilar o arrancar la API.
 
-## CORS
+## Tests
 
-`WEB_ORIGIN` define los orígenes permitidos por CORS, separados por coma:
+Los tests unitarios no necesitan base de datos:
 
 ```bash
-WEB_ORIGIN="http://localhost:3001,https://app.example.com"
+pnpm test
 ```
 
-Si la variable no está definida o está vacía, CORS queda desactivado y solo se
-permiten peticiones del mismo origen.
-
-## Compile and run the project
+Los e2e usan una base separada, `steam_society_test`, y aplican las migraciones
+automáticamente. Créala una vez:
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+docker compose exec postgres sh -c 'createdb -U "$POSTGRES_USER" steam_society_test'
 ```
 
-## Run tests
+Luego ejecuta:
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm test:e2e
 ```
 
-## Deployment
+Los e2e truncan las tablas de autenticación antes de cada prueba. No apuntes
+`steam_society_test` a una base con datos reales.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Comprobaciones de la definición de terminado:
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+pnpm build
+pnpm lint
+pnpm test
+pnpm test:e2e
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Seguridad
 
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
-
-```bash
-$ npx @nestjs/observe link
-```
-
-It installs `@nestjs/observe`, wires it into `AppModule` and `main.ts`, and writes the app key and secret into `.env`, which every `nest start` script (`start`, `start:dev`, `start:debug`) then loads. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
-
-Or do it by hand:
-
-```bash
-$ pnpm install @nestjs/observe
-```
-
-Then follow the [setup guide](https://docs.nestjs.com/observability/sdk) - it takes a single import and an app key.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- Nunca se registran contraseñas, tokens ni datos personales en logs.
+- Los errores de login no distinguen entre correo inexistente y contraseña
+  incorrecta.
+- El registro público solo acepta `mentee` y `mentor`; el admin se crea con el
+  seed.
+- Este proyecto maneja autenticación, reservas y pagos: es zona roja. Nada va a
+  producción sin revisión de un desarrollador senior.

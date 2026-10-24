@@ -47,14 +47,16 @@ Por qué: despensa estricta y buen soporte. Descartado: npm; Bun como runtime (r
 
 **ADR-015 · UUID v7 generado por PostgreSQL (`uuidv7()`).** (2026-10-24) Por qué: ordenado por tiempo, mejor localidad de índice, y el id existe también en inserciones hechas fuera de Prisma. Descartado: `uuid()` de Prisma (se genera en el cliente, no en SQL manual) y uuid v4 (aleatorio). Consecuencia: `@default(dbgenerated("uuidv7()")) @db.Uuid` en todas las tablas nuevas; requiere PostgreSQL 18.
 
+**ADR-016 · Autenticación con sesiones de servidor: `express-session` + `connect-pg-simple` + Argon2id, sin Passport.** (2026-10-24; resuelve P-01) Por qué: el MVP tiene un frontend Next.js y una API NestJS en orígenes distintos; una cookie de sesión `HttpOnly` evita guardar tokens en el navegador y permite revocar sesiones desde el servidor. `connect-pg-simple` reutiliza PostgreSQL (sin Redis) y Argon2id es el algoritmo recomendado por OWASP. Se descartó Passport por ser una capa innecesaria para un solo esquema de sesión; se descartaron JWT en `localStorage` (XSS y revocación difícil) y sesiones en memoria (no sobreviven reinicios ni escalan). Consecuencias: cookie `__Host-sid` con `Secure`, `HttpOnly`, `SameSite=Lax` y 7 días en producción; en desarrollo local sobre HTTP se usa `sid` con `SESSION_COOKIE_SECURE=false`. La tabla se llama `auth_session` para no chocar con `session` (mentoría, 1.5). La sesión se regenera al entrar y se destruye al salir; el reset de contraseña revoca todas las sesiones del usuario.
+
+**ADR-017 · Validación con Zod 4 y `StandardSchemaValidationPipe` de NestJS 12.** (2026-10-24; resuelve P-02) Por qué: NestJS 12 acepta esquemas Standard Schema en `@Body({ schema })`, Zod es mantenido y ya se usa para validar el entorno; evita decoradores y `class-validator`. Descartado: `class-validator` + `class-transformer` (más dependencias y DTOs con decoradores). Consecuencia: los esquemas viven en `auth.schemas.ts` y el pipe global traduce los errores a `400`.
+
 ## PENDIENTES
 | ID | Decisión | Cuándo | Notas |
 |---|---|---|---|
-| P-01 | Autenticación: biblioteca, sesiones o tokens, almacenamiento de credenciales, hash | Antes de 1.2 | Comparar opciones actuales con Nest 12 (verificar mantenimiento de cada una). Dos orígenes → cookies y CORS con credenciales. Zona roja |
-| P-02 | Validación: class-validator o esquemas Standard Schema (Zod, etc.) soportados por Nest 12 | Antes de 1.2 | Nest 12 añade soporte de Standard Schema [verificado en notas de versión]; comparar con la documentación oficial |
 | P-03 | Proveedor de pagos y de pagos salientes en Perú | Antes del Hito 2 | Spike de sandbox; requisitos KYC e impuestos con contador [a confirmar] |
 | P-04 | Video: qué se compra, qué se autoaloja, qué se construye | Antes del Hito 4 | Spike entre dos redes |
-| P-05 | Correo: SMTP local para desarrollo (ej. Mailpit) y proveedor transaccional | 1.2 | Preferir código abierto o plan gratuito real; verificar límites |
+| P-05 | Correo: SMTP local para desarrollo (ej. Mailpit) y proveedor transaccional | 1.2 | Mailpit local ya configurado en `docker-compose.yml`; la API usa `SMTP_URL` genérico. El proveedor transaccional sigue pendiente: preferir código abierto o plan gratuito real; verificar límites |
 | P-06 | Almacenamiento de archivos compatible con S3 | Antes del Hito 3 | Verificar licencias y límites vigentes |
 | P-07 | Librería de fechas con soporte IANA (o API nativa si Node 24 la ofrece) | 1.4 | Verificar estado actual |
 | P-09 | Cancelación y reembolso | Antes del Hito 2 | Equipo de producto; condiciona la máquina de estados y el ledger (= DA-05) |
