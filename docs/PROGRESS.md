@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-24 · Etapa vigente: **1.2 Identidad implementada, pendiente de revisión** (rama `feat/1.2-identity`)
+Última actualización: 2026-10-24 · Etapa vigente: **1.2 Identidad fusionada en `main`, pendiente de revisión senior y de push**
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -19,8 +19,9 @@
   - CSRF con `enableCsrfProtection({ trustedOrigins })`; rate limit por IP + correo en login y recuperación con `@nestjs/throttler`.
   - Seed de admin con `ADMIN_EMAIL`/`ADMIN_PASSWORD`; nunca por registro público. Probado en `steam_society_test`: `admin|active|$argon2id`.
   - Validación con Zod 4 + `StandardSchemaValidationPipe`; `ConfigModule` valida el entorno al arrancar y falla rápido si falta `SESSION_SECRET` o es corto.
-- Tests: 33 unitarios (8 archivos) + 15 e2e, verdes. `pnpm build`, `pnpm lint`, `pnpm test` y `pnpm test:e2e` verdes.
+- Tests: 33 unitarios (8 archivos) + 15 e2e, verdes. `pnpm build`, `pnpm lint`, `pnpm test` y `pnpm test:e2e` verdes, ejecutados antes y después del merge.
 - README reescrito: puesta en marcha, variables, API, sesiones/CSRF/CORS, Mailpit, seed y base de tests.
+- `feat/1.2-identity` fusionada en `main` con merge commit `64e8559` (`--no-ff`). El remoto `origin` apunta a `https://github.com/foreverlcd/backend-steam-society.git`; el push quedó bloqueado por la regla `git push *` de `opencode.json`.
 - Commits de la sesión anterior en `main`: `fd884b7` (area + migración inicial), `5c9102d` (health contrato), `e8f2333` (CORS), `69f6598` (README).
 - Commits en rama `feat/1.1a-prisma-postgres`: `28d177a` (docs pack), `6bdbe9a` (migración area), `f49bd23` (uuidv7), `2b08759` (health), `edb0bbc` (CORS), `ca71563` (README).
 - Commits en rama `chore/hardening-basics`: `88cf247` (log de health), `1ff119c` (X-Powered-By).
@@ -45,7 +46,7 @@
 - El registro público no crea admins; el seed tampoco asciende una cuenta existente que no sea admin.
 
 ## Pendiente / riesgos para revisión con lupa
-- **El `.env` local del desarrollador aún no tiene** `SESSION_SECRET`, `SESSION_COOKIE_SECURE`, `APP_URL`, `SMTP_URL`, `SMTP_FROM`, `ADMIN_EMAIL` ni `ADMIN_PASSWORD`. La API falla rápido hasta que se añadan (no se editó `.env`).
+- El `.env` local ya permite arrancar la API, ejecutar el seed y usar Mailpit; sigue sin versionarse (no se leyó ni editó desde el agente).
 - Verificación de correo: hoy el registro queda `status = active` y `email_verified_at = null`; no se implementó el flujo de verificación. Decidir si entra en 1.2 o se pospone.
 - P-05 sigue pendiente: Mailpit es solo desarrollo; el proveedor transaccional no está elegido.
 - Rate limit en memoria: se reinicia con el proceso y no se comparte entre instancias. Aceptable para el MVP de una instancia; revisar al escalar.
@@ -55,8 +56,8 @@
 - Helmet completo: se mantienen los defaults de `useSecurityHeaders()`; revisar CSP/HSTS con el frontend real.
 
 ## Siguiente
-1. Revisar `git diff main...HEAD` de `feat/1.2-identity`, añadir las variables al `.env` local y probar el flujo real con Mailpit.
-2. Mergear primero `feat/1.1a-prisma-postgres`, luego `chore/hardening-basics` y después `feat/1.2-identity`.
+1. Pushear `main` y las ramas `feat/1.1a-prisma-postgres`, `chore/hardening-basics` y `feat/1.2-identity` (el agente no puede por la regla `git push *`).
+2. Revisión senior de la zona roja de autenticación antes de producción.
 3. Etapa 1.1b: repo web (Next.js) en sesión aparte; aquí solo se verifica CORS/CSRF con cookies.
 4. Etapa 1.3: perfiles, onboarding y auditoría.
 
@@ -68,3 +69,4 @@
 | 2026-10-24 | 1.1a cerrada: area uuidv7, migración correctiva, health con logs y recuperación, CORS normalizado, README | Agente (revisión del desarrollador) |
 | 2026-10-24 | Hardening: log de health solo nombre+código, `X-Powered-By` eliminado, backlog 1.2 | Agente (revisión del desarrollador) |
 | 2026-10-24 | 1.2 Identidad: sesiones, Argon2id, recuperación, CSRF, rate limit, seed, tests y docs | Agente (pendiente de revisión) |
+| 2026-10-24 | Merge de `feat/1.2-identity` en `main` (`64e8559`), remoto `origin` configurado, tests verdes; push bloqueado por permisos | Agente (instrucción del desarrollador) |
