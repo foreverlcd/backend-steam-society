@@ -51,6 +51,12 @@ stateDiagram-v2
 ```
 Solo `approved` es visible en el catálogo y recomendaciones (R-02). Cada transición hecha por un admin escribe en `audit_log`.
 
+Implementación 1.3:
+- La tabla de transiciones vive en `src/modules/profiles/domain/mentor-status.ts` como función pura y tiene un test exhaustivo de todos los pares estado/evento.
+- `submit`, `approve`, `reject`, `suspend` y `reactivate` se ejecutan en una transacción con `UPDATE ... WHERE status = <estado leído>`; si otra petición cambió el estado, responde `409 MENTOR_STATUS_CONFLICT`.
+- También se audita el envío de la mentora (`mentor_profile.submitted`), no solo las acciones del admin.
+- Decisión de producto: el perfil es editable en cualquier estado; editar no cambia `status`. Un perfil `approved` puede seguir editándose y el admin conserva `suspend` como control.
+
 ## Pago (`payment`), Hito 2 (borrador, afinar en el spike de dinero)
 `created → pending → paid → (refunded_partial | refunded | disputed)`, y `failed` desde `created` o `pending`. Reglas: idempotencia por `idempotency_key`; los webhooks se registran antes de procesarse y solo una vez por `(provider, event_id)`; cada cambio de estado que mueva dinero escribe su transacción en el ledger. La conciliación contra el proveedor es diaria [a confirmar].
 

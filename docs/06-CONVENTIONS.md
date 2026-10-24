@@ -18,7 +18,7 @@ Checklist para crear uno: carpeta en `src/modules/<contexto>/` · `*.module.ts` 
 - Formato de error uniforme [propuesta; confirmar en 1.2]: `{ "statusCode": 409, "code": "BOOKING_SLOT_TAKEN", "message": "…", "details": [] }`. `code` estable para el frontend. Nunca devolver trazas ni mensajes internos.
 - Los errores de dominio son clases propias; un filtro global de excepciones los traduce a HTTP. El dominio no conoce HTTP.
 - Documentar con OpenAPI (`@nestjs/swagger`): verificar compatibilidad con NestJS 12 antes de instalar. El contrato OpenAPI es lo que consume el repo web (tipos generados).
-- Validación de entradas: **PENDIENTE P-02** (class-validator o esquemas Standard Schema/Zod soportados por Nest 12). Hasta decidir, no escribir DTOs nuevos con validación.
+- Validación de entradas: Zod 4 + `StandardSchemaValidationPipe` de NestJS 12 (ADR-017). Los esquemas viven junto al módulo (`*.schemas.ts`) y el pipe global traduce los errores a `400`.
 
 ## Base de datos y Prisma
 - Todo cambio de esquema pasa por migración con nombre descriptivo. Jamás editar una migración aplicada.
@@ -50,4 +50,4 @@ Checklist para crear uno: carpeta en `src/modules/<contexto>/` · `*.module.ts` 
 - Dependencias: justificar cada una; revisar mantenimiento y licencia. Versiones fijas en el lockfile. Aprobar scripts de instalación de pnpm solo para paquetes necesarios (`pnpm-workspace.yaml`).
 
 ## Configuración
-Variables validadas al arrancar (fallar rápido y con mensaje claro si falta una). Lista actual: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL`, `WEB_ORIGIN` (+ `PORT` opcional). Toda variable nueva va a `.env.example` y al README.
+Variables validadas al arrancar (fallar rápido y con mensaje claro si falta una). Lista actual: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL`, `WEB_ORIGIN`, `SESSION_SECRET`, `SESSION_COOKIE_SECURE`, `APP_URL`, `SMTP_URL`, `SMTP_FROM`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` (+ `PORT` opcional). Toda variable nueva va a `.env.example` y al README.

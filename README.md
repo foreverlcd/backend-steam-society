@@ -100,6 +100,16 @@ después de que la API ya está levantada. Cuando la base vuelve, `/health` resp
 | POST | `/v1/auth/password/forgot` | Pública | Solicita enlace de recuperación |
 | POST | `/v1/auth/password/reset` | Pública | Consume el token y cambia la contraseña |
 | GET | `/v1/me` | Sesión | Devuelve la usuaria autenticada |
+| GET | `/v1/me/profile` | Sesión `mentor`/`mentee` | Perfil propio con áreas e idiomas |
+| PUT | `/v1/me/profile` | Sesión `mentor`/`mentee` | Edita el perfil propio |
+| POST | `/v1/me/profile/submit` | Sesión `mentor` | Envía el perfil a revisión |
+| GET | `/v1/me/onboarding` | Sesión `mentor`/`mentee` | Configuración versionada, respuestas y taxonomías |
+| PUT | `/v1/me/onboarding` | Sesión `mentor`/`mentee` | Guarda respuestas del onboarding |
+| GET | `/v1/admin/mentors?status=` | Sesión `admin` | Lista perfiles de mentoras |
+| POST | `/v1/admin/mentors/:id/approve` | Sesión `admin` | Aprueba una mentora |
+| POST | `/v1/admin/mentors/:id/reject` | Sesión `admin` | Rechaza con `{ "reason": "..." }` |
+| POST | `/v1/admin/mentors/:id/suspend` | Sesión `admin` | Suspende una mentora aprobada |
+| POST | `/v1/admin/mentors/:id/reactivate` | Sesión `admin` | Reactiva una mentora suspendida |
 
 Ejemplo de registro:
 
@@ -135,12 +145,23 @@ El token es aleatorio de 32 bytes, se guarda solo su hash SHA-256, caduca en una
 hora y es de un solo uso. Al cambiarla se revocan todas las sesiones de esa
 usuaria. En local, abre `http://127.0.0.1:8025` para ver el correo de Mailpit.
 
+### Perfiles, onboarding y aprobación
+
+- `mentor` y `mentee` editan su propio perfil; un `admin` no tiene perfil de mentoría.
+- El onboarding usa `ONBOARDING_VERSION = 1`. `GET /v1/me/onboarding` devuelve las preguntas, las respuestas guardadas y las opciones de áreas/idiomas. `PUT` acepta guardados parciales y responde `409 ONBOARDING_VERSION_MISMATCH` si la versión no coincide.
+- Las áreas principales son raíces (Ciencia, Tecnología, Ingeniería, Matemáticas) y las subáreas deben ser hijas activas de la raíz elegida.
+- Una mentora pasa de `draft` a `pending_review` con `POST /v1/me/profile/submit`. Solo un `admin` puede aprobar, rechazar, suspender o reactivar. Cada transición queda en `audit_log`, que es append-only.
+- Editar el perfil no cambia el estado; una mentora aprobada puede corregir sus datos y el admin conserva la suspensión como control.
+- `pnpm db:seed` crea el admin y siembra los idiomas y las áreas provisionales.
+
 ## Base de datos (Prisma 7)
 
 El esquema vive en `prisma/schema.prisma` y la configuración del CLI en
 `prisma.config.ts`. Las tablas de autenticación son `user`, `auth_session` y
 `password_reset_token`; `session` queda reservado para las sesiones de mentoría
-de la etapa 1.5.
+de la etapa 1.5. La etapa 1.3 añade `language`, `mentor_profile`,
+`mentee_profile`, las tablas de áreas/idiomas por perfil, `onboarding_response`
+y `audit_log`.
 
 Comandos disponibles:
 
@@ -177,8 +198,8 @@ Luego ejecuta:
 pnpm test:e2e
 ```
 
-Los e2e truncan las tablas de autenticación antes de cada prueba. No apuntes
-`steam_society_test` a una base con datos reales.
+Los e2e truncan las tablas de autenticación, perfiles, onboarding y auditoría
+antes de cada prueba. No apuntes `steam_society_test` a una base con datos reales.
 
 Comprobaciones de la definición de terminado:
 

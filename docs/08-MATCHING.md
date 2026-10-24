@@ -34,6 +34,8 @@ Salida por mentora: `{ mentorId, score, breakdown: [{ signal, points, max, detai
 La frase "te la recomendamos porque…" se arma con plantillas a partir de los **dos componentes con más puntos** (y solo componentes con `points > 0`). Ejemplo: "Comparte tu interés en Robótica y habla español". Está prohibido que un LLM la redacte libremente. Más adelante podría reformular la frase sin añadir hechos, y eso se verifica con un test.
 
 ## Qué preguntas del onboarding alimentan cada señal
+Las preguntas de la versión 1 viven en `src/modules/profiles/onboarding.config.ts`; las respuestas se guardan en `onboarding_response` y las señales tipadas se proyectan a `mentor_profile`, `mentee_profile` y las tablas de áreas/idiomas. Los textos libres no puntúan.
+
 - Mentee: áreas de interés → `areas`; idiomas → `language`; nivel educativo y etapa → `level_fit`; disponibilidad semanal → `availability`; presupuesto o "solo gratuitas" → `price_fit`.
 - Mentora: áreas → `areas`; idiomas → `language`; años de experiencia → `level_fit`; reglas de disponibilidad → `availability`; ofertas → `price_fit`.
 - Texto libre (objetivos, bio): no puntúa en el MVP; solo se muestra. Candidato a embeddings en etapas posteriores.

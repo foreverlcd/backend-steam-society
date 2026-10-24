@@ -51,6 +51,8 @@ Por qué: despensa estricta y buen soporte. Descartado: npm; Bun como runtime (r
 
 **ADR-017 · Validación con Zod 4 y `StandardSchemaValidationPipe` de NestJS 12.** (2026-10-24; resuelve P-02) Por qué: NestJS 12 acepta esquemas Standard Schema en `@Body({ schema })`, Zod es mantenido y ya se usa para validar el entorno; evita decoradores y `class-validator`. Descartado: `class-validator` + `class-transformer` (más dependencias y DTOs con decoradores). Consecuencia: los esquemas viven en `auth.schemas.ts` y el pipe global traduce los errores a `400`.
 
+**ADR-018 · Onboarding versionado como configuración y perfil editable siempre.** (2026-10-24; etapa 1.3) Por qué: las preguntas de producto cambian y el onboarding debe evolucionar sin reescribir tablas; la mentora debe poder corregir su perfil sin perder el estado de aprobación. Consecuencia: `ONBOARDING_VERSION = 1` y las preguntas viven en `src/modules/profiles/onboarding.config.ts`; las respuestas se guardan por pregunta en `onboarding_response` y las señales de matching se proyectan a columnas y relaciones tipadas. Editar el perfil no cambia `status`; el admin conserva `suspend` como control. Los rangos de experiencia se guardan como respuesta y `years_experience` toma el límite inferior para el matching. Los seeds de áreas e idiomas son provisionales hasta que producto entregue las listas definitivas.
+
 ## PENDIENTES
 | ID | Decisión | Cuándo | Notas |
 |---|---|---|---|

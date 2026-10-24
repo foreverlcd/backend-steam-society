@@ -4,7 +4,7 @@ Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo
 
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 
-### 1.1a: Prisma, área, health, CORS, README (ETAPA VIGENTE)
+### 1.1a: Prisma, área, health, CORS, README (cerrada)
 **Contrato:**
 - Modelo `area` (`id` uuid, `name` único, `parent` opcional autorrelación, `createdAt` timestamptz, `@@map("area")`); migración creada en `prisma/migrations/` y aplicada.
 - `GET /health`: 200 `{status:'ok', db:'up'}` si la base responde (`SELECT 1` con `$queryRaw`); 503 `{status:'error', db:'down'}` si falla (`ServiceUnavailableException` con objeto como cuerpo). Vive en `src/health/`; `HealthModule` importa `PrismaModule`; el service recibe `PrismaService` por inyección.
@@ -21,8 +21,9 @@ Repo web (Next.js) en sesión aparte con su propio `AGENTS.md`. Una página que 
 **Alcance:** registro (rol mentee o mentor, fecha de nacimiento), login, logout, recuperar contraseña por correo, guardas por rol, rutas protegidas, `GET /v1/me`; seed de admin con credenciales desde variables de entorno (nunca en el repo); limitación de intentos (rate limit).
 **Aceptación:** tests de integración del flujo completo; contraseñas con hash adecuado y nunca en logs; cookies `httpOnly`, `secure` y `sameSite` apropiados al esquema con dos orígenes; no se puede crear un admin por registro público; enumeración de usuarios mitigada (misma respuesta exista o no el correo). Lista "puntos para revisar con lupa" entregada.
 
-### 1.3: Perfiles, onboarding y aprobación
-Seeds provisorios de áreas STEAM e idiomas (el equipo entregará las listas definitivas) · perfiles de mentora y mentee · onboarding versionado como configuración · estado de la mentora (`04-STATE-MACHINES.md`) y aprobación por admin con `audit_log`.
+### 1.3: Perfiles, onboarding y aprobación (ETAPA VIGENTE)
+Seeds provisorios de áreas STEAM e idiomas (el equipo entregará las listas definitivas) · perfiles de mentora y mentee · onboarding versionado como configuración (`ONBOARDING_VERSION = 1`) · estado de la mentora (`04-STATE-MACHINES.md`) y aprobación por admin con `audit_log`.
+**API:** `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`; admin `GET /v1/admin/mentors?status=`, `POST /v1/admin/mentors/:id/approve|reject|suspend|reactivate`.
 **Aceptación:** una mentora no `approved` no es visible por ninguna ruta pública; cada aprobación o rechazo deja registro de auditoría; validación estricta de entradas.
 
 ### 1.4: Ofertas y disponibilidad

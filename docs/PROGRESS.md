@@ -1,13 +1,13 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-24 · Etapa vigente: **1.2 Identidad fusionada en `main`, pendiente de revisión senior y de push**
+Última actualización: 2026-10-24 · Etapa vigente: **1.3 Perfiles, onboarding y aprobación implementada, pendiente de revisión** (rama `feat/1.3-profiles-onboarding`)
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
 - Docker Compose: Postgres 18.6-alpine en `127.0.0.1:5433` y Mailpit `v1.27` (SMTP `1025`, bandeja `8025`).
 - Prisma 7.10.1: `prisma.config.ts`, `PrismaService` (PrismaPg) y `PrismaModule` NO global en `src/shared/prisma/`.
 - Modelo `Area`: `id` uuid v7 por defecto de base (`uuidv7()`), `name` único, `parent_id` opcional con FK `ON DELETE RESTRICT`, `active` default `true`, `created_at` `timestamptz(3)`, `@@map("area")`.
-- Migraciones aplicadas en desarrollo y en `steam_society_test`: `20261024173759_add_area`, `20261024212009_fix_area_columns_and_uuidv7`, `20261024214215_add_identity`, `20261024215500_add_user_birth_date_check`.
+- Migraciones aplicadas en desarrollo y en `steam_society_test`: `20261024173759_add_area`, `20261024212009_fix_area_columns_and_uuidv7`, `20261024214215_add_identity`, `20261024215500_add_user_birth_date_check`, `20261024222451_add_profiles_and_audit`.
 - `GET /health` (sin prefijo): 200 `{status:'ok',db:'up'}` / 503 `{status:'error',db:'down'}`. El fallo se registra con `Logger` usando solo el nombre del error y su código de Prisma (nunca el mensaje ni la cadena de conexión).
 - CORS: `WEB_ORIGIN` separada por comas; `parseWebOrigins()` normaliza. Sin variable, CORS desactivado. Con orígenes, `credentials: true`.
 - `X-Powered-By` eliminada con `app.useSecurityHeaders()` (NestJS 12.1+); `configureApp()` centraliza seguridad, CORS, CSRF, sesión, prefijo `/v1` y el pipe de validación.
@@ -19,9 +19,9 @@
   - CSRF con `enableCsrfProtection({ trustedOrigins })`; rate limit por IP + correo en login y recuperación con `@nestjs/throttler`.
   - Seed de admin con `ADMIN_EMAIL`/`ADMIN_PASSWORD`; nunca por registro público. Probado en `steam_society_test`: `admin|active|$argon2id`.
   - Validación con Zod 4 + `StandardSchemaValidationPipe`; `ConfigModule` valida el entorno al arrancar y falla rápido si falta `SESSION_SECRET` o es corto.
-- Tests: 33 unitarios (8 archivos) + 15 e2e, verdes. `pnpm build`, `pnpm lint`, `pnpm test` y `pnpm test:e2e` verdes, ejecutados antes y después del merge.
+- Tests: 65 unitarios (10 archivos) + 26 e2e, verdes. `pnpm build`, `pnpm lint`, `pnpm test` y `pnpm test:e2e` verdes.
 - README reescrito: puesta en marcha, variables, API, sesiones/CSRF/CORS, Mailpit, seed y base de tests.
-- `feat/1.2-identity` fusionada en `main` con merge commit `64e8559` (`--no-ff`). El remoto `origin` apunta a `https://github.com/foreverlcd/backend-steam-society.git`; el push quedó bloqueado por la regla `git push *` de `opencode.json`.
+- `feat/1.2-identity` fusionada en `main` con merge commit `64e8559` (`--no-ff`) y subida a `origin/main`; las ramas `feat/1.1a-prisma-postgres`, `chore/hardening-basics` y `feat/1.2-identity` también tienen upstream.
 - Commits de la sesión anterior en `main`: `fd884b7` (area + migración inicial), `5c9102d` (health contrato), `e8f2333` (CORS), `69f6598` (README).
 - Commits en rama `feat/1.1a-prisma-postgres`: `28d177a` (docs pack), `6bdbe9a` (migración area), `f49bd23` (uuidv7), `2b08759` (health), `edb0bbc` (CORS), `ca71563` (README).
 - Commits en rama `chore/hardening-basics`: `88cf247` (log de health), `1ff119c` (X-Powered-By).
@@ -38,12 +38,28 @@
 - [x] Documentos y README actualizados.
 - [ ] Revisión del diff por el desarrollador y revisión senior de la zona roja.
 
+## Etapa 1.3: perfiles, onboarding y aprobación
+- [x] Tablas `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response` y `audit_log`; enums `mentor_status` y `education_level`; migración `20261024222451_add_profiles_and_audit`.
+- [x] CHECKs de país, experiencia, antelación y versión; trigger `audit_log_append_only` para bloquear `UPDATE` y `DELETE`.
+- [x] Seeds provisionales: idiomas `es`, `en`, `qu`; áreas Ciencia, Tecnología, Ingeniería y Matemáticas con subáreas.
+- [x] `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`.
+- [x] Onboarding versión 1 con las preguntas de producto entregadas; respuestas en `onboarding_response` y proyección a perfil/áreas/idiomas.
+- [x] Admin: `GET /v1/admin/mentors?status=`, `approve`, `reject`, `suspend`, `reactivate`; rechazo con motivo.
+- [x] Máquina de estados pura y test exhaustivo; transiciones admin + `audit_log` en una transacción; perfil editable sin cambiar estado.
+- [x] Tests de rol, validación, versión de onboarding, jerarquía de áreas, auditoría append-only y flujo completo de aprobación.
+- [ ] Revisión del diff por el desarrollador.
+
 ## Decisiones tomadas en esta sesión
 - P-01 aceptada (ADR-016): `express-session` + `connect-pg-simple` + Argon2id, sin Passport.
 - P-02 aceptada (ADR-017): Zod 4 + `StandardSchemaValidationPipe`.
 - La tabla de sesiones de autenticación se llama `auth_session`; `session` queda para mentoría (1.5).
 - La cookie `__Host-sid` se usa solo con `Secure`; en desarrollo HTTP se usa `sid` para que el navegador acepte la cookie.
 - El registro público no crea admins; el seed tampoco asciende una cuenta existente que no sea admin.
+- P-02 aceptada (ADR-017) y aplicada a los esquemas de perfiles/onboarding.
+- ADR-018: onboarding versionado (`ONBOARDING_VERSION = 1`) y perfil editable siempre; editar no cambia `status`.
+- `years_experience` se deriva del rango (`3-5` → 3, `6-9` → 6, `10+` → 10) y la respuesta original queda en `onboarding_response`.
+- `education_level` se deriva de la etapa de la mentee; la etapa exacta queda en `onboarding_response`.
+- El área principal se guarda como respuesta y también en la tabla de áreas junto con las subáreas; la jerarquía se valida en el servicio.
 
 ## Pendiente / riesgos para revisión con lupa
 - El `.env` local ya permite arrancar la API, ejecutar el seed y usar Mailpit; sigue sin versionarse (no se leyó ni editó desde el agente).
@@ -54,12 +70,17 @@
 - `auth_session` no tiene FK a `user` (el `userId` vive en el JSON); la revocación es SQL sobre `sess->>'userId'`. Revisar si conviene mover el `userId` a una columna propia más adelante y borrar sesiones al eliminar una cuenta.
 - El envío de correo de recuperación es fire-and-forget; si falla, se registra solo el nombre del error y el token queda válido hasta caducar. Revisar si se necesita reintento/outbox.
 - Helmet completo: se mantienen los defaults de `useSecurityHeaders()`; revisar CSP/HSTS con el frontend real.
+- 1.3: el onboarding acepta guardados parciales; no hay endpoint de "onboarding completo". La completitud la controla el frontend hasta que producto defina el criterio.
+- 1.3: el perfil `approved` sigue editable por decisión de producto; si se quiere re-revisión al cambiar campos sensibles, es una regla nueva.
+- 1.3: `age` se guarda como respuesta, aunque la fuente de verdad es `user.birth_date`; revisar si el frontend debe derivarla y dejar de enviarla.
+- 1.3: los seeds de áreas e idiomas son provisionales; el equipo de producto debe entregar las listas definitivas.
+- 1.3: no hay ruta pública de catálogo todavía; la regla "solo `approved` visible" se implementará al crear esa ruta en 1.6.
 
 ## Siguiente
-1. Pushear `main` y las ramas `feat/1.1a-prisma-postgres`, `chore/hardening-basics` y `feat/1.2-identity` (el agente no puede por la regla `git push *`).
+1. Revisar `git diff main...HEAD` de `feat/1.3-profiles-onboarding` y mergear cuando esté aprobado.
 2. Revisión senior de la zona roja de autenticación antes de producción.
 3. Etapa 1.1b: repo web (Next.js) en sesión aparte; aquí solo se verifica CORS/CSRF con cookies.
-4. Etapa 1.3: perfiles, onboarding y auditoría.
+4. Etapa 1.4: disponibilidad y ofertas; el onboarding ya deja preferencias de horario, pero las reglas reales llegan en 1.4.
 
 ## Registro de sesiones
 | Fecha | Qué se hizo | Quién |
@@ -70,3 +91,4 @@
 | 2026-10-24 | Hardening: log de health solo nombre+código, `X-Powered-By` eliminado, backlog 1.2 | Agente (revisión del desarrollador) |
 | 2026-10-24 | 1.2 Identidad: sesiones, Argon2id, recuperación, CSRF, rate limit, seed, tests y docs | Agente (pendiente de revisión) |
 | 2026-10-24 | Merge de `feat/1.2-identity` en `main` (`64e8559`), remoto `origin` configurado, tests verdes; push bloqueado por permisos | Agente (instrucción del desarrollador) |
+| 2026-10-24 | 1.3 Perfiles/onboarding/aprobación: esquema, seeds, endpoints, máquina de estados, auditoría, tests y docs | Agente (pendiente de revisión) |

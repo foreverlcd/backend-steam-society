@@ -167,7 +167,16 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - `booking`: `id`, `session_id`, `mentee_id`, `status`, `message` (nota de la mentee), `requested_at`, `responded_at`, `expires_at`, `confirmed_at`, `cancelled_at`, `cancelled_by`, `cancel_reason`, `completed_at`, `no_show_party`, `payment_required` (copia de la oferta al solicitar), `price_minor` y `currency` (copias al solicitar), `created_at`, `updated_at`.
 
 **admin**
-- `audit_log`: `id`, `actor_user_id`, `action`, `entity_type`, `entity_id`, `metadata` (jsonb), `created_at`. Solo se insertan filas.
+- `audit_log`: `id`, `actor_user_id`, `action`, `entity_type`, `entity_id`, `metadata` (jsonb), `created_at`. Solo se insertan filas; un trigger `audit_log_append_only` rechaza `UPDATE` y `DELETE` incluso por SQL directo.
+
+**Implementado en 1.3**
+- `language.code` es `varchar(2)` en minúsculas (`CHECK`); los idiomas iniciales son `es`, `en` y `qu`.
+- `mentor_profile` y `mentee_profile` permiten campos nulos mientras el perfil está en borrador. `mentor_profile.status` nace en `draft`; `min_notice_hours` y `max_advance_days` tienen defaults 24 y 60.
+- `mentor_area` y `mentee_interest` guardan el área principal (raíz) y las subáreas elegidas. La jerarquía se valida en el servicio: la principal debe ser raíz activa y cada subárea debe ser hija activa de esa raíz.
+- `onboarding_response` guarda cada respuesta con `version`; la versión vigente es `ONBOARDING_VERSION = 1`. Las respuestas se actualizan por `(user_id, question_code)`.
+- Proyección de onboarding a columnas tipadas: `country`, `city`; `years_experience` toma el límite inferior del rango (`3-5` → 3, `6-9` → 6, `10+` → 10); `education_level` mapea la etapa de la mentee (`school` → `school`, `preuniversity` → `other`, `university` → `undergraduate`, `early_career` → `career_change`). La respuesta original queda en `onboarding_response`.
+- Los CHECK de país (`^[A-Z]{2}$`), experiencia no negativa, antelación y versión de onboarding viven en la migración `20261024222451_add_profiles_and_audit`.
+- Los seeds de áreas son provisionales: Ciencia, Tecnología, Ingeniería y Matemáticas con sus subáreas; el equipo de producto entregará la lista definitiva.
 
 ## Hitos 2 y 3: esqueleto (referencia, no implementar aún)
 - **payments**: `payment` (`booking_id` UK, `provider`, `provider_ref` UK, `status`, `amount_minor`, `currency`, `fee_bps` y `fee_minor` copiados al cobrar, `net_minor`, `idempotency_key` UK), `refund`, `payout`, `webhook_event` (`provider`, `event_id`, UK `(provider, event_id)`, `payload`, `processed_at`).
@@ -197,7 +206,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 |---|---|
 | 1.1a | `area` |
 | 1.2 | `user`, `auth_session`, `password_reset_token` |
-| 1.3 | `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response`, `audit_log` |
+| 1.3 | `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response`, `audit_log` (migración `20261024222451_add_profiles_and_audit`) |
 | 1.4 | `availability_rule`, `offering` |
 | 1.5 | `session`, `booking` + SQL a mano (exclusión y CHECK) |
 | 1.6 | `search_vector` y extensiones de búsqueda |
