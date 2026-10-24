@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { hash } from '@node-rs/argon2';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { seedTaxonomies } from './seed-data.js';
 
 const email = process.env.ADMIN_EMAIL?.trim().normalize('NFC').toLowerCase();
 const password = process.env.ADMIN_PASSWORD;
@@ -45,7 +46,9 @@ try {
     create: { email, passwordHash, role: 'admin', status: 'active' },
   });
 
-  console.log('Admin user is ready.');
+  await seedTaxonomies(prisma);
+
+  console.log('Admin user and taxonomies are ready.');
 } finally {
   await prisma.$disconnect();
 }

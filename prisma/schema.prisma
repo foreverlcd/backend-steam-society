@@ -8,13 +8,15 @@ datasource db {
 }
 
 model Area {
-  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  name      String   @unique
-  parentId  String?  @map("parent_id") @db.Uuid
-  parent    Area?    @relation("AreaHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
-  children  Area[]   @relation("AreaHierarchy")
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id              String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name            String           @unique
+  parentId        String?          @map("parent_id") @db.Uuid
+  parent          Area?            @relation("AreaHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children        Area[]           @relation("AreaHierarchy")
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  mentorAreas     MentorArea[]
+  menteeInterests MenteeInterest[]
 
   @@map("area")
 }
@@ -52,6 +54,11 @@ model User {
   updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt           DateTime?            @map("deleted_at") @db.Timestamptz(3)
   passwordResetTokens PasswordResetToken[]
+  mentorProfile       MentorProfile?       @relation("MentorProfile")
+  menteeProfile       MenteeProfile?       @relation("MenteeProfile")
+  reviewedProfiles    MentorProfile[]      @relation("MentorReviewer")
+  onboardingResponses OnboardingResponse[]
+  auditLogs           AuditLog[]           @relation("AuditActor")
 
   @@map("user")
 }
@@ -76,4 +83,145 @@ model AuthSession {
 
   @@index([expire])
   @@map("auth_session")
+}
+
+enum MentorStatus {
+  draft
+  pending_review
+  approved
+  rejected
+  suspended
+
+  @@map("mentor_status")
+}
+
+enum EducationLevel {
+  school
+  undergraduate
+  graduate
+  career_change
+  other
+
+  @@map("education_level")
+}
+
+model Language {
+  code            String           @id @db.VarChar(2)
+  name            String
+  mentorLanguages MentorLanguage[]
+  menteeLanguages MenteeLanguage[]
+
+  @@map("language")
+}
+
+model MentorProfile {
+  userId          String          @id @map("user_id") @db.Uuid
+  user            User            @relation("MentorProfile", fields: [userId], references: [id], onDelete: Cascade)
+  headline        String?
+  bio             String?
+  yearsExperience Int?            @map("years_experience")
+  country         String?         @db.VarChar(2)
+  city            String?
+  status          MentorStatus    @default(draft)
+  reviewedBy      String?         @map("reviewed_by") @db.Uuid
+  reviewer        User?           @relation("MentorReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?       @map("reviewed_at") @db.Timestamptz(3)
+  rejectionReason String?         @map("rejection_reason")
+  minNoticeHours  Int             @default(24) @map("min_notice_hours")
+  maxAdvanceDays  Int             @default(60) @map("max_advance_days")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  areas           MentorArea[]
+  languages       MentorLanguage[]
+
+  @@index([status])
+  @@map("mentor_profile")
+}
+
+model MenteeProfile {
+  userId         String           @id @map("user_id") @db.Uuid
+  user           User             @relation("MenteeProfile", fields: [userId], references: [id], onDelete: Cascade)
+  goals          String?
+  educationLevel EducationLevel?  @map("education_level")
+  country        String?          @db.VarChar(2)
+  city           String?
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  interests      MenteeInterest[]
+  languages      MenteeLanguage[]
+
+  @@map("mentee_profile")
+}
+
+model MentorArea {
+  mentorId String        @map("mentor_id") @db.Uuid
+  areaId   String        @map("area_id") @db.Uuid
+  mentor   MentorProfile @relation(fields: [mentorId], references: [userId], onDelete: Cascade)
+  area     Area          @relation(fields: [areaId], references: [id], onDelete: Restrict)
+
+  @@id([mentorId, areaId])
+  @@index([areaId])
+  @@map("mentor_area")
+}
+
+model MenteeInterest {
+  menteeId String        @map("mentee_id") @db.Uuid
+  areaId   String        @map("area_id") @db.Uuid
+  mentee   MenteeProfile @relation(fields: [menteeId], references: [userId], onDelete: Cascade)
+  area     Area          @relation(fields: [areaId], references: [id], onDelete: Restrict)
+
+  @@id([menteeId, areaId])
+  @@index([areaId])
+  @@map("mentee_interest")
+}
+
+model MentorLanguage {
+  mentorId     String        @map("mentor_id") @db.Uuid
+  languageCode String        @map("language_code") @db.VarChar(2)
+  mentor       MentorProfile @relation(fields: [mentorId], references: [userId], onDelete: Cascade)
+  language     Language      @relation(fields: [languageCode], references: [code], onDelete: Restrict)
+
+  @@id([mentorId, languageCode])
+  @@index([languageCode])
+  @@map("mentor_language")
+}
+
+model MenteeLanguage {
+  menteeId     String        @map("mentee_id") @db.Uuid
+  languageCode String        @map("language_code") @db.VarChar(2)
+  mentee       MenteeProfile @relation(fields: [menteeId], references: [userId], onDelete: Cascade)
+  language     Language      @relation(fields: [languageCode], references: [code], onDelete: Restrict)
+
+  @@id([menteeId, languageCode])
+  @@index([languageCode])
+  @@map("mentee_language")
+}
+
+model OnboardingResponse {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionCode String   @map("question_code")
+  answer       Json     @db.Json
+  version      Int
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([userId, questionCode])
+  @@index([userId])
+  @@map("onboarding_response")
+}
+
+model AuditLog {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actor       User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id") @db.Uuid
+  metadata    Json     @default("{}") @db.Json
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@map("audit_log")
 }
