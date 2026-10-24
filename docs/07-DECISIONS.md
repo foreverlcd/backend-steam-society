@@ -45,6 +45,8 @@ Por qué: despensa estricta y buen soporte. Descartado: npm; Bun como runtime (r
 
 **ADR-014 · Flujo de trabajo con agente.** El agente implementa en ramas, sin `push`; el desarrollador revisa cada diff y hace el merge; zonas rojas con tests de invariantes y revisión senior antes de producción.
 
+**ADR-015 · UUID v7 generado por PostgreSQL (`uuidv7()`).** (2026-10-24) Por qué: ordenado por tiempo, mejor localidad de índice, y el id existe también en inserciones hechas fuera de Prisma. Descartado: `uuid()` de Prisma (se genera en el cliente, no en SQL manual) y uuid v4 (aleatorio). Consecuencia: `@default(dbgenerated("uuidv7()")) @db.Uuid` en todas las tablas nuevas; requiere PostgreSQL 18.
+
 ## PENDIENTES
 | ID | Decisión | Cuándo | Notas |
 |---|---|---|---|
@@ -55,7 +57,6 @@ Por qué: despensa estricta y buen soporte. Descartado: npm; Bun como runtime (r
 | P-05 | Correo: SMTP local para desarrollo (ej. Mailpit) y proveedor transaccional | 1.2 | Preferir código abierto o plan gratuito real; verificar límites |
 | P-06 | Almacenamiento de archivos compatible con S3 | Antes del Hito 3 | Verificar licencias y límites vigentes |
 | P-07 | Librería de fechas con soporte IANA (o API nativa si Node 24 la ofrece) | 1.4 | Verificar estado actual |
-| P-08 | UUID v4 vs v7 | 1.1a o 1.3 | Verificar soporte `uuid(7)` en Prisma 7 |
 | P-09 | Cancelación y reembolso | Antes del Hito 2 | Equipo de producto; condiciona la máquina de estados y el ledger (= DA-05) |
 | P-10 | Comisión de la plataforma y plazo de respuesta de solicitudes | Antes del Hito 2 y de la 1.5 | Equipo de producto |
 | P-11 | Mecanismo de eventos internos de dominio (y outbox) | Primer caso real (1.5) | |

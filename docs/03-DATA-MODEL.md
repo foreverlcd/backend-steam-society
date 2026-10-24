@@ -4,7 +4,7 @@ El esquema completo es el MAPA. Las migraciones llegan por etapa (sección "Migr
 
 ## Principios
 - Tablas y columnas en `snake_case`; en Prisma, modelos `PascalCase` con `@@map("snake_case")` y campos `camelCase` con `@map("snake_case")`. Tablas en singular.
-- IDs `uuid` (`@default(uuid())`; evaluar `uuid(7)`, ordenado por tiempo [a confirmar P-08]).
+- IDs `uuid` v7 generados por la base con `uuidv7()` (`@default(dbgenerated("uuidv7()"))`), ordenados por tiempo (P-08 aceptada; función nativa de PostgreSQL 18).
 - Fechas: `timestamptz` en UTC (`@db.Timestamptz(3)`); `created_at`/`updated_at` en tablas mutables. Reglas recurrentes: hora local (`time`) + zona IANA (`text`).
 - Dinero: entero en unidad mínima (`amount_minor`) + `currency` (ISO 4217, `char(3)`). Nunca float ni decimal.
 - Estados como enums de PostgreSQL. Taxonomías (áreas, idiomas) como tablas editables.
@@ -139,7 +139,7 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - `consent` (reservada para DA-04, no crear aún).
 
 **profiles**
-- `area`: `id`, `name` (UK global en el MVP), `parent_id` (null = área raíz; autorrelación), `active`, `created_at`.
+- `area`: `id` (uuid v7), `name` (UK global en el MVP), `parent_id` (null = área raíz; autorrelación con `ON DELETE RESTRICT`), `active` (default `true`), `created_at` (`timestamptz(3)`).
 - `language`: `code` (PK, ISO 639-1: `es`, `en`, `qu`…), `name`.
 - `mentor_profile`: `user_id` (PK y FK a `user`, 1:1), `headline`, `bio`, `years_experience`, `country` (ISO 3166-1 alfa-2), `city`, `status`, `reviewed_by` (FK a `user`), `reviewed_at`, `rejection_reason`, `min_notice_hours` (default 24), `max_advance_days` (default 60), `created_at`, `updated_at`. Columna `search_vector` (tsvector generada) llega en 1.6.
 - `mentee_profile`: `user_id` (PK y FK), `goals`, `education_level`, `country`, `city`, `created_at`, `updated_at`.
