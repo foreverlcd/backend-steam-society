@@ -80,6 +80,11 @@ curl http://localhost:3000/health
 # {"status":"ok","db":"up"}
 ```
 
+La API falla rápido si PostgreSQL no responde al arrancar: `PrismaService` llama a
+`$connect()` en `onModuleInit`. El `503` de `/health` aplica cuando la base cae
+después de que la API ya está levantada. Cuando la base vuelve, `/health` responde
+`200` otra vez sin reiniciar la API.
+
 ## Base de datos (Prisma 7)
 
 La API usa Prisma 7 con el driver adapter de PostgreSQL. El esquema vive en
