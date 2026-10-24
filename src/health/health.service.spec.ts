@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../shared/prisma/prisma.service.js';
 import { HealthService } from './health.service.js';
@@ -20,6 +20,10 @@ describe('HealthService', () => {
     service = module.get<HealthService>(HealthService);
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('returns ok when the database responds', async () => {
     prismaMock.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
 
@@ -38,5 +42,36 @@ describe('HealthService', () => {
       status: 'error',
       db: 'down',
     });
+  });
+
+  it('recovers and returns ok after the database comes back', async () => {
+    prismaMock.$queryRaw.mockRejectedValueOnce(new Error('connection refused'));
+    await expect(service.check()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+
+    prismaMock.$queryRaw.mockResolvedValueOnce([{ '?column?': 1 }]);
+    await expect(service.check()).resolves.toEqual({ status: 'ok', db: 'up' });
+  });
+
+  it('logs the failure without connection details', async () => {
+    const loggerSpy = vi
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    prismaMock.$queryRaw.mockRejectedValue(
+      new Error(
+        'connect postgresql://steam:secret@127.0.0.1:5433/steam_society failed',
+      ),
+    );
+
+    await expect(service.check()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+
+    expect(loggerSpy).toHaveBeenCalledOnce();
+    const logged = String(loggerSpy.mock.calls[0]?.[0]);
+    expect(logged).toContain('[redacted]');
+    expect(logged).not.toContain('secret');
+    expect(logged).not.toContain('postgresql://');
   });
 });
