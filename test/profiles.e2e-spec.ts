@@ -242,6 +242,25 @@ describe('Profiles and onboarding (e2e)', () => {
       careerStage: 'early_career',
       educationLevel: 'career_change',
     });
+
+    const areaUpdate = await request(app.getHttpServer())
+      .put('/v1/me/profile')
+      .set('Cookie', cookie)
+      .send({ areaIds: [science.id, biology.id] })
+      .expect(200);
+    expect(areaUpdate.body.profile.areas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: science.id }),
+        expect.objectContaining({ id: biology.id }),
+      ]),
+    );
+
+    const invalidAreaUpdate = await request(app.getHttpServer())
+      .put('/v1/me/profile')
+      .set('Cookie', cookie)
+      .send({ areaIds: [ai.id] })
+      .expect(400);
+    expect(invalidAreaUpdate.body.code).toBe('INVALID_SUBAREA');
   });
 
   it('submits, approves and audits a mentor profile', async () => {
@@ -413,6 +432,27 @@ describe('Profiles and onboarding (e2e)', () => {
       })
       .expect(400);
     expect(missingSubareas.body.code).toBe('PRIMARY_AREA_REQUIRES_SUBAREAS');
+
+    const emptySubareas = await request(app.getHttpServer())
+      .put('/v1/me/onboarding')
+      .set('Cookie', cookie)
+      .send({
+        version: 1,
+        answers: { primaryAreaId: technology.id, areaIds: [] },
+      })
+      .expect(400);
+    expect(emptySubareas.body.code).toBe('PRIMARY_AREA_REQUIRES_SUBAREAS');
+  });
+
+  it('rejects malformed mentor ids before touching the database', async () => {
+    const admin = await createAdmin();
+
+    const response = await request(app.getHttpServer())
+      .post('/v1/admin/mentors/not-a-uuid/approve')
+      .set('Cookie', admin.cookie)
+      .expect(400);
+
+    expect(response.body.statusCode).toBe(400);
   });
 
   it('blocks mentor submission until required onboarding answers exist', async () => {
@@ -448,6 +488,15 @@ describe('Profiles and onboarding (e2e)', () => {
       .expect(400);
 
     expect(response.body.code).toBe('PROFILE_FIELD_NOT_ALLOWED');
+
+    const mentor = await registerAndLogin('mentor');
+    const mentorResponse = await request(app.getHttpServer())
+      .put('/v1/me/profile')
+      .set('Cookie', mentor.cookie)
+      .send({ careerStage: 'university' })
+      .expect(400);
+
+    expect(mentorResponse.body.code).toBe('PROFILE_FIELD_NOT_ALLOWED');
   });
 
   it('keeps audit_log append-only', async () => {

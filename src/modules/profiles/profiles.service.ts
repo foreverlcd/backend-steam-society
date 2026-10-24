@@ -360,7 +360,7 @@ export class ProfilesService {
     input: MentorProfileUpdateInput,
   ): Promise<void> {
     const areaIds = input.areaIds
-      ? await this.validateAreas(input.areaIds)
+      ? await this.resolveProfileAreas(userId, input.areaIds)
       : undefined;
     const languageCodes = input.languageCodes
       ? await this.validateLanguages(input.languageCodes)
@@ -394,7 +394,7 @@ export class ProfilesService {
     input: MenteeProfileUpdateInput,
   ): Promise<void> {
     const areaIds = input.areaIds
-      ? await this.validateAreas(input.areaIds)
+      ? await this.resolveProfileAreas(userId, input.areaIds)
       : undefined;
     const languageCodes = input.languageCodes
       ? await this.validateLanguages(input.languageCodes)
@@ -429,7 +429,10 @@ export class ProfilesService {
     userId: string,
     answers: MentorAnswers,
   ): Promise<void> {
-    if (answers.primaryAreaId && !answers.areaIds) {
+    if (
+      answers.primaryAreaId &&
+      (!answers.areaIds || answers.areaIds.length === 0)
+    ) {
       throw primaryAreaRequiresSubareas();
     }
 
@@ -439,7 +442,6 @@ export class ProfilesService {
       ? await this.validateAreaHierarchy(
           answers.primaryAreaId ?? savedPrimaryAreaId,
           answers.areaIds,
-          answers.primaryAreaId !== undefined,
         )
       : undefined;
     const languageCodes = answers.languageCodes
@@ -482,7 +484,10 @@ export class ProfilesService {
     userId: string,
     answers: MenteeAnswers,
   ): Promise<void> {
-    if (answers.primaryAreaId && !answers.areaIds) {
+    if (
+      answers.primaryAreaId &&
+      (!answers.areaIds || answers.areaIds.length === 0)
+    ) {
       throw primaryAreaRequiresSubareas();
     }
 
@@ -492,7 +497,6 @@ export class ProfilesService {
       ? await this.validateAreaHierarchy(
           answers.primaryAreaId ?? savedPrimaryAreaId,
           answers.areaIds,
-          answers.primaryAreaId !== undefined,
         )
       : undefined;
     const languageCodes = answers.languageCodes
@@ -544,19 +548,14 @@ export class ProfilesService {
     return typeof answer === 'string' ? answer : undefined;
   }
 
-  private async validateAreas(areaIds: string[]): Promise<string[]> {
-    const uniqueIds = [...new Set(areaIds)];
-    const areas = await this.profiles.findAreasByIds(uniqueIds);
+  private async resolveProfileAreas(
+    userId: string,
+    areaIds: string[],
+  ): Promise<string[]> {
+    const primaryAreaId = await this.findSavedPrimaryAreaId(userId);
+    const subAreaIds = areaIds.filter((areaId) => areaId !== primaryAreaId);
 
-    if (areas.length !== uniqueIds.length || areas.some((area) => !area.active)) {
-      throw new BadRequestException({
-        statusCode: 400,
-        code: 'INVALID_AREA',
-        message: 'One or more areas do not exist or are inactive',
-      });
-    }
-
-    return uniqueIds;
+    return this.validateAreaHierarchy(primaryAreaId, subAreaIds);
   }
 
   private async validateLanguages(languageCodes: string[]): Promise<string[]> {
@@ -577,7 +576,6 @@ export class ProfilesService {
   private async validateAreaHierarchy(
     primaryAreaId: string | undefined,
     areaIds: string[],
-    primaryWasProvided: boolean,
   ): Promise<string[]> {
     if (!primaryAreaId) {
       throw new BadRequestException({
@@ -599,11 +597,6 @@ export class ProfilesService {
         code: 'INVALID_PRIMARY_AREA',
         message: 'The primary area must be an active root area',
       });
-    }
-
-    if (primaryWasProvided && areaIds.length === 0) {
-      // An explicit primary change must include the new sub-area selection.
-      return [primaryAreaId];
     }
 
     for (const areaId of uniqueAreaIds) {
@@ -744,7 +737,7 @@ function assertProfileFieldsForRole(
 ): void {
   const keys = Object.keys(input);
   const mentorOnly = ['headline', 'bio', 'yearsExperience'];
-  const menteeOnly = ['goals', 'educationLevel'];
+  const menteeOnly = ['goals', 'educationLevel', 'careerStage'];
   const forbidden = role === 'mentor' ? menteeOnly : mentorOnly;
 
   if (keys.some((key) => forbidden.includes(key))) {

@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
   Query,
@@ -76,7 +77,10 @@ export class AdminMentorsController {
 
   @Post(':id/approve')
   @HttpCode(200)
-  approve(@CurrentUser() admin: AuthUser, @Param('id') id: string) {
+  approve(
+    @CurrentUser() admin: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
     return this.profiles.approveMentor(admin, id);
   }
 
@@ -84,7 +88,7 @@ export class AdminMentorsController {
   @HttpCode(200)
   reject(
     @CurrentUser() admin: AuthUser,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body({ schema: rejectMentorSchema }) body: RejectMentorInput,
   ) {
     return this.profiles.rejectMentor(admin, id, body.reason);
@@ -92,13 +96,19 @@ export class AdminMentorsController {
 
   @Post(':id/suspend')
   @HttpCode(200)
-  suspend(@CurrentUser() admin: AuthUser, @Param('id') id: string) {
+  suspend(
+    @CurrentUser() admin: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
     return this.profiles.suspendMentor(admin, id);
   }
 
   @Post(':id/reactivate')
   @HttpCode(200)
-  reactivate(@CurrentUser() admin: AuthUser, @Param('id') id: string) {
+  reactivate(
+    @CurrentUser() admin: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
     return this.profiles.reactivateMentor(admin, id);
   }
 }
