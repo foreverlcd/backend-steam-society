@@ -5,8 +5,6 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../shared/prisma/prisma.service.js';
 
-const CONNECTION_STRING_PATTERN = /postgres(?:ql)?:\/\/\S+/gi;
-
 @Injectable()
 export class HealthService {
   private readonly logger = new Logger(HealthService.name);
@@ -26,7 +24,27 @@ export class HealthService {
   }
 
   private describeError(error: unknown): string {
-    const message = error instanceof Error ? error.message : String(error);
-    return message.replace(CONNECTION_STRING_PATTERN, '[redacted]');
+    const name = error instanceof Error ? error.name : 'UnknownError';
+    const code = this.getPrismaCode(error);
+    return code ? `${name} (${code})` : name;
+  }
+
+  private getPrismaCode(error: unknown): string | undefined {
+    if (typeof error !== 'object' || error === null) {
+      return undefined;
+    }
+
+    const { code, errorCode } = error as {
+      code?: unknown;
+      errorCode?: unknown;
+    };
+
+    for (const candidate of [code, errorCode]) {
+      if (typeof candidate === 'string' && candidate.length > 0) {
+        return candidate;
+      }
+    }
+
+    return undefined;
   }
 }

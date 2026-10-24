@@ -54,24 +54,42 @@ describe('HealthService', () => {
     await expect(service.check()).resolves.toEqual({ status: 'ok', db: 'up' });
   });
 
-  it('logs the failure without connection details', async () => {
+  it('logs only the error name and Prisma code', async () => {
     const loggerSpy = vi
       .spyOn(Logger.prototype, 'error')
       .mockImplementation(() => undefined);
-    prismaMock.$queryRaw.mockRejectedValue(
+    const error = Object.assign(
       new Error(
         'connect postgresql://steam:secret@127.0.0.1:5433/steam_society failed',
       ),
+      { name: 'PrismaClientKnownRequestError', code: 'P1001' },
     );
+    prismaMock.$queryRaw.mockRejectedValue(error);
 
     await expect(service.check()).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
 
     expect(loggerSpy).toHaveBeenCalledOnce();
-    const logged = String(loggerSpy.mock.calls[0]?.[0]);
-    expect(logged).toContain('[redacted]');
-    expect(logged).not.toContain('secret');
-    expect(logged).not.toContain('postgresql://');
+    expect(loggerSpy.mock.calls[0]?.[0]).toBe(
+      'Database health check failed: PrismaClientKnownRequestError (P1001)',
+    );
+    expect(String(loggerSpy.mock.calls[0]?.[0])).not.toContain('secret');
+  });
+
+  it('logs only the error name when there is no Prisma code', async () => {
+    const loggerSpy = vi
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    prismaMock.$queryRaw.mockRejectedValue(new Error('connection refused'));
+
+    await expect(service.check()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+
+    expect(loggerSpy).toHaveBeenCalledOnce();
+    expect(loggerSpy.mock.calls[0]?.[0]).toBe(
+      'Database health check failed: Error',
+    );
   });
 });
