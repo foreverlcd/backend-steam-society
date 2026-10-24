@@ -1,0 +1,74 @@
+# 07 · Decisiones
+
+Regla para el agente: las decisiones **ACEPTADAS** se respetan sin reabrirlas. Las **PENDIENTES** NO se toman: se investiga con documentación oficial, se proponen 2 o 3 opciones con pros y contras y se espera la decisión del desarrollador. Cada decisión pendiente resuelta se mueve a ACEPTADAS con fecha.
+
+## ACEPTADAS (ADRs)
+Formato: decisión · por qué · alternativas descartadas · consecuencias.
+
+**ADR-001 · Dos aplicaciones en dos repositorios (API y web).**
+Por qué: preferencia del desarrollador y separación clara. Descartado: monorepo (válido y más cómodo para compartir tipos). Consecuencia: el contrato entre repos es OpenAPI; CORS y cookies con dos orígenes.
+
+**ADR-002 · TypeScript de punta a punta.**
+Por qué: un solo lenguaje para un único desarrollador junior. Descartado: Python/Django, Go, Java/Spring Boot (un lenguaje extra no compensa). Python queda para un servicio de IA aparte, solo si hace falta (etapas posteriores).
+
+**ADR-003 · Next.js (interfaz) + NestJS (API).**
+Por qué: Next.js no ofrece WebSockets nativos en Route Handlers [verificado], y se necesitan tareas en segundo plano y módulos aislados. Descartado: Next.js como único backend; NestJS vs Fastify: se eligió NestJS por mercado y estructura.
+
+**ADR-004 · Monolito modular.**
+Por qué: un solo desarrollador; despliegue y depuración simples; límites claros por contexto. Descartado: microservicios (costo operativo), monolito sin módulos.
+
+**ADR-005 · Hexagonal selectiva.**
+Por qué: aplicar puertos y adaptadores solo donde hay proveedores intercambiables o lógica pura (scheduling, payments). Descartado: capas en todo (pagos acoplados al proveedor) y hexagonal en todo (sobreingeniería).
+
+**ADR-006 · PostgreSQL + Prisma 7, con SQL a mano para lo que Prisma no expresa.**
+Por qué: transacciones y restricciones potentes para reservas y ledger; el desarrollador conoce Prisma. Descartado: Drizzle, TypeORM, MongoDB.
+
+**ADR-007 · Modelo oferta → sesión → reserva.**
+Por qué: varias ofertas por mentora (gratuitas y de pago); la sesión es una sala con horario y la reserva es un asiento, lo que habilita sesiones grupales sin rehacer el modelo. Descartado: precio en el perfil; reserva con fecha directa.
+
+**ADR-008 · Tiempo: UTC + zona IANA.**
+Por qué: evitar errores de horario de verano y de zona. Descartado: hora local sin zona.
+
+**ADR-009 · Dinero: entero en unidad mínima + moneda.**
+Descartado: decimales y floats.
+
+**ADR-010 · Ledger propio de doble entrada, con el proveedor de pagos detrás de un puerto.**
+Por qué: transparencia total para el admin y cambiar de proveedor sin reescribir (el proveedor en Perú es incierto). Descartado: saldo único mutable; delegar todo al proveedor.
+
+**ADR-011 · Contrato REST + OpenAPI.**
+Descartado: GraphQL; tRPC (incómodo con dos repositorios).
+
+**ADR-012 · pnpm como gestor de paquetes, sobre Node.**
+Por qué: despensa estricta y buen soporte. Descartado: npm; Bun como runtime (riesgo con decoradores de Nest); Bun solo como gestor sería viable.
+
+**ADR-013 · Un rol por cuenta; la mentora aprueba cada solicitud; varias ofertas por mentora; el admin no se crea por registro.** (Decisiones de producto del 2026-10-24.)
+
+**ADR-014 · Flujo de trabajo con agente.** El agente implementa en ramas, sin `push`; el desarrollador revisa cada diff y hace el merge; zonas rojas con tests de invariantes y revisión senior antes de producción.
+
+**ADR-015 · UUID v7 generado por PostgreSQL (`uuidv7()`).** (2026-10-24) Por qué: ordenado por tiempo, mejor localidad de índice, y el id existe también en inserciones hechas fuera de Prisma. Descartado: `uuid()` de Prisma (se genera en el cliente, no en SQL manual) y uuid v4 (aleatorio). Consecuencia: `@default(dbgenerated("uuidv7()")) @db.Uuid` en todas las tablas nuevas; requiere PostgreSQL 18.
+
+**ADR-016 · Autenticación con sesiones de servidor: `express-session` + `connect-pg-simple` + Argon2id, sin Passport.** (2026-10-24; resuelve P-01) Por qué: el MVP tiene un frontend Next.js y una API NestJS en orígenes distintos; una cookie de sesión `HttpOnly` evita guardar tokens en el navegador y permite revocar sesiones desde el servidor. `connect-pg-simple` reutiliza PostgreSQL (sin Redis) y Argon2id es el algoritmo recomendado por OWASP. Se descartó Passport por ser una capa innecesaria para un solo esquema de sesión; se descartaron JWT en `localStorage` (XSS y revocación difícil) y sesiones en memoria (no sobreviven reinicios ni escalan). Consecuencias: cookie `__Host-sid` con `Secure`, `HttpOnly`, `SameSite=Lax` y 7 días en producción; en desarrollo local sobre HTTP se usa `sid` con `SESSION_COOKIE_SECURE=false`. La tabla se llama `auth_session` para no chocar con `session` (mentoría, 1.5). La sesión se regenera al entrar y se destruye al salir; el reset de contraseña revoca todas las sesiones del usuario.
+
+**ADR-017 · Validación con Zod 4 y `StandardSchemaValidationPipe` de NestJS 12.** (2026-10-24; resuelve P-02) Por qué: NestJS 12 acepta esquemas Standard Schema en `@Body({ schema })`, Zod es mantenido y ya se usa para validar el entorno; evita decoradores y `class-validator`. Descartado: `class-validator` + `class-transformer` (más dependencias y DTOs con decoradores). Consecuencia: los esquemas viven en `auth.schemas.ts` y el pipe global traduce los errores a `400`.
+
+## PENDIENTES
+| ID | Decisión | Cuándo | Notas |
+|---|---|---|---|
+| P-03 | Proveedor de pagos y de pagos salientes en Perú | Antes del Hito 2 | Spike de sandbox; requisitos KYC e impuestos con contador [a confirmar] |
+| P-04 | Video: qué se compra, qué se autoaloja, qué se construye | Antes del Hito 4 | Spike entre dos redes |
+| P-05 | Correo: SMTP local para desarrollo (ej. Mailpit) y proveedor transaccional | 1.2 | Mailpit local ya configurado en `docker-compose.yml`; la API usa `SMTP_URL` genérico. El proveedor transaccional sigue pendiente: preferir código abierto o plan gratuito real; verificar límites |
+| P-06 | Almacenamiento de archivos compatible con S3 | Antes del Hito 3 | Verificar licencias y límites vigentes |
+| P-07 | Librería de fechas con soporte IANA (o API nativa si Node 24 la ofrece) | 1.4 | Verificar estado actual |
+| P-09 | Cancelación y reembolso | Antes del Hito 2 | Equipo de producto; condiciona la máquina de estados y el ledger (= DA-05) |
+| P-10 | Comisión de la plataforma y plazo de respuesta de solicitudes | Antes del Hito 2 y de la 1.5 | Equipo de producto |
+| P-11 | Mecanismo de eventos internos de dominio (y outbox) | Primer caso real (1.5) | |
+| P-12 | Herramienta de tareas periódicas | 1.5 | Preferir lo que use solo PostgreSQL |
+
+## Aplazadas por el proyecto (no son técnicas)
+| ID | Tema | Cuándo |
+|---|---|---|
+| DA-01 | Edad y menores (se guarda la fecha de nacimiento desde el registro) | Antes del primer piloto con personas externas [a confirmar con un abogado] |
+| DA-02 | Cursos en vivo y grabados | Después del MVP |
+| DA-03 | Moneda y forma jurídica frente al proveedor de pagos | Antes del Hito 2 |
+| DA-04 | Aviso de privacidad y consentimiento; derechos sobre datos personales | Antes del primer piloto [a confirmar con un abogado] |
+| DA-05 | Política de cancelación y reembolso | Antes del Hito 2 |
