@@ -105,6 +105,15 @@ enum EducationLevel {
   @@map("education_level")
 }
 
+enum CareerStage {
+  school
+  preuniversity
+  university
+  early_career
+
+  @@map("career_stage")
+}
+
 model Language {
   code            String           @id @db.VarChar(2)
   name            String
@@ -143,6 +152,7 @@ model MenteeProfile {
   user           User             @relation("MenteeProfile", fields: [userId], references: [id], onDelete: Cascade)
   goals          String?
   educationLevel EducationLevel?  @map("education_level")
+  careerStage    CareerStage?     @map("career_stage")
   country        String?          @db.VarChar(2)
   city           String?
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)

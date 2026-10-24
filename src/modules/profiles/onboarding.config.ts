@@ -173,12 +173,6 @@ const mentorSteps: OnboardingStep[] = [
     title: 'Información básica',
     questions: [
       {
-        code: 'age',
-        label: 'Edad',
-        type: 'number',
-        required: true,
-      },
-      {
         code: 'city',
         label: 'Ciudad',
         type: 'text',
@@ -297,12 +291,6 @@ const menteeSteps: OnboardingStep[] = [
     title: 'Cuéntanos sobre ti',
     questions: [
       {
-        code: 'age',
-        label: 'Edad',
-        type: 'number',
-        required: true,
-      },
-      {
         code: 'city',
         label: 'Ciudad',
         type: 'text',
@@ -408,4 +396,10 @@ export function getOnboardingConfig(role: OnboardingRole): OnboardingConfig {
     role,
     steps: role === 'mentor' ? mentorSteps : menteeSteps,
   };
+}
+
+export function getOnboardingQuestionCodes(role: OnboardingRole): string[] {
+  return getOnboardingConfig(role).steps.flatMap((step) =>
+    step.questions.map((question) => question.code),
+  );
 }

@@ -15,8 +15,10 @@ import {
   type MentorStatus,
   type MentorStatusEvent,
 } from './domain/mentor-status.js';
+import { getOnboardingCompletion } from './onboarding.completion.js';
 import {
   getOnboardingConfig,
+  getOnboardingQuestionCodes,
   ONBOARDING_VERSION,
   type OnboardingRole,
 } from './onboarding.config.js';
@@ -112,6 +114,19 @@ export class ProfilesService {
     }
 
     const next = this.transition(current.status, 'submit');
+
+    const responses = await this.profiles.findOnboardingResponses(
+      user.id,
+      ONBOARDING_VERSION,
+    );
+    const completion = getOnboardingCompletion(
+      'mentor',
+      answersFromResponses('mentor', responses),
+    );
+
+    if (!completion.complete) {
+      throw onboardingIncomplete(completion.missing);
+    }
 
     await this.profiles.runInTransaction(async (tx) => {
       const count = await this.profiles.updateMentorStatus(
@@ -390,7 +405,10 @@ export class ProfilesService {
         userId,
         {
           goals: input.goals,
-          educationLevel: input.educationLevel,
+          educationLevel: input.careerStage
+            ? STAGE_TO_EDUCATION_LEVEL[input.careerStage]
+            : input.educationLevel,
+          careerStage: input.careerStage,
           country: input.country,
           city: input.city,
         },
@@ -490,6 +508,7 @@ export class ProfilesService {
           educationLevel: answers.stage
             ? STAGE_TO_EDUCATION_LEVEL[answers.stage]
             : undefined,
+          careerStage: answers.stage,
         },
         tx,
       );
@@ -617,20 +636,34 @@ function buildOnboarding(
   role: OnboardingRole;
   steps: ReturnType<typeof getOnboardingConfig>['steps'];
   answers: Record<string, unknown>;
+  completion: ReturnType<typeof getOnboardingCompletion>;
   options: {
     areas: Array<{ id: string; name: string; parentId: string | null }>;
     languages: Array<{ code: string; name: string }>;
   };
 } {
   const config = getOnboardingConfig(role);
+  const answers = answersFromResponses(role, responses);
 
   return {
     ...config,
-    answers: Object.fromEntries(
-      responses.map((response) => [response.questionCode, response.answer]),
-    ),
+    answers,
+    completion: getOnboardingCompletion(role, answers),
     options: { areas, languages },
   };
+}
+
+function answersFromResponses(
+  role: OnboardingRole,
+  responses: Array<{ questionCode: string; answer: unknown }>,
+): Record<string, unknown> {
+  const questionCodes = new Set(getOnboardingQuestionCodes(role));
+
+  return Object.fromEntries(
+    responses
+      .filter((response) => questionCodes.has(response.questionCode))
+      .map((response) => [response.questionCode, response.answer]),
+  );
 }
 
 function toMentorProfile(profile: MentorProfileRecord) {
@@ -663,6 +696,7 @@ function toMenteeProfile(profile: MenteeProfileRecord) {
     userId: profile.userId,
     goals: profile.goals,
     educationLevel: profile.educationLevel,
+    careerStage: profile.careerStage,
     country: profile.country,
     city: profile.city,
     areas: profile.interests.map(({ area }) => ({
@@ -743,5 +777,14 @@ function primaryAreaRequiresSubareas(): BadRequestException {
     statusCode: 400,
     code: 'PRIMARY_AREA_REQUIRES_SUBAREAS',
     message: 'Send areaIds together with a new primary area',
+  });
+}
+
+function onboardingIncomplete(missing: string[]): BadRequestException {
+  return new BadRequestException({
+    statusCode: 400,
+    code: 'ONBOARDING_INCOMPLETE',
+    message: 'Complete the required onboarding answers before submitting',
+    details: { missing },
   });
 }

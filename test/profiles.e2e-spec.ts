@@ -106,7 +106,6 @@ describe('Profiles and onboarding (e2e)', () => {
       .send({
         version: 1,
         answers: {
-          age: 29,
           city: 'Lima',
           country: 'PE',
           professionalRole: 'professional',
@@ -143,6 +142,10 @@ describe('Profiles and onboarding (e2e)', () => {
     expect(response.body.version).toBe(1);
     expect(response.body.role).toBe('mentor');
     expect(response.body.steps).toHaveLength(4);
+    expect(response.body.completion).toEqual({
+      complete: false,
+      missing: expect.arrayContaining(['city', 'primaryAreaId']),
+    });
     expect(response.body.options.areas).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: technology.id, name: 'Tecnología' }),
@@ -180,8 +183,17 @@ describe('Profiles and onboarding (e2e)', () => {
     ]);
 
     const stored = await prisma.onboardingResponse.findMany();
-    expect(stored).toHaveLength(14);
+    expect(stored).toHaveLength(13);
     expect(stored.every((row) => row.version === 1)).toBe(true);
+
+    const onboarding = await request(app.getHttpServer())
+      .get('/v1/me/onboarding')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(onboarding.body.completion).toEqual({
+      complete: true,
+      missing: [],
+    });
   });
 
   it('stores mentee onboarding answers and maps stage to education level', async () => {
@@ -193,7 +205,6 @@ describe('Profiles and onboarding (e2e)', () => {
       .send({
         version: 1,
         answers: {
-          age: 20,
           city: 'Arequipa',
           country: 'PE',
           stage: 'university',
@@ -218,8 +229,19 @@ describe('Profiles and onboarding (e2e)', () => {
       country: 'PE',
       city: 'Arequipa',
       educationLevel: 'undergraduate',
+      careerStage: 'university',
     });
     expect(response.body.profile.areas).toHaveLength(2);
+
+    const updated = await request(app.getHttpServer())
+      .put('/v1/me/profile')
+      .set('Cookie', cookie)
+      .send({ careerStage: 'early_career' })
+      .expect(200);
+    expect(updated.body.profile).toMatchObject({
+      careerStage: 'early_career',
+      educationLevel: 'career_change',
+    });
   });
 
   it('submits, approves and audits a mentor profile', async () => {
@@ -362,6 +384,13 @@ describe('Profiles and onboarding (e2e)', () => {
       .expect(400);
     expect(invalidCountry.body.code).toBe('INVALID_ONBOARDING_ANSWERS');
 
+    const derivedAge = await request(app.getHttpServer())
+      .put('/v1/me/onboarding')
+      .set('Cookie', cookie)
+      .send({ version: 1, answers: { age: 29 } })
+      .expect(400);
+    expect(derivedAge.body.code).toBe('INVALID_ONBOARDING_ANSWERS');
+
     const invalidSubarea = await request(app.getHttpServer())
       .put('/v1/me/onboarding')
       .set('Cookie', cookie)
@@ -384,6 +413,29 @@ describe('Profiles and onboarding (e2e)', () => {
       })
       .expect(400);
     expect(missingSubareas.body.code).toBe('PRIMARY_AREA_REQUIRES_SUBAREAS');
+  });
+
+  it('blocks mentor submission until required onboarding answers exist', async () => {
+    const { cookie } = await registerAndLogin('mentor');
+
+    await request(app.getHttpServer())
+      .put('/v1/me/onboarding')
+      .set('Cookie', cookie)
+      .send({ version: 1, answers: { city: 'Lima' } })
+      .expect(200);
+
+    const incomplete = await request(app.getHttpServer())
+      .post('/v1/me/profile/submit')
+      .set('Cookie', cookie)
+      .expect(400);
+
+    expect(incomplete.body.code).toBe('ONBOARDING_INCOMPLETE');
+    expect(incomplete.body.details.missing).toEqual(
+      expect.arrayContaining(['country', 'primaryAreaId', 'areaIds']),
+    );
+
+    await completeMentorOnboarding(cookie);
+    await submitMentor(cookie);
   });
 
   it('rejects profile fields that do not apply to the role', async () => {

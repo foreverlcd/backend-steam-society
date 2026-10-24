@@ -48,7 +48,19 @@ export interface MentorProfileData {
 
 export interface MenteeProfileData {
   goals?: string | null;
-  educationLevel?: 'school' | 'undergraduate' | 'graduate' | 'career_change' | 'other' | null;
+  educationLevel?:
+    | 'school'
+    | 'undergraduate'
+    | 'graduate'
+    | 'career_change'
+    | 'other'
+    | null;
+  careerStage?:
+    | 'school'
+    | 'preuniversity'
+    | 'university'
+    | 'early_career'
+    | null;
   country?: string | null;
   city?: string | null;
 }

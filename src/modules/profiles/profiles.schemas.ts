@@ -16,7 +16,6 @@ const languageCodeSchema = z.string().regex(/^[a-z]{2}$/);
 
 const mentorAnswersSchema = z
   .object({
-    age: z.number().int().min(13).max(120).optional(),
     city: z.string().trim().min(1).max(100).optional(),
     country: z.enum(COUNTRY_CODES).optional(),
     professionalRole: z.enum(PROFESSIONAL_ROLES).optional(),
@@ -38,7 +37,6 @@ const mentorAnswersSchema = z
 
 const menteeAnswersSchema = z
   .object({
-    age: z.number().int().min(13).max(120).optional(),
     city: z.string().trim().min(1).max(100).optional(),
     country: z.enum(COUNTRY_CODES).optional(),
     stage: z.enum(MENTEE_STAGES).optional(),
@@ -58,6 +56,15 @@ const menteeAnswersSchema = z
 
 export type MentorAnswers = z.infer<typeof mentorAnswersSchema>;
 export type MenteeAnswers = z.infer<typeof menteeAnswersSchema>;
+
+export function getOnboardingAnswerKeys(
+  role: 'mentor' | 'mentee',
+): string[] {
+  const schema =
+    role === 'mentor' ? mentorAnswersSchema : menteeAnswersSchema;
+
+  return Object.keys(schema.shape);
+}
 
 export function parseOnboardingAnswers(
   role: 'mentor' | 'mentee',
@@ -107,6 +114,7 @@ export const menteeProfileUpdateSchema = z
       ])
       .nullable()
       .optional(),
+    careerStage: z.enum(MENTEE_STAGES).nullable().optional(),
     areaIds: z.array(z.uuid()).max(3).optional(),
   })
   .strict();

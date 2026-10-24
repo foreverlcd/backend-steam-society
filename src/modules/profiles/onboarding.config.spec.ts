@@ -1,9 +1,13 @@
 import {
   getOnboardingConfig,
+  getOnboardingQuestionCodes,
   ONBOARDING_VERSION,
   type OnboardingRole,
 } from './onboarding.config.js';
-import { parseOnboardingAnswers } from './profiles.schemas.js';
+import {
+  getOnboardingAnswerKeys,
+  parseOnboardingAnswers,
+} from './profiles.schemas.js';
 
 describe('onboarding config', () => {
   it('uses version 1 for both roles', () => {
@@ -33,6 +37,15 @@ describe('onboarding config', () => {
       expect(codes).toContain('areaIds');
     }
   });
+
+  it.each<OnboardingRole>(['mentor', 'mentee'])(
+    'keeps the %s config and answer schema in sync',
+    (role) => {
+      expect(getOnboardingQuestionCodes(role).sort()).toEqual(
+        getOnboardingAnswerKeys(role).sort(),
+      );
+    },
+  );
 });
 
 describe('parseOnboardingAnswers', () => {
