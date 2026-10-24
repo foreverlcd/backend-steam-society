@@ -4,23 +4,26 @@ import { HealthService } from './health.service.js';
 
 describe('HealthController', () => {
   let controller: HealthController;
+  const healthMock = { check: vi.fn() };
 
   beforeEach(async () => {
+    vi.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
-      providers: [HealthService],
+      providers: [{ provide: HealthService, useValue: healthMock }],
     }).compile();
 
     controller = module.get<HealthController>(HealthController);
   });
 
-  it('should return the health status', () => {
-    // Ejecuta la ruta check() tal cual esta en el controlador
-    const result = controller.check();
+  it('delegates the check to HealthService', async () => {
+    healthMock.check.mockResolvedValue({ status: 'ok', db: 'up' });
 
-    // Comprueba que responde lo que se puso en el health.service.ts
-    expect(result.status).toBe('ok');
-    expect(result.message).toBe('STEAM Society API is running');
-    expect(result.timestamp).toBeDefined();
+    await expect(controller.check()).resolves.toEqual({
+      status: 'ok',
+      db: 'up',
+    });
+    expect(healthMock.check).toHaveBeenCalledOnce();
   });
 });
