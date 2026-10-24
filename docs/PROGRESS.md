@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-24 · Etapa vigente: **1.3 Perfiles, onboarding y aprobación implementada, pendiente de revisión** (rama `feat/1.3-profiles-onboarding`)
+Última actualización: 2026-10-24 · Etapa vigente: **1.3 Perfiles, onboarding y aprobación fusionada en `main` (`a3a42bc`), pendiente de push y revisión senior**
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -83,10 +83,10 @@
 - 1.3: no hay ruta pública de catálogo todavía; la regla "solo `approved` visible" se implementará al crear esa ruta en 1.6.
 
 ## Siguiente
-1. Revisar `git diff main...HEAD` de `feat/1.3-profiles-onboarding` y mergear cuando esté aprobado.
-2. Revisión senior de la zona roja de autenticación antes de producción.
-3. Frontend 1.1b: crear `frontend-steam-society` (Next.js) y empezar por scaffold + API client + auth; después onboarding.
-4. Antes de la vista admin del frontend, añadir `GET /v1/admin/mentors/:id` con onboarding completo.
+1. Frontend 1.1b: crear `frontend-steam-society` (Next.js) y empezar por scaffold + API client + auth; después onboarding.
+2. Antes de la vista admin del frontend, añadir `GET /v1/admin/mentors/:id` con onboarding completo.
+3. Revisión senior de la zona roja de autenticación antes de producción.
+4. Push de `main` cuando el desarrollador lo autorice (el merge local está hecho; no se subió).
 5. Etapa 1.4: disponibilidad y ofertas; el onboarding ya deja preferencias de horario, pero las reglas reales llegan en 1.4.
 
 ## Registro de sesiones
@@ -101,3 +101,4 @@
 | 2026-10-24 | 1.3 Perfiles/onboarding/aprobación: esquema, seeds, endpoints, máquina de estados, auditoría, tests y docs | Agente (pendiente de revisión) |
 | 2026-10-24 | Hardening 1.3: completitud calculada, submit incompleto bloqueado, contrato config↔Zod, edad derivada y `career_stage` exacto | Agente (pendiente de revisión) |
 | 2026-10-24 | Revisión pre-merge: `jsonb`, UUID en rutas admin, jerarquía de áreas en `PUT /profile` y tests e2e | Agente (pendiente de revisión) |
+| 2026-10-24 | Merge local de 1.3 en `main` (`a3a42bc`); gates verdes; sin push | Agente (instrucción del desarrollador) |
