@@ -212,7 +212,7 @@ model OnboardingResponse {
   userId       String   @map("user_id") @db.Uuid
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   questionCode String   @map("question_code")
-  answer       Json     @db.Json
+  answer       Json     @db.JsonB
   version      Int
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
@@ -228,7 +228,7 @@ model AuditLog {
   action      String
   entityType  String   @map("entity_type")
   entityId    String   @map("entity_id") @db.Uuid
-  metadata    Json     @default("{}") @db.Json
+  metadata    Json     @default("{}") @db.JsonB
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([entityType, entityId])
