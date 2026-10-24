@@ -51,6 +51,10 @@ Por qué: despensa estricta y buen soporte. Descartado: npm; Bun como runtime (r
 
 **ADR-017 · Validación con Zod 4 y `StandardSchemaValidationPipe` de NestJS 12.** (2026-10-24; resuelve P-02) Por qué: NestJS 12 acepta esquemas Standard Schema en `@Body({ schema })`, Zod es mantenido y ya se usa para validar el entorno; evita decoradores y `class-validator`. Descartado: `class-validator` + `class-transformer` (más dependencias y DTOs con decoradores). Consecuencia: los esquemas viven en `auth.schemas.ts` y el pipe global traduce los errores a `400`.
 
+**ADR-018 · Onboarding versionado como configuración y perfil editable siempre.** (2026-10-24; etapa 1.3) Por qué: las preguntas de producto cambian y el onboarding debe evolucionar sin reescribir tablas; la mentora debe poder corregir su perfil sin perder el estado de aprobación. Consecuencia: `ONBOARDING_VERSION = 1` y las preguntas viven en `src/modules/profiles/onboarding.config.ts`; las respuestas se guardan por pregunta en `onboarding_response` y las señales de matching se proyectan a columnas y relaciones tipadas. Editar el perfil no cambia `status`; el admin conserva `suspend` como control. Los rangos de experiencia se guardan como respuesta y `years_experience` toma el límite inferior para el matching. Los seeds de áreas e idiomas son provisionales hasta que producto entregue las listas definitivas.
+
+**ADR-019 · Completitud calculada, edad derivada y etapa exacta.** (2026-10-24; hardening de 1.3) Por qué: el frontend no debe duplicar las reglas de obligatoriedad, la edad no debe guardarse dos veces y `education_level` no representa bien la etapa de carrera. Consecuencia: `completion` se calcula desde la config y se expone en `GET|PUT /v1/me/onboarding`; `POST /v1/me/profile/submit` exige completitud; `age` sale del onboarding y se deriva de `birth_date`; `career_stage` guarda la etapa exacta y `education_level` queda como proyección gruesa. Un test de contrato compara los códigos de la config con las claves del schema Zod para evitar drift.
+
 ## PENDIENTES
 | ID | Decisión | Cuándo | Notas |
 |---|---|---|---|

@@ -54,6 +54,7 @@ erDiagram
     uuid user_id PK
     string goals
     enum education_level
+    enum career_stage
     string country
   }
   AREA {
@@ -144,7 +145,7 @@ erDiagram
 ```
 
 ## Diccionario de tablas: Hito 1
-Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, active, suspended, deleted)` · `mentor_status(draft, pending_review, approved, rejected, suspended)` · `education_level(school, undergraduate, graduate, career_change, other)` · `offering_type(one_to_one, group)` · `session_status(open, cancelled, completed)` · `booking_status(requested, awaiting_payment, confirmed, declined, cancelled, expired, completed, no_show)` · `cancel_actor(mentee, mentor, admin, system)` · `no_show_party(mentee, mentor)`.
+Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, active, suspended, deleted)` · `mentor_status(draft, pending_review, approved, rejected, suspended)` · `education_level(school, undergraduate, graduate, career_change, other)` · `career_stage(school, preuniversity, university, early_career)` · `offering_type(one_to_one, group)` · `session_status(open, cancelled, completed)` · `booking_status(requested, awaiting_payment, confirmed, declined, cancelled, expired, completed, no_show)` · `cancel_actor(mentee, mentor, admin, system)` · `no_show_party(mentee, mentor)`.
 
 **identity**
 - `user`: `id`, `email` (UK, minúsculas; CHECK `email = lower(email)`), `password_hash` (null si la autenticación es externa), `role`, `status`, `first_name`, `last_name`, `birth_date` (date; obligatoria en el registro, nula solo para admins de seed; DA-01; CHECK `user_birth_date_required_check`), `timezone` (IANA, default `America/Lima`), `locale` (default `es`), `email_verified_at`, `created_at`, `updated_at`, `deleted_at`.
@@ -156,7 +157,7 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - `area`: `id` (uuid v7), `name` (UK global en el MVP), `parent_id` (null = área raíz; autorrelación con `ON DELETE RESTRICT`), `active` (default `true`), `created_at` (`timestamptz(3)`).
 - `language`: `code` (PK, ISO 639-1: `es`, `en`, `qu`…), `name`.
 - `mentor_profile`: `user_id` (PK y FK a `user`, 1:1), `headline`, `bio`, `years_experience`, `country` (ISO 3166-1 alfa-2), `city`, `status`, `reviewed_by` (FK a `user`), `reviewed_at`, `rejection_reason`, `min_notice_hours` (default 24), `max_advance_days` (default 60), `created_at`, `updated_at`. Columna `search_vector` (tsvector generada) llega en 1.6.
-- `mentee_profile`: `user_id` (PK y FK), `goals`, `education_level`, `country`, `city`, `created_at`, `updated_at`.
+- `mentee_profile`: `user_id` (PK y FK), `goals`, `education_level`, `career_stage`, `country`, `city`, `created_at`, `updated_at`.
 - `mentor_area(mentor_id, area_id)`, `mentee_interest(mentee_id, area_id)`, `mentor_language(mentor_id, language_code)`, `mentee_language(mentee_id, language_code)`: claves primarias compuestas.
 - `onboarding_response`: `id`, `user_id`, `question_code`, `answer` (jsonb), `version`, `created_at`. UK `(user_id, question_code)`. Las señales del matching NO viven en JSON: van en relaciones y columnas tipadas.
 
@@ -167,7 +168,18 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - `booking`: `id`, `session_id`, `mentee_id`, `status`, `message` (nota de la mentee), `requested_at`, `responded_at`, `expires_at`, `confirmed_at`, `cancelled_at`, `cancelled_by`, `cancel_reason`, `completed_at`, `no_show_party`, `payment_required` (copia de la oferta al solicitar), `price_minor` y `currency` (copias al solicitar), `created_at`, `updated_at`.
 
 **admin**
-- `audit_log`: `id`, `actor_user_id`, `action`, `entity_type`, `entity_id`, `metadata` (jsonb), `created_at`. Solo se insertan filas.
+- `audit_log`: `id`, `actor_user_id`, `action`, `entity_type`, `entity_id`, `metadata` (jsonb), `created_at`. Solo se insertan filas; un trigger `audit_log_append_only` rechaza `UPDATE` y `DELETE` incluso por SQL directo.
+
+**Implementado en 1.3**
+- `language.code` es `varchar(2)` en minúsculas (`CHECK`); los idiomas iniciales son `es`, `en` y `qu`.
+- `mentor_profile` y `mentee_profile` permiten campos nulos mientras el perfil está en borrador. `mentor_profile.status` nace en `draft`; `min_notice_hours` y `max_advance_days` tienen defaults 24 y 60.
+- `mentor_area` y `mentee_interest` guardan el área principal (raíz) y las subáreas elegidas. La jerarquía se valida en el servicio: la principal debe ser raíz activa y cada subárea debe ser hija activa de esa raíz.
+- `onboarding_response` guarda cada respuesta con `version`; la versión vigente es `ONBOARDING_VERSION = 1`. Las respuestas se actualizan por `(user_id, question_code)`.
+- Proyección de onboarding a columnas tipadas: `country`, `city`; `years_experience` toma el límite inferior del rango (`3-5` → 3, `6-9` → 6, `10+` → 10); `career_stage` guarda la etapa exacta de la mentee; `education_level` conserva la proyección gruesa (`school` → `school`, `preuniversity` → `other`, `university` → `undergraduate`, `early_career` → `career_change`) para compatibilidad. La respuesta original queda en `onboarding_response`.
+- La edad no se guarda en el onboarding: se deriva de `user.birth_date` para mostrarla. Esto evita duplicar PII y datos obsoletos.
+- La completitud se calcula desde `onboarding.config.ts` (preguntas `required` y respuestas no vacías). `GET|PUT /v1/me/onboarding` devuelven `completion: { complete, missing }`; `POST /v1/me/profile/submit` rechaza un onboarding incompleto con `400 ONBOARDING_INCOMPLETE`.
+- Los CHECK de país (`^[A-Z]{2}$`), experiencia no negativa, antelación y versión de onboarding viven en la migración `20261024222451_add_profiles_and_audit`; `career_stage` se añadió en `20261024224250_add_career_stage` con backfill desde `onboarding_response`; `answer` y `metadata` se convirtieron a `jsonb` en `20261024224933_use_jsonb_for_json_columns`.
+- Los seeds de áreas son provisionales: Ciencia, Tecnología, Ingeniería y Matemáticas con sus subáreas; el equipo de producto entregará la lista definitiva.
 
 ## Hitos 2 y 3: esqueleto (referencia, no implementar aún)
 - **payments**: `payment` (`booking_id` UK, `provider`, `provider_ref` UK, `status`, `amount_minor`, `currency`, `fee_bps` y `fee_minor` copiados al cobrar, `net_minor`, `idempotency_key` UK), `refund`, `payout`, `webhook_event` (`provider`, `event_id`, UK `(provider, event_id)`, `payload`, `processed_at`).
@@ -197,7 +209,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 |---|---|
 | 1.1a | `area` |
 | 1.2 | `user`, `auth_session`, `password_reset_token` |
-| 1.3 | `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response`, `audit_log` |
+| 1.3 | `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response`, `audit_log` (migraciones `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage` y `20261024224933_use_jsonb_for_json_columns`) |
 | 1.4 | `availability_rule`, `offering` |
 | 1.5 | `session`, `booking` + SQL a mano (exclusión y CHECK) |
 | 1.6 | `search_vector` y extensiones de búsqueda |

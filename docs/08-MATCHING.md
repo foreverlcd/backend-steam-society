@@ -24,7 +24,7 @@ Si hay menos de N recomendadas [PLACEHOLDER: 3], se muestran las que haya y el c
 | `areas` | 35 | Fracción de los intereses de la mentee cubiertos por las áreas de la mentora; un área exacta pesa más que una raíz común |
 | `availability` | 20 | Horas de solape entre la disponibilidad declarada de la mentee y los slots libres de la mentora en los próximos 14 días, convertidas a UTC y normalizadas |
 | `language` | 15 | Idiomas en común sobre idiomas de la mentee |
-| `level_fit` | 15 | Cercanía entre los años de experiencia de la mentora y el nivel (`education_level`, etapa de carrera) de la mentee |
+| `level_fit` | 15 | Cercanía entre los años de experiencia de la mentora y el nivel (`career_stage`, etapa exacta de la mentee; `education_level` queda como proyección gruesa) |
 | `price_fit` | 10 | 10 si hay una oferta gratuita o dentro del presupuesto; escala hacia 0 si no |
 | `reliability` | 5 | Tasa de respuesta y calificaciones de la mentora; neutral (50 %) mientras no haya datos |
 
@@ -34,7 +34,9 @@ Salida por mentora: `{ mentorId, score, breakdown: [{ signal, points, max, detai
 La frase "te la recomendamos porque…" se arma con plantillas a partir de los **dos componentes con más puntos** (y solo componentes con `points > 0`). Ejemplo: "Comparte tu interés en Robótica y habla español". Está prohibido que un LLM la redacte libremente. Más adelante podría reformular la frase sin añadir hechos, y eso se verifica con un test.
 
 ## Qué preguntas del onboarding alimentan cada señal
-- Mentee: áreas de interés → `areas`; idiomas → `language`; nivel educativo y etapa → `level_fit`; disponibilidad semanal → `availability`; presupuesto o "solo gratuitas" → `price_fit`.
+Las preguntas de la versión 1 viven en `src/modules/profiles/onboarding.config.ts`; las respuestas se guardan en `onboarding_response` y las señales tipadas se proyectan a `mentor_profile`, `mentee_profile` y las tablas de áreas/idiomas. Los textos libres no puntúan.
+
+- Mentee: áreas de interés → `areas`; idiomas → `language`; etapa exacta (`career_stage`) y nivel → `level_fit`; disponibilidad semanal → `availability`; presupuesto o "solo gratuitas" → `price_fit`.
 - Mentora: áreas → `areas`; idiomas → `language`; años de experiencia → `level_fit`; reglas de disponibilidad → `availability`; ofertas → `price_fit`.
 - Texto libre (objetivos, bio): no puntúa en el MVP; solo se muestra. Candidato a embeddings en etapas posteriores.
 
