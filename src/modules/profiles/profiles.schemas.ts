@@ -57,11 +57,8 @@ const menteeAnswersSchema = z
 export type MentorAnswers = z.infer<typeof mentorAnswersSchema>;
 export type MenteeAnswers = z.infer<typeof menteeAnswersSchema>;
 
-export function getOnboardingAnswerKeys(
-  role: 'mentor' | 'mentee',
-): string[] {
-  const schema =
-    role === 'mentor' ? mentorAnswersSchema : menteeAnswersSchema;
+export function getOnboardingAnswerKeys(role: 'mentor' | 'mentee'): string[] {
+  const schema = role === 'mentor' ? mentorAnswersSchema : menteeAnswersSchema;
 
   return Object.keys(schema.shape);
 }
@@ -105,13 +102,7 @@ export const menteeProfileUpdateSchema = z
     ...profileBaseSchema,
     goals: z.string().trim().max(2000).nullable().optional(),
     educationLevel: z
-      .enum([
-        'school',
-        'undergraduate',
-        'graduate',
-        'career_change',
-        'other',
-      ])
+      .enum(['school', 'undergraduate', 'graduate', 'career_change', 'other'])
       .nullable()
       .optional(),
     careerStage: z.enum(MENTEE_STAGES).nullable().optional(),

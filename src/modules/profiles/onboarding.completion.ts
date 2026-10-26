@@ -14,7 +14,9 @@ export function getOnboardingCompletion(
 ): OnboardingCompletion {
   const missing = getOnboardingConfig(role)
     .steps.flatMap((step) => step.questions)
-    .filter((question) => question.required && !isAnswered(answers[question.code]))
+    .filter(
+      (question) => question.required && !isAnswered(answers[question.code]),
+    )
     .map((question) => question.code);
 
   return { complete: missing.length === 0, missing };

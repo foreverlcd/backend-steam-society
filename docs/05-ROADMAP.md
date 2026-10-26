@@ -2,6 +2,8 @@
 
 Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. Antes de cada etapa el agente propone un plan corto y espera confirmación (salvo lo ya detallado aquí).
 
+**Estado 2026-10-25:** backend 1.3 fusionado en `main` `ac6eee7` (11 commits adelante de `origin/main` `74f7370`, sin push); frontend 1.1b y 1.3b fusionados en `15cf79a`. Siguiente etapa: 1.4. Los e2e no se ejecutaron en la auditoría; los ejecuta el desarrollador.
+
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 
 ### 1.1a: Prisma, área, health, CORS, README (cerrada)
@@ -13,20 +15,21 @@ Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo
 - README: cómo levantar desde cero (docker compose, `.env`, `pnpm install`, `pnpm db:generate`, `pnpm db:migrate`, `pnpm start:dev`, curl a `/health`), variables, aviso de que `src/generated/` no se versiona y de que la API falla rápido si la base está caída al arrancar.
 **Aceptación:** build, lint y test verdes; `\dt` muestra `area` y `_prisma_migrations`; curl con la base encendida → 200; con la base detenida (app ya levantada) → 503; preflight responde las cabeceras CORS esperadas.
 
-### 1.1b: Web mínima y ADRs
-Repo web (Next.js) en sesión aparte con su propio `AGENTS.md`. Una página que lee `/health` desde `localhost:3001` sin error de CORS. ADRs 001 a 012 ya redactados en `07-DECISIONS.md`: el desarrollador los lee y los ajusta.
+### 1.1b: Web mínima y ADRs (cerrada)
+Repo web (Next.js) en sesión aparte con su propio `AGENTS.md`. Una página que lee `/health` desde `localhost:3001` sin error de CORS. ADRs 001 a 012 ya redactados en `07-DECISIONS.md`: el desarrollador los lee y los ajusta. Frontend fusionado en `15cf79a` (PR #1).
 
 ### 1.2: Identidad (ZONA ROJA)
 **Antes de codificar:** el agente investiga y propone opciones para **P-01 autenticación** y **P-02 validación**; decide el desarrollador. Mailpit (SMTP local) para correos de desarrollo [verificar, P-05].
 **Alcance:** registro (rol mentee o mentor, fecha de nacimiento), login, logout, recuperar contraseña por correo, guardas por rol, rutas protegidas, `GET /v1/me`; seed de admin con credenciales desde variables de entorno (nunca en el repo); limitación de intentos (rate limit).
 **Aceptación:** tests de integración del flujo completo; contraseñas con hash adecuado y nunca en logs; cookies `httpOnly`, `secure` y `sameSite` apropiados al esquema con dos orígenes; no se puede crear un admin por registro público; enumeración de usuarios mitigada (misma respuesta exista o no el correo). Lista "puntos para revisar con lupa" entregada.
 
-### 1.3: Perfiles, onboarding y aprobación (ETAPA VIGENTE)
+### 1.3: Perfiles, onboarding y aprobación (cerrada)
+Backend fusionado en `main` `ac6eee7`; frontend 1.3b fusionado en `15cf79a`. Pendiente: revisión senior, push y e2e a cargo del desarrollador.
 Seeds provisorios de áreas STEAM e idiomas (el equipo entregará las listas definitivas) · perfiles de mentora y mentee · onboarding versionado como configuración (`ONBOARDING_VERSION = 1`) · estado de la mentora (`04-STATE-MACHINES.md`) y aprobación por admin con `audit_log`.
 **API:** `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`; admin `GET /v1/admin/mentors?status=`, `POST /v1/admin/mentors/:id/approve|reject|suspend|reactivate`.
 **Aceptación:** una mentora no `approved` no es visible por ninguna ruta pública; cada aprobación o rechazo deja registro de auditoría; validación estricta de entradas; `submit` rechaza un onboarding incompleto y `GET|PUT /v1/me/onboarding` expone `completion`.
 
-### 1.4: Ofertas y disponibilidad
+### 1.4: Ofertas y disponibilidad (SIGUIENTE)
 CRUD de ofertas (varias por mentora; archivar en vez de borrar) · reglas de disponibilidad con zona IANA · cálculo de slots (`GET /v1/mentors/:id/slots`) respetando antelación mínima y máxima, sesiones existentes y duración de la oferta. Evaluar librería de fechas con soporte IANA [PENDIENTE P-07].
 **Aceptación:** tests de propiedades (ningún slot se solapa con una sesión; todo slot cae dentro de las reglas); casos con zonas con horario de verano (ej. `America/New_York`, `Europe/Madrid`) y cambios de hora; CHECKs de oferta probados en integración.
 

@@ -30,7 +30,11 @@
     { "action": "shell", "resource": "pnpm db:validate", "effect": "allow" },
     { "action": "shell", "resource": "pnpm db:generate", "effect": "allow" },
     { "action": "shell", "resource": "docker compose ps *", "effect": "allow" },
-    { "action": "shell", "resource": "docker compose logs *", "effect": "allow" },
+    {
+      "action": "shell",
+      "resource": "docker compose logs *",
+      "effect": "allow"
+    },
 
     { "action": "shell", "resource": "rm *", "effect": "deny" },
     { "action": "shell", "resource": "sudo *", "effect": "deny" },
@@ -38,6 +42,17 @@
     { "action": "shell", "resource": "git reset *", "effect": "deny" },
     { "action": "shell", "resource": "git clean *", "effect": "deny" },
     { "action": "shell", "resource": "git rebase *", "effect": "deny" },
-    { "action": "shell", "resource": "docker compose down *", "effect": "deny" }
+    {
+      "action": "shell",
+      "resource": "docker compose down *",
+      "effect": "deny"
+    },
+    { "action": "skill", "resource": "*", "effect": "ask" },
+    { "action": "skill", "resource": "find-skills", "effect": "deny" },
+    { "action": "skill", "resource": "caveman*", "effect": "deny" },
+    { "action": "skill", "resource": "shadcn", "effect": "deny" },
+    { "action": "skill", "resource": "migrate-radix-to-base", "effect": "deny" },
+    { "action": "skill", "resource": "prisma-client-api", "effect": "allow" },
+    { "action": "skill", "resource": "postgres-best-practices", "effect": "ask" }
   ]
 }

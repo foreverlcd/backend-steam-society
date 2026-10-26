@@ -49,18 +49,9 @@ export interface MentorProfileData {
 export interface MenteeProfileData {
   goals?: string | null;
   educationLevel?:
-    | 'school'
-    | 'undergraduate'
-    | 'graduate'
-    | 'career_change'
-    | 'other'
-    | null;
+    'school' | 'undergraduate' | 'graduate' | 'career_change' | 'other' | null;
   careerStage?:
-    | 'school'
-    | 'preuniversity'
-    | 'university'
-    | 'early_career'
-    | null;
+    'school' | 'preuniversity' | 'university' | 'early_career' | null;
   country?: string | null;
   city?: string | null;
 }
@@ -267,7 +258,12 @@ export class ProfilesRepository {
   }
 
   findAreasByIds(ids: string[]): Promise<
-    Array<{ id: string; name: string; parentId: string | null; active: boolean }>
+    Array<{
+      id: string;
+      name: string;
+      parentId: string | null;
+      active: boolean;
+    }>
   > {
     return this.prisma.area.findMany({
       where: { id: { in: ids } },

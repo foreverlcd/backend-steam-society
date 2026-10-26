@@ -77,8 +77,6 @@ describe('parseOnboardingAnswers', () => {
   });
 
   it('rejects a country outside the initial market list', () => {
-    expect(() =>
-      parseOnboardingAnswers('mentee', { country: 'US' }),
-    ).toThrow();
+    expect(() => parseOnboardingAnswers('mentee', { country: 'US' })).toThrow();
   });
 });

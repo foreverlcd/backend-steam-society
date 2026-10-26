@@ -69,7 +69,10 @@ export class ProfilesService {
 
   async getProfile(user: AuthUser): Promise<{
     role: OnboardingRole;
-    profile: ReturnType<typeof toMentorProfile> | ReturnType<typeof toMenteeProfile> | null;
+    profile:
+      | ReturnType<typeof toMentorProfile>
+      | ReturnType<typeof toMenteeProfile>
+      | null;
   }> {
     const role = this.assertProfileRole(user);
 
@@ -87,7 +90,10 @@ export class ProfilesService {
     input: UpdateProfileInput,
   ): Promise<{
     role: OnboardingRole;
-    profile: ReturnType<typeof toMentorProfile> | ReturnType<typeof toMenteeProfile> | null;
+    profile:
+      | ReturnType<typeof toMentorProfile>
+      | ReturnType<typeof toMenteeProfile>
+      | null;
   }> {
     const role = this.assertProfileRole(user);
     assertProfileFieldsForRole(role, input);
@@ -163,7 +169,9 @@ export class ProfilesService {
     return { role: 'mentor', profile: toMentorProfile(profile) };
   }
 
-  async getOnboarding(user: AuthUser): Promise<ReturnType<typeof buildOnboarding>> {
+  async getOnboarding(
+    user: AuthUser,
+  ): Promise<ReturnType<typeof buildOnboarding>> {
     const role = this.assertProfileRole(user);
     const [responses, areas, languages] = await Promise.all([
       this.profiles.findOnboardingResponses(user.id, ONBOARDING_VERSION),
@@ -536,7 +544,9 @@ export class ProfilesService {
     });
   }
 
-  private async findSavedPrimaryAreaId(userId: string): Promise<string | undefined> {
+  private async findSavedPrimaryAreaId(
+    userId: string,
+  ): Promise<string | undefined> {
     const responses = await this.profiles.findOnboardingResponses(
       userId,
       ONBOARDING_VERSION,
