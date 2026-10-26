@@ -257,9 +257,7 @@ export class ProfilesRepository {
     });
   }
 
-  findAreasByIds(
-    ids: string[],
-  ): Promise<
+  findAreasByIds(ids: string[]): Promise<
     Array<{
       id: string;
       name: string;
