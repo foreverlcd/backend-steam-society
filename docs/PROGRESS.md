@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-26 · Etapa vigente: **1.4 Ofertas y disponibilidad (implementada en la rama `feat/1.4-offerings-availability`, pendiente de revisión y merge); 1.3 fusionada en `main` `4b4b57e`, 6 commits adelante de `origin/main` `ac6eee7`, sin push. Frontend en `main` `00d327b`; 1.4 no implementado allí.**
+Última actualización: 2026-10-26 · Etapa vigente: **1.4 Ofertas y disponibilidad (implementada en la rama `feat/1.4-offerings-availability`, pendiente de revisión y merge); 1.3 fusionada en `main` `4b4b57e`, 6 commits adelante de `origin/main` `ac6eee7`, sin push. Frontend: rama `feat/1.4-scheduling-client` (4 commits, HEAD `d627a37`) basada en `main` `00d327b`, con cliente/tipos/pruebas de 1.4 y sin UI; 36 tests verdes.**
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -63,7 +63,7 @@
 - [x] Puerto `SessionConflictPort` con `NoSessionConflictAdapter` (devuelve `[]`) para respetar el orden de migraciones; adaptador real en 1.5.
 - [x] Tests: 42 de scheduling (11 dominio, 13 ofertas, 10 disponibilidad, 8 slots) + 8 e2e de CHECKs/CRUD/slots; total del repo 115 unitarios y 36 e2e.
 - [x] Documentos actualizados (`PROGRESS`, `05-ROADMAP`, `07-DECISIONS`, `03-DATA-MODEL`).
-- [ ] Revisión del diff por el desarrollador y merge; frontend 1.4 todavía no existe.
+- [ ] Revisión del diff por el desarrollador y merge; frontend: cliente/tipos/pruebas listos en rama, UI pendiente.
 
 ## Decisiones tomadas (acumuladas)
 ### 1.4 (2026-10-26)
@@ -74,7 +74,7 @@
 - DST con `disambiguation: 'compatible'`: se omite una hora local inexistente en un gap y no se duplica la hora repetida en un overlap; rango máximo de consulta 90 días.
 - `availability_rule.start_time`/`end_time` son `TIME(0)`; la API usa `HH:mm` y el repositorio traduce. La primera migración usó `varchar(5)` y una segunda migración nueva hizo el cast sin borrar datos.
 - `scheduling` no lee tablas de `profiles`: usa `MentorSettingsPort`, implementado por `ProfilesMentorSettingsAdapter` sobre el servicio exportado de `profiles`.
-- El frontend revisado (`main` `00d327b`) no tiene todavía tipos, cliente, UI ni tests de 1.4; sus 28 tests, build y lint siguen verdes. `format:check` falla solo por archivos preexistentes de `.agents/skills`.
+- El frontend tiene ahora cliente, tipos y pruebas de 1.4 en la rama `feat/1.4-scheduling-client` (4 commits, HEAD `d627a37`), sin UI; 36 tests, build y lint verdes. `format:check` global sigue fallando solo por archivos preexistentes de `.agents/skills`.
 
 ### 1.3
 - P-01 aceptada (ADR-016): `express-session` + `connect-pg-simple` + Argon2id, sin Passport.
@@ -98,8 +98,9 @@
 - `opencode.json`: `skill * ask`, deny de `find-skills`, `caveman*`, `shadcn` y `migrate-radix-to-base`; allow exacto de `prisma-client-api`. El ID real de Postgres es `supabase-postgres-best-practices`; la regla explícita `postgres-best-practices` se conserva como alias y la regla general `skill * ask` cubre el ID real.
 
 ## Pendiente / riesgos para revisión con lupa
-- 1.4: el frontend no tiene tipos, cliente, UI ni pruebas de ofertas/disponibilidad/slots; sus 28 tests actuales no consumen 1.4. Decidir si se abre una rama frontend para el cliente/tipos y luego la UI.
-- 1.4: `pnpm format:check` del frontend falla solo por archivos preexistentes de `.agents/skills/*`; no se tocaron. `pnpm build`, `pnpm lint` y `pnpm test` del frontend están verdes.
+- 1.4: el frontend ya tiene cliente, tipos y pruebas en `feat/1.4-scheduling-client` (36 tests verdes), pero no tiene UI de ofertas/disponibilidad/slots. Siguiente slice: pantallas de mentora y selector público.
+- 1.4: el cliente frontend está probado con `fetch` mock, no contra la API real; la prueba e2e de contrato y la UI quedan pendientes.
+- 1.4: `pnpm format:check` del frontend falla solo por archivos preexistentes de `.agents/skills/*`; no se tocaron. `pnpm build`, `pnpm lint` y `pnpm test` del frontend están verdes (36 tests).
 - 1.4: `SessionConflictPort` devuelve `[]`; no se pueden probar solapes con sesiones reales hasta que existan `session`/`booking` en 1.5.
 - 1.4: `PUT /v1/me/availability` reemplaza todas las reglas; no hay edición individual ni validación de solapes entre reglas (el generador deduplica slots).
 - 1.4: `start_time`/`end_time` son `TIME(0)`; el frontend debe enviar `HH:mm` sin segundos. `validFrom`/`validTo` son fechas `YYYY-MM-DD`.
@@ -124,7 +125,7 @@
 
 ## Siguiente
 1. Revisar `git diff main...HEAD` de 1.4, hacer el merge local y push de `main` cuando el desarrollador lo autorice.
-2. Frontend 1.4: decidir alcance. Mínimo recomendado: tipos, cliente y pruebas de ofertas/disponibilidad/slots; después la UI de mentora.
+2. Frontend 1.4: implementar la UI de ofertas/disponibilidad/slots sobre el cliente ya listo en `feat/1.4-scheduling-client`; no hay UI todavía.
 3. 1.5: reservas y sesiones (zona roja); reemplazar `NoSessionConflictAdapter` por el adaptador real y probar concurrencia/solapes.
 4. Backend: añadir `GET /v1/admin/mentors/:id` con onboarding completo antes de la vista admin (pendiente de 1.3).
 5. Revisión senior de autenticación y de las zonas rojas antes de producción; push de `main` solo con autorización.
@@ -143,4 +144,4 @@
 | 2026-10-24 | Revisión pre-merge: `jsonb`, UUID en rutas admin, jerarquía de áreas en `PUT /profile` y tests e2e | Agente (pendiente de revisión) |
 | 2026-10-24 | Merge local de 1.3 en `main` (`a3a42bc`); gates verdes; sin push | Agente (instrucción del desarrollador) |
 | 2026-10-25 | Formato de `profiles`/e2e; permisos de skills; instalación revisada de `prisma-client-api` y `supabase-postgres-best-practices`; `prisma-cli` rechazada; docs actualizados; e2e no ejecutados | Agente (pendiente de revisión) |
-| 2026-10-26 | 1.4 Ofertas/disponibilidad/slots: migraciones, dominio DST, CRUD, puerto de sesiones falso, puerto de settings de mentora, tests y docs; frontend revisado (28 tests verdes, sin 1.4) | Agente (pendiente de revisión) |
+| 2026-10-26 | 1.4 Ofertas/disponibilidad/slots: migraciones, dominio DST, CRUD, puerto de sesiones falso, puerto de settings de mentora, tests y docs; frontend: rama `feat/1.4-scheduling-client` con cliente/tipos/pruebas de 1.4 (36 tests verdes, sin UI) | Agente (pendiente de revisión) |
