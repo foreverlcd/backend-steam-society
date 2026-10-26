@@ -104,6 +104,36 @@ export class ProfilesRepository {
     });
   }
 
+  async findMentorSchedulingSettings(userId: string): Promise<{
+    status: MentorStatus;
+    userStatus: 'pending_verification' | 'active' | 'suspended' | 'deleted';
+    minNoticeHours: number;
+    maxAdvanceDays: number;
+    timezone: string;
+  } | null> {
+    const record = await this.prisma.mentorProfile.findUnique({
+      where: { userId },
+      select: {
+        status: true,
+        minNoticeHours: true,
+        maxAdvanceDays: true,
+        user: { select: { timezone: true, status: true } },
+      },
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    return {
+      status: record.status,
+      userStatus: record.user.status,
+      minNoticeHours: record.minNoticeHours,
+      maxAdvanceDays: record.maxAdvanceDays,
+      timezone: record.user.timezone,
+    };
+  }
+
   upsertMentorProfile(
     userId: string,
     data: MentorProfileData,

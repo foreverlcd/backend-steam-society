@@ -17,5 +17,6 @@ import { ProfilesService } from './profiles.service.js';
     ProfilesRepository,
     { provide: CLOCK, useClass: SystemClock },
   ],
+  exports: [ProfilesService],
 })
 export class ProfilesModule {}
