@@ -5,6 +5,7 @@ Steam Society: plataforma de mentorías STEAM para mujeres. Este repo es el back
 | Documento | Qué contiene | Léelo cuando… |
 |---|---|---|
 | `PROGRESS.md` | Estado vivo: etapa actual, hecho, pendiente, decisiones recientes | SIEMPRE, al empezar y al terminar |
+| `SKILLS.md` | Registro y política de skills: fuente, hash, fecha, banderas y permiso | Revisas o actualizas una skill |
 | `01-PRODUCT.md` | Roles, reglas de negocio R-xx, flujos, alcance por hito, glosario | Implementas cualquier funcionalidad |
 | `02-ARCHITECTURE.md` | Monolito modular, contextos, hexagonal selectiva, carpetas, reglas entre módulos | Creas un módulo o dudas dónde va el código |
 | `03-DATA-MODEL.md` | Diagramas ER, diccionario de tablas, restricciones, invariantes, migraciones por hito | Tocas el esquema o consultas la base |

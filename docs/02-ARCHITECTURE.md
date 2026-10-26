@@ -46,7 +46,7 @@ src/
   generated/prisma/          cliente generado (NO se versiona)
   modules/
     profiles/                (capas)
-      profiles.controller.ts · profiles.service.ts · dto/ · profiles.module.ts
+      profiles.controller.ts · profiles.service.ts · profiles.schemas.ts · profiles.module.ts (ADR-017)
     auth/                    identidad y sesiones (1.2)
       auth.controller.ts · auth.service.ts · auth.schemas.ts · auth.module.ts
     scheduling/              (hexagonal)
