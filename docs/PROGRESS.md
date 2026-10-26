@@ -1,13 +1,13 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-25 · Etapa vigente: **1.4 Ofertas y disponibilidad (siguiente); 1.3 backend fusionada en `main` (`ac6eee7`), pendiente de push y revisión senior. Frontend 1.1b y 1.3b fusionados en `15cf79a`.**
+Última actualización: 2026-10-26 · Etapa vigente: **1.4 Ofertas y disponibilidad (implementada en la rama `feat/1.4-offerings-availability`, pendiente de revisión y merge); 1.3 fusionada en `main` `4b4b57e`, 6 commits adelante de `origin/main` `ac6eee7`, sin push. Frontend en `main` `00d327b`; 1.4 no implementado allí.**
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
 - Docker Compose: Postgres 18.6-alpine en `127.0.0.1:5433` y Mailpit `v1.27` (SMTP `1025`, bandeja `8025`).
 - Prisma 7.10.1: `prisma.config.ts`, `PrismaService` (PrismaPg) y `PrismaModule` NO global en `src/shared/prisma/`.
 - Modelo `Area`: `id` uuid v7 por defecto de base (`uuidv7()`), `name` único, `parent_id` opcional con FK `ON DELETE RESTRICT`, `active` default `true`, `created_at` `timestamptz(3)`, `@@map("area")`.
-- Migraciones aplicadas en desarrollo y en `steam_society_test`: `20261024173759_add_area`, `20261024212009_fix_area_columns_and_uuidv7`, `20261024214215_add_identity`, `20261024215500_add_user_birth_date_check`, `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage`, `20261024224933_use_jsonb_for_json_columns`.
+- Migraciones aplicadas en desarrollo y en `steam_society_test`: `20261024173759_add_area`, `20261024212009_fix_area_columns_and_uuidv7`, `20261024214215_add_identity`, `20261024215500_add_user_birth_date_check`, `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage`, `20261024224933_use_jsonb_for_json_columns`, `20261026161007_add_offerings_and_availability`, `20261026162005_use_time_for_availability`.
 - `GET /health` (sin prefijo): 200 `{status:'ok',db:'up'}` / 503 `{status:'error',db:'down'}`. El fallo se registra con `Logger` usando solo el nombre del error y su código de Prisma (nunca el mensaje ni la cadena de conexión).
 - CORS: `WEB_ORIGIN` separada por comas; `parseWebOrigins()` normaliza. Sin variable, CORS desactivado. Con orígenes, `credentials: true`.
 - `X-Powered-By` eliminada con `app.useSecurityHeaders()` (NestJS 12.1+); `configureApp()` centraliza seguridad, CORS, CSRF, sesión, prefijo `/v1` y el pipe de validación.
@@ -20,7 +20,7 @@
   - CSRF con `enableCsrfProtection({ trustedOrigins })`; rate limit por IP + correo en login y recuperación con `@nestjs/throttler`.
   - Seed de admin con `ADMIN_EMAIL`/`ADMIN_PASSWORD`; nunca por registro público. Probado en `steam_society_test`: `admin|active|$argon2id`.
   - Validación con Zod 4 + `StandardSchemaValidationPipe`; `ConfigModule` valida el entorno al arrancar y falla rápido si falta `SESSION_SECRET` o es corto.
-- Tests: 73 unitarios (11 archivos) verdes con `pnpm test`; `pnpm build` y `pnpm lint` verdes tras el formateo del 2026-10-25. Los 28 e2e no se ejecutaron en la auditoría: los debe ejecutar el desarrollador con la base y Mailpit levantados; no afirmar que están verdes.
+- Tests: 115 unitarios (15 archivos) y 36 e2e (4 archivos) verdes el 2026-10-26 con `pnpm test` y `pnpm test:e2e`; `pnpm build` y `pnpm lint` verdes. Los e2e se ejecutaron contra PostgreSQL local y `steam_society_test`.
 - README reescrito: puesta en marcha, variables, API, sesiones/CSRF/CORS, Mailpit, seed y base de tests.
 - `feat/1.2-identity` fusionada en `main` con merge commit `64e8559` (`--no-ff`) y subida a `origin/main`; las ramas `feat/1.1a-prisma-postgres`, `chore/hardening-basics` y `feat/1.2-identity` también tienen upstream.
 - Commits de la sesión anterior en `main`: `fd884b7` (area + migración inicial), `5c9102d` (health contrato), `e8f2333` (CORS), `69f6598` (README).
@@ -53,7 +53,30 @@
 - [x] Hardening: `answer`/`metadata` en `jsonb`, `:id` de admin validado como UUID, `areaIds` de `PUT /profile` valida la jerarquía guardada y `areaIds: []` con área principal se rechaza.
 - [ ] Revisión del diff por el desarrollador.
 
-## Decisiones tomadas en esta sesión
+## Etapa 1.4: ofertas y disponibilidad
+- [x] Tablas `offering` y `availability_rule`; enum `offering_type`; migraciones `20261026161007_add_offerings_and_availability` y `20261026162005_use_time_for_availability`.
+- [x] CHECKs: precio gratuito/pagado, duración 15–240, capacidad, `one_to_one` ⇒ capacidad 1, moneda ISO 4217; weekday 1–7, orden y rango de horas, zona no vacía, `valid_to >= valid_from`.
+- [x] `temporal-polyfill` 1.0.6 aislado en `src/shared/time/` y en el dominio de slots; P-07 resuelta (ADR-020).
+- [x] CRUD de ofertas: `GET|POST /v1/me/offerings`, `PATCH /v1/me/offerings/:id`, `POST /v1/me/offerings/:id/archive`; archivo lógico y ownership.
+- [x] Disponibilidad: `GET|PUT /v1/me/availability`; reemplazo transaccional; zona por regla con default `user.timezone`.
+- [x] Slots públicos: `GET /v1/mentors/:id/slots?offeringId&from&to`; antelación mínima/máxima, duración, DST, rango máximo 90 días y slots ocupados.
+- [x] Puerto `SessionConflictPort` con `NoSessionConflictAdapter` (devuelve `[]`) para respetar el orden de migraciones; adaptador real en 1.5.
+- [x] Tests: 42 de scheduling (11 dominio, 13 ofertas, 10 disponibilidad, 8 slots) + 8 e2e de CHECKs/CRUD/slots; total del repo 115 unitarios y 36 e2e.
+- [x] Documentos actualizados (`PROGRESS`, `05-ROADMAP`, `07-DECISIONS`, `03-DATA-MODEL`).
+- [ ] Revisión del diff por el desarrollador y merge; frontend 1.4 todavía no existe.
+
+## Decisiones tomadas (acumuladas)
+### 1.4 (2026-10-26)
+- P-07 aceptada (ADR-020): `temporal-polyfill` 1.0.6, aislado en `src/shared/time/` y en el dominio de slots; Node 24.22.1 no expone `Temporal`.
+- Ofertas `one_to_one` con capacidad 1 y duración 15–240; gratuita ⇒ `priceMinor = 0`; de pago ⇒ `priceMinor > 0`; moneda ISO 4217 con `PEN` por defecto.
+- Crear/editar ofertas y reemplazar disponibilidad exigen mentora `approved` y usuaria `active`; archivar la oferta es lógico y se permite aunque la mentora deje de estar aprobada.
+- Slots públicos exigen mentora `approved`, usuaria `active`, oferta `active` y no archivada. `SessionConflictPort` devuelve `[]` en 1.4; el adaptador real llega en 1.5.
+- DST con `disambiguation: 'compatible'`: se omite una hora local inexistente en un gap y no se duplica la hora repetida en un overlap; rango máximo de consulta 90 días.
+- `availability_rule.start_time`/`end_time` son `TIME(0)`; la API usa `HH:mm` y el repositorio traduce. La primera migración usó `varchar(5)` y una segunda migración nueva hizo el cast sin borrar datos.
+- `scheduling` no lee tablas de `profiles`: usa `MentorSettingsPort`, implementado por `ProfilesMentorSettingsAdapter` sobre el servicio exportado de `profiles`.
+- El frontend revisado (`main` `00d327b`) no tiene todavía tipos, cliente, UI ni tests de 1.4; sus 28 tests, build y lint siguen verdes. `format:check` falla solo por archivos preexistentes de `.agents/skills`.
+
+### 1.3
 - P-01 aceptada (ADR-016): `express-session` + `connect-pg-simple` + Argon2id, sin Passport.
 - P-02 aceptada (ADR-017): Zod 4 + `StandardSchemaValidationPipe`.
 - La tabla de sesiones de autenticación se llama `auth_session`; `session` queda para mentoría (1.5).
@@ -75,6 +98,14 @@
 - `opencode.json`: `skill * ask`, deny de `find-skills`, `caveman*`, `shadcn` y `migrate-radix-to-base`; allow exacto de `prisma-client-api`. El ID real de Postgres es `supabase-postgres-best-practices`; la regla explícita `postgres-best-practices` se conserva como alias y la regla general `skill * ask` cubre el ID real.
 
 ## Pendiente / riesgos para revisión con lupa
+- 1.4: el frontend no tiene tipos, cliente, UI ni pruebas de ofertas/disponibilidad/slots; sus 28 tests actuales no consumen 1.4. Decidir si se abre una rama frontend para el cliente/tipos y luego la UI.
+- 1.4: `pnpm format:check` del frontend falla solo por archivos preexistentes de `.agents/skills/*`; no se tocaron. `pnpm build`, `pnpm lint` y `pnpm test` del frontend están verdes.
+- 1.4: `SessionConflictPort` devuelve `[]`; no se pueden probar solapes con sesiones reales hasta que existan `session`/`booking` en 1.5.
+- 1.4: `PUT /v1/me/availability` reemplaza todas las reglas; no hay edición individual ni validación de solapes entre reglas (el generador deduplica slots).
+- 1.4: `start_time`/`end_time` son `TIME(0)`; el frontend debe enviar `HH:mm` sin segundos. `validFrom`/`validTo` son fechas `YYYY-MM-DD`.
+- 1.4: el rango máximo de slots es 90 días; si el frontend necesita más, consultar por semanas o paginar.
+- 1.4: no hay catálogo público de ofertas; `GET /v1/mentors/:id/slots` exige `offeringId` y una mentora aprobada. El catálogo llega en 1.6.
+- 1.4: `MentorSettingsPort` se apoya en `ProfilesService`; revisar que no aparezca un ciclo si `profiles` necesita `scheduling` más adelante.
 - El `.env` local ya permite arrancar la API, ejecutar el seed y usar Mailpit; sigue sin versionarse (no se leyó ni editó desde el agente).
 - Verificación de correo: hoy el registro queda `status = active` y `email_verified_at = null`; no se implementó el flujo de verificación. Decidir si entra en 1.2 o se pospone.
 - P-05 sigue pendiente: Mailpit es solo desarrollo; el proveedor transaccional no está elegido.
@@ -92,11 +123,11 @@
 - Skills: `prisma-cli` no se instaló; decidir si se acepta una versión adaptada sin `prisma init`/`npx` o si se deja fuera.
 
 ## Siguiente
-1. Frontend 1.1b y 1.3b ya fusionados (`15cf79a`); siguiente: perfil y vista admin, consumiendo `completion` y `GET /v1/admin/mentors/:id`.
-2. Backend: añadir `GET /v1/admin/mentors/:id` con onboarding completo antes de la vista admin.
-3. Ejecutar `pnpm test:e2e` con Docker/Postgres y Mailpit; no se ejecutaron en la auditoría.
-4. Revisión senior de la zona roja de autenticación antes de producción; push de `main` cuando el desarrollador lo autorice.
-5. Etapa 1.4: ofertas y disponibilidad; el onboarding ya deja preferencias de horario, pero las reglas reales llegan en 1.4.
+1. Revisar `git diff main...HEAD` de 1.4, hacer el merge local y push de `main` cuando el desarrollador lo autorice.
+2. Frontend 1.4: decidir alcance. Mínimo recomendado: tipos, cliente y pruebas de ofertas/disponibilidad/slots; después la UI de mentora.
+3. 1.5: reservas y sesiones (zona roja); reemplazar `NoSessionConflictAdapter` por el adaptador real y probar concurrencia/solapes.
+4. Backend: añadir `GET /v1/admin/mentors/:id` con onboarding completo antes de la vista admin (pendiente de 1.3).
+5. Revisión senior de autenticación y de las zonas rojas antes de producción; push de `main` solo con autorización.
 
 ## Registro de sesiones
 | Fecha | Qué se hizo | Quién |
@@ -112,3 +143,4 @@
 | 2026-10-24 | Revisión pre-merge: `jsonb`, UUID en rutas admin, jerarquía de áreas en `PUT /profile` y tests e2e | Agente (pendiente de revisión) |
 | 2026-10-24 | Merge local de 1.3 en `main` (`a3a42bc`); gates verdes; sin push | Agente (instrucción del desarrollador) |
 | 2026-10-25 | Formato de `profiles`/e2e; permisos de skills; instalación revisada de `prisma-client-api` y `supabase-postgres-best-practices`; `prisma-cli` rechazada; docs actualizados; e2e no ejecutados | Agente (pendiente de revisión) |
+| 2026-10-26 | 1.4 Ofertas/disponibilidad/slots: migraciones, dominio DST, CRUD, puerto de sesiones falso, puerto de settings de mentora, tests y docs; frontend revisado (28 tests verdes, sin 1.4) | Agente (pendiente de revisión) |

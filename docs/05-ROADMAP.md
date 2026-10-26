@@ -2,7 +2,7 @@
 
 Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. Antes de cada etapa el agente propone un plan corto y espera confirmación (salvo lo ya detallado aquí).
 
-**Estado 2026-10-25:** backend 1.3 fusionado en `main` `ac6eee7` (11 commits adelante de `origin/main` `74f7370`, sin push); frontend 1.1b y 1.3b fusionados en `15cf79a`. Siguiente etapa: 1.4. Los e2e no se ejecutaron en la auditoría; los ejecuta el desarrollador.
+**Estado 2026-10-26:** backend 1.4 implementado en la rama `feat/1.4-offerings-availability` (pendiente de revisión y merge); `main` local `4b4b57e`, 6 commits adelante de `origin/main` `ac6eee7`, sin push. Frontend en `main` `00d327b`; 1.4 todavía no implementado allí. Tests del backend: 115 unitarios y 36 e2e en verde.
 
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 
@@ -29,9 +29,17 @@ Seeds provisorios de áreas STEAM e idiomas (el equipo entregará las listas def
 **API:** `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`; admin `GET /v1/admin/mentors?status=`, `POST /v1/admin/mentors/:id/approve|reject|suspend|reactivate`.
 **Aceptación:** una mentora no `approved` no es visible por ninguna ruta pública; cada aprobación o rechazo deja registro de auditoría; validación estricta de entradas; `submit` rechaza un onboarding incompleto y `GET|PUT /v1/me/onboarding` expone `completion`.
 
-### 1.4: Ofertas y disponibilidad (SIGUIENTE)
-CRUD de ofertas (varias por mentora; archivar en vez de borrar) · reglas de disponibilidad con zona IANA · cálculo de slots (`GET /v1/mentors/:id/slots`) respetando antelación mínima y máxima, sesiones existentes y duración de la oferta. Evaluar librería de fechas con soporte IANA [PENDIENTE P-07].
-**Aceptación:** tests de propiedades (ningún slot se solapa con una sesión; todo slot cae dentro de las reglas); casos con zonas con horario de verano (ej. `America/New_York`, `Europe/Madrid`) y cambios de hora; CHECKs de oferta probados en integración.
+### 1.4: Ofertas y disponibilidad (cerrada en rama, pendiente de merge)
+CRUD de ofertas (varias por mentora; archivar en vez de borrar) · reglas de disponibilidad con zona IANA · cálculo de slots (`GET /v1/mentors/:id/slots`) respetando antelación mínima y máxima, sesiones existentes y duración de la oferta. P-07 resuelta con `temporal-polyfill` 1.0.6 (ADR-020).
+
+**Contrato:**
+- `GET|POST /v1/me/offerings`, `PATCH /v1/me/offerings/:id`, `POST /v1/me/offerings/:id/archive`. Solo mentoras; crear/editar exige `mentor_profile.status = approved` y `user.status = active`; archivar es lógico y funciona también si la mentora dejó de estar aprobada.
+- Oferta: `{ id, mentorId, title, description, type: 'one_to_one', durationMinutes, capacity: 1, isFree, priceMinor, currency, active, archivedAt, createdAt, updatedAt }`. `durationMinutes` entre 15 y 240; gratuita ⇒ `priceMinor = 0`; de pago ⇒ `priceMinor > 0`; moneda ISO 4217 con `PEN` por defecto.
+- `GET|PUT /v1/me/availability`: `{ timezone, rules: [{ id, weekday, startTime, endTime, timezone, validFrom, validTo }] }`. `PUT` reemplaza todas las reglas; `weekday` 1–7, horas `HH:mm`, `endTime > startTime`, zona IANA (si se omite se usa `user.timezone`), `validTo >= validFrom`.
+- `GET /v1/mentors/:id/slots?offeringId&from&to` (público): `{ mentorId, offeringId, durationMinutes, slots: [{ startsAt, endsAt, timezone, localStart, localEnd }] }`. `startsAt`/`endsAt` son ISO UTC; `localStart`/`localEnd` usan la zona de la regla. Rango máximo 90 días; se respetan `min_notice_hours`/`max_advance_days`; se excluyen slots ocupados por sesiones (puerto falso en 1.4, adaptador real en 1.5). La mentora debe estar `approved`, la usuaria `active` y la oferta activa/no archivada.
+- Errores `{ statusCode, code, message }`: `MENTOR_ONLY`, `MENTOR_PROFILE_NOT_FOUND`, `MENTOR_NOT_APPROVED`, `OFFERING_NOT_FOUND`, `OFFERING_ARCHIVED`, `INVALID_OFFERING_PRICE`, `INVALID_CURRENCY`, `INVALID_TIMEZONE`, `INVALID_AVAILABILITY_RANGE`, `INVALID_SLOT_RANGE`, `SLOT_RANGE_TOO_LARGE`.
+
+**Aceptación:** build/lint/test/e2e verdes; tests de propiedades (ningún slot se solapa con una sesión; todo slot cae dentro de las reglas); casos con zonas con horario de verano (America/New_York, Europe/Madrid) y cambios de hora; CHECKs de oferta y disponibilidad probados en PostgreSQL; frontend revisado (28 tests verdes) pero sin cliente/UI de 1.4 todavía, así que sus pruebas de contrato quedan para la rama frontend.
 
 ### 1.5: Reservas (ZONA ROJA, hexagonal)
 Solicitar, aceptar, rechazar, cancelar, vencer, completar y no-show, según `04-STATE-MACHINES.md`; migración con SQL a mano (exclusión y CHECK); notificaciones por correo; enlace de sesión externo.

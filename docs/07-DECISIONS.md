@@ -55,6 +55,8 @@ Por qué: despensa estricta y buen soporte. Descartado: npm; Bun como runtime (r
 
 **ADR-019 · Completitud calculada, edad derivada y etapa exacta.** (2026-10-24; hardening de 1.3) Por qué: el frontend no debe duplicar las reglas de obligatoriedad, la edad no debe guardarse dos veces y `education_level` no representa bien la etapa de carrera. Consecuencia: `completion` se calcula desde la config y se expone en `GET|PUT /v1/me/onboarding`; `POST /v1/me/profile/submit` exige completitud; `age` sale del onboarding y se deriva de `birth_date`; `career_stage` guarda la etapa exacta y `education_level` queda como proyección gruesa. Un test de contrato compara los códigos de la config con las claves del schema Zod para evitar drift.
 
+**ADR-020 · `temporal-polyfill` 1.0.6 para fechas y zonas IANA.** (2026-10-26; resuelve P-07) Por qué: Node 24.22.1 no expone `Temporal` (ni con `--experimental-temporal`), ICU 78.3 y tz 2026e; el cálculo de slots necesita convertir horas locales a instantes UTC y detectar gaps/overlaps de DST. Se aisló en `src/shared/time/` y en el dominio de scheduling. Descartado: `luxon`/`date-fns-tz` (más peso y API mutable), `Temporal` nativo (no disponible), aritmética manual con `Date` (errores de DST). Consecuencia: `disambiguation: 'compatible'`; si la hora local no existe en un gap se omite el slot, y en un overlap se usa el offset anterior sin duplicar la hora repetida. Rango máximo de slots: 90 días.
+
 ## PENDIENTES
 | ID | Decisión | Cuándo | Notas |
 |---|---|---|---|
@@ -62,7 +64,6 @@ Por qué: despensa estricta y buen soporte. Descartado: npm; Bun como runtime (r
 | P-04 | Video: qué se compra, qué se autoaloja, qué se construye | Antes del Hito 4 | Spike entre dos redes |
 | P-05 | Correo: SMTP local para desarrollo (ej. Mailpit) y proveedor transaccional | 1.2 | Mailpit local ya configurado en `docker-compose.yml`; la API usa `SMTP_URL` genérico. El proveedor transaccional sigue pendiente: preferir código abierto o plan gratuito real; verificar límites |
 | P-06 | Almacenamiento de archivos compatible con S3 | Antes del Hito 3 | Verificar licencias y límites vigentes |
-| P-07 | Librería de fechas con soporte IANA (o API nativa si Node 24 la ofrece) | 1.4 | Verificar estado actual |
 | P-09 | Cancelación y reembolso | Antes del Hito 2 | Equipo de producto; condiciona la máquina de estados y el ledger (= DA-05) |
 | P-10 | Comisión de la plataforma y plazo de respuesta de solicitudes | Antes del Hito 2 y de la 1.5 | Equipo de producto |
 | P-11 | Mecanismo de eventos internos de dominio (y outbox) | Primer caso real (1.5) | |
