@@ -59,6 +59,7 @@ model User {
   reviewedProfiles    MentorProfile[]      @relation("MentorReviewer")
   onboardingResponses OnboardingResponse[]
   auditLogs           AuditLog[]           @relation("AuditActor")
+  availabilityRules   AvailabilityRule[]
 
   @@map("user")
 }
@@ -114,6 +115,13 @@ enum CareerStage {
   @@map("career_stage")
 }
 
+enum OfferingType {
+  one_to_one
+  group
+
+  @@map("offering_type")
+}
+
 model Language {
   code            String           @id @db.VarChar(2)
   name            String
@@ -124,24 +132,25 @@ model Language {
 }
 
 model MentorProfile {
-  userId          String          @id @map("user_id") @db.Uuid
-  user            User            @relation("MentorProfile", fields: [userId], references: [id], onDelete: Cascade)
+  userId          String           @id @map("user_id") @db.Uuid
+  user            User             @relation("MentorProfile", fields: [userId], references: [id], onDelete: Cascade)
   headline        String?
   bio             String?
-  yearsExperience Int?            @map("years_experience")
-  country         String?         @db.VarChar(2)
+  yearsExperience Int?             @map("years_experience")
+  country         String?          @db.VarChar(2)
   city            String?
-  status          MentorStatus    @default(draft)
-  reviewedBy      String?         @map("reviewed_by") @db.Uuid
-  reviewer        User?           @relation("MentorReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
-  reviewedAt      DateTime?       @map("reviewed_at") @db.Timestamptz(3)
-  rejectionReason String?         @map("rejection_reason")
-  minNoticeHours  Int             @default(24) @map("min_notice_hours")
-  maxAdvanceDays  Int             @default(60) @map("max_advance_days")
-  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  status          MentorStatus     @default(draft)
+  reviewedBy      String?          @map("reviewed_by") @db.Uuid
+  reviewer        User?            @relation("MentorReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?        @map("reviewed_at") @db.Timestamptz(3)
+  rejectionReason String?          @map("rejection_reason")
+  minNoticeHours  Int              @default(24) @map("min_notice_hours")
+  maxAdvanceDays  Int              @default(60) @map("max_advance_days")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   areas           MentorArea[]
   languages       MentorLanguage[]
+  offerings       Offering[]
 
   @@index([status])
   @@map("mentor_profile")
@@ -234,4 +243,41 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([actorUserId])
   @@map("audit_log")
+}
+
+model AvailabilityRule {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekday   Int
+  startTime DateTime  @map("start_time") @db.Time(0)
+  endTime   DateTime  @map("end_time") @db.Time(0)
+  timezone  String    @db.VarChar(64)
+  validFrom DateTime? @map("valid_from") @db.Date
+  validTo   DateTime? @map("valid_to") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId, weekday])
+  @@map("availability_rule")
+}
+
+model Offering {
+  id              String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  mentorId        String        @map("mentor_id") @db.Uuid
+  mentor          MentorProfile @relation(fields: [mentorId], references: [userId], onDelete: Cascade)
+  title           String
+  description     String?
+  type            OfferingType  @default(one_to_one)
+  durationMinutes Int           @map("duration_minutes")
+  capacity        Int           @default(1)
+  isFree          Boolean       @map("is_free")
+  priceMinor      Int           @map("price_minor")
+  currency        String        @db.VarChar(3)
+  active          Boolean       @default(true)
+  archivedAt      DateTime?     @map("archived_at") @db.Timestamptz(3)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([mentorId, active])
+  @@map("offering")
 }
