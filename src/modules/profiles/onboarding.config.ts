@@ -72,7 +72,11 @@ export const INDUSTRY_OPTIONS = [
   { value: 'other', label: 'Otro' },
 ] as const;
 
-export const MENTORING_LEVELS = ['beginner', 'intermediate', 'advanced'] as const;
+export const MENTORING_LEVELS = [
+  'beginner',
+  'intermediate',
+  'advanced',
+] as const;
 export const MENTORING_LEVEL_OPTIONS = [
   { value: 'beginner', label: 'Principiante' },
   { value: 'intermediate', label: 'Intermedio' },

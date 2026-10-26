@@ -5,14 +5,15 @@ import {
   type MentorStatusEvent,
 } from './mentor-status.js';
 
-const validTransitions: Array<[MentorStatus, MentorStatusEvent, MentorStatus]> = [
-  ['draft', 'submit', 'pending_review'],
-  ['rejected', 'submit', 'pending_review'],
-  ['pending_review', 'approve', 'approved'],
-  ['pending_review', 'reject', 'rejected'],
-  ['approved', 'suspend', 'suspended'],
-  ['suspended', 'reactivate', 'approved'],
-];
+const validTransitions: Array<[MentorStatus, MentorStatusEvent, MentorStatus]> =
+  [
+    ['draft', 'submit', 'pending_review'],
+    ['rejected', 'submit', 'pending_review'],
+    ['pending_review', 'approve', 'approved'],
+    ['pending_review', 'reject', 'rejected'],
+    ['approved', 'suspend', 'suspended'],
+    ['suspended', 'reactivate', 'approved'],
+  ];
 
 const statuses: MentorStatus[] = [
   'draft',

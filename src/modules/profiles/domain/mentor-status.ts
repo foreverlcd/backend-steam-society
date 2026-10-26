@@ -1,16 +1,8 @@
 export type MentorStatus =
-  | 'draft'
-  | 'pending_review'
-  | 'approved'
-  | 'rejected'
-  | 'suspended';
+  'draft' | 'pending_review' | 'approved' | 'rejected' | 'suspended';
 
 export type MentorStatusEvent =
-  | 'submit'
-  | 'approve'
-  | 'reject'
-  | 'suspend'
-  | 'reactivate';
+  'submit' | 'approve' | 'reject' | 'suspend' | 'reactivate';
 
 export class InvalidMentorStatusTransitionError extends Error {
   constructor(

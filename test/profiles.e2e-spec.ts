@@ -80,7 +80,11 @@ describe('Profiles and onboarding (e2e)', () => {
       .send({ email, password })
       .expect(200);
 
-    return { cookie: sessionCookie(login.headers['set-cookie']), email, password };
+    return {
+      cookie: sessionCookie(login.headers['set-cookie']),
+      email,
+      password,
+    };
   }
 
   async function createAdmin(): Promise<{ cookie: string; id: string }> {
@@ -97,9 +101,7 @@ describe('Profiles and onboarding (e2e)', () => {
     return { cookie: sessionCookie(login.headers['set-cookie']), id: user.id };
   }
 
-  async function completeMentorOnboarding(
-    cookie: string,
-  ): Promise<void> {
+  async function completeMentorOnboarding(cookie: string): Promise<void> {
     await request(app.getHttpServer())
       .put('/v1/me/onboarding')
       .set('Cookie', cookie)
@@ -505,7 +507,9 @@ describe('Profiles and onboarding (e2e)', () => {
     await submitMentor(mentor.cookie);
 
     await expect(
-      prisma.$executeRawUnsafe('UPDATE "audit_log" SET "action" = \'tampered\''),
+      prisma.$executeRawUnsafe(
+        'UPDATE "audit_log" SET "action" = \'tampered\'',
+      ),
     ).rejects.toThrow();
   });
 });
