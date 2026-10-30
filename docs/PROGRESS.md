@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-25 · Etapa vigente: **1.4 Ofertas y disponibilidad (siguiente); 1.3 backend fusionada en `main` (`ac6eee7`), pendiente de push y revisión senior. Frontend 1.1b y 1.3b fusionados en `15cf79a`.**
+Última actualización: 2026-10-30 · **Modo ACELERADO activo.** Rama `chore/accelerated-mode` en backend y frontend, creada desde `main`; contiene solo workflow, permisos y registro de decisiones, sin push. Las ramas `feat/1.3-admin-detail` (backend), `feat/1.3-admin-panel` (frontend), `feat/1.4-offerings-availability` (backend) y `feat/1.4-scheduling-client` (frontend) siguen pendientes de revisión y merge. `main` local `4b4b57e`, 6 commits adelante de `origin/main` `ac6eee7`, sin push. La ejecución de 1.5–1.7 espera la aprobación del mapa de ramas.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -20,7 +20,7 @@
   - CSRF con `enableCsrfProtection({ trustedOrigins })`; rate limit por IP + correo en login y recuperación con `@nestjs/throttler`.
   - Seed de admin con `ADMIN_EMAIL`/`ADMIN_PASSWORD`; nunca por registro público. Probado en `steam_society_test`: `admin|active|$argon2id`.
   - Validación con Zod 4 + `StandardSchemaValidationPipe`; `ConfigModule` valida el entorno al arrancar y falla rápido si falta `SESSION_SECRET` o es corto.
-- Tests: 73 unitarios (11 archivos) verdes con `pnpm test`; `pnpm build` y `pnpm lint` verdes tras el formateo del 2026-10-25. Los 28 e2e no se ejecutaron en la auditoría: los debe ejecutar el desarrollador con la base y Mailpit levantados; no afirmar que están verdes.
+- Tests: 73 unitarios (11 archivos) verdes con `pnpm test`; `pnpm build` y `pnpm lint` verdes. El 2026-10-30 se ejecutaron 28 e2e (3 archivos) contra `steam_society_test` en `127.0.0.1:5433`: 28/28 verdes. La rama 1.4 reporta 115 unitarios y 36 e2e (no re-ejecutados en esta auditoría).
 - README reescrito: puesta en marcha, variables, API, sesiones/CSRF/CORS, Mailpit, seed y base de tests.
 - `feat/1.2-identity` fusionada en `main` con merge commit `64e8559` (`--no-ff`) y subida a `origin/main`; las ramas `feat/1.1a-prisma-postgres`, `chore/hardening-basics` y `feat/1.2-identity` también tienen upstream.
 - Commits de la sesión anterior en `main`: `fd884b7` (area + migración inicial), `5c9102d` (health contrato), `e8f2333` (CORS), `69f6598` (README).
@@ -67,6 +67,33 @@
 - La completitud se calcula desde la config; el frontend no duplica las reglas de obligatoriedad.
 - El área principal se guarda como respuesta y también en la tabla de áreas junto con las subáreas; la jerarquía se valida en el servicio.
 
+## Modo acelerado y decisiones 2026-10-30
+- Workflow ACELERADO adoptado en `AGENTS.md` de ambos repos: se encadenan las tareas de la etapa sin pedir confirmación del plan; solo se para en 'Detente y pregunta' o al cerrar la etapa. Se mantiene la calidad obligatoria y el informe único de cierre (máx. 25 líneas).
+- `opencode.json` (ambos repos): se añadieron allows para `pnpm test:e2e`, `pnpm format`, `pnpm format:check`, `pnpm exec prisma migrate dev *`, `pnpm exec prisma migrate deploy`, `docker compose up|start|stop *`. Todos los deny existentes siguen al final; `pnpm add` sigue en `ask`.
+- P-07: aceptada como ADR-020 (`temporal-polyfill` 1.0.6 aislado en `src/shared/time/` y en el dominio de slots). El ADR se incorporó a `docs/07-DECISIONS.md` en esta rama para no dejar el número huérfano; la implementación vive en `feat/1.4-offerings-availability`.
+- P-10 parcial (ADR-021): plazo de respuesta de solicitudes de 48 h, configurable con `BOOKING_REQUEST_TTL_HOURS` (entero positivo; ejemplo en `.env.example` y README). La comisión queda para el Hito 2.
+- P-11 (ADR-022): en el Hito 1 no hay bus de eventos ni outbox; el caso de uso llama a `NotificationsPort` después de confirmar la transacción y un fallo de correo se registra sin revertir la reserva. El outbox se decide en el Hito 2.
+- P-12 (ADR-023): vencimiento evaluado al consultar + tarea periódica en proceso con `@nestjs/schedule`; actualización idempotente. Verificado con el registro npm: `@nestjs/schedule@12.0.2` declara peers `@nestjs/core` y `@nestjs/common` `^11.0.0 || ^12.0.0`; es compatible con NestJS 12. El intervalo se define en 1.5.
+- Auditoría e2e: `pnpm test:e2e` reportó PostgreSQL `steam_society_test` en `127.0.0.1:5433`, 7 migraciones y 28/28 tests verdes. La base de desarrollo es `steam_society` (misma instancia, base distinta); `docker compose port postgres 5432` confirma `127.0.0.1:5433`.
+- No se tomaron decisiones PENDIENTES fuera de las aprobadas en el mensaje del desarrollador.
+
+## Etapa 1.4: en rama (no fusionada)
+- `feat/1.4-offerings-availability` (HEAD `8ee0c09`, 7 commits desde `main`): ofertas, disponibilidad, slots con DST, migraciones `20261026161007_add_offerings_and_availability` y `20261026162005_use_time_for_availability`, 115 unitarios y 36 e2e reportados.
+- `feat/1.4-scheduling-client` (frontend, HEAD `d627a37`, 4 commits): cliente/tipos/pruebas de scheduling, 36 tests reportados, sin UI.
+- La UI de 1.4 y la ejecución de 1.5 quedan a la espera del mapa de ramas y del merge.
+
+## Mapa de ramas (2026-10-30, pendiente de aprobación)
+| Repo | Rama | Base | Commits | Tests | Riesgo / notas |
+|---|---|---|---|---|---|
+| Backend | `chore/accelerated-mode` | `4b4b57e` | 7 (incl. ajustes de docs) | 73 unit y 28 e2e verdes; build/lint verdes | Solo workflow, permisos y docs; sin código |
+| Backend | `feat/1.3-admin-detail` | `4b4b57e` | 3 | 73 unit verdes; 30 e2e reportados; build/lint verdes | Zona roja (admin); conflictos de docs con accelerated y de `profiles` con 1.4 |
+| Backend | `feat/1.4-offerings-availability` | `4b4b57e` | 7 | 115 unit verificados; 36 e2e reportados; build/lint verdes | Zona roja (scheduling); conflictos de docs y `profiles`; añade migraciones y `temporal-polyfill` |
+| Web | `chore/accelerated-mode` | `00d327b` | 3 | 28 tests y lint verdes; build verde; `format:check` falla solo por `.agents/skills/*` | Solo workflow y permisos |
+| Web | `feat/1.3-admin-panel` | `00d327b` | 4 | 40 tests verificados; lint verde; build reportado | Zona roja (admin); conflictos en `AGENTS.md`, README y `errors.ts` |
+| Web | `feat/1.4-scheduling-client` | `00d327b` | 4 | 36 tests verificados; lint verde; build reportado | Zona roja (scheduling); conflictos en `AGENTS.md`, README y `errors.ts` |
+
+Orden recomendado en ambos repos: `chore/accelerated-mode` → 1.3 → 1.4. No se ejecutó ningún merge; el desarrollador revisa y fusiona.
+
 ## Skills
 
 - Política: revisión de solo lectura antes de instalar; copia manual de la carpeta a `.agents/skills/<id>/`; sin `npx skills add`, sin ejecutar scripts, sin symlinks y sin auto-actualización. Cada actualización se revisa y se registra en `docs/SKILLS.md`.
@@ -86,17 +113,17 @@
 - 1.3: el onboarding acepta guardados parciales; `completion` ya se calcula en servidor y `submit` bloquea incompletos. El frontend debe consumir `completion` y no duplicar la regla.
 - 1.3: el perfil `approved` sigue editable por decisión de producto; las ediciones post-aprobación no se auditan. Si se quiere re-revisión al cambiar campos sensibles, es una regla nueva.
 - 1.3: `onboarding_response` puede conservar filas antiguas de `age`; `GET /v1/me/onboarding` filtra a los códigos vigentes. Decidir si se hace una limpieza de datos en una migración posterior.
-- 1.3: falta `GET /v1/admin/mentors/:id` con las respuestas completas del onboarding (LinkedIn, rol, apoyos, industrias, niveles y disponibilidad) para que el admin revise con contexto antes de aprobar.
+- 1.3: `GET /v1/admin/mentors/:id` con onboarding completo está implementado en `feat/1.3-admin-detail` (pendiente de merge); la UI admin está en `feat/1.3-admin-panel` (pendiente de merge).
 - 1.3: los seeds de áreas e idiomas son provisionales; el equipo de producto debe entregar las listas definitivas.
 - 1.3: no hay ruta pública de catálogo todavía; la regla "solo `approved` visible" se implementará al crear esa ruta en 1.6.
 - Skills: `prisma-cli` no se instaló; decidir si se acepta una versión adaptada sin `prisma init`/`npx` o si se deja fuera.
 
 ## Siguiente
-1. Frontend 1.1b y 1.3b ya fusionados (`15cf79a`); siguiente: perfil y vista admin, consumiendo `completion` y `GET /v1/admin/mentors/:id`.
-2. Backend: añadir `GET /v1/admin/mentors/:id` con onboarding completo antes de la vista admin.
-3. Ejecutar `pnpm test:e2e` con Docker/Postgres y Mailpit; no se ejecutaron en la auditoría.
-4. Revisión senior de la zona roja de autenticación antes de producción; push de `main` cuando el desarrollador lo autorice.
-5. Etapa 1.4: ofertas y disponibilidad; el onboarding ya deja preferencias de horario, pero las reglas reales llegan en 1.4.
+1. Aprobar el mapa de ramas (E) y el orden de merge; no se ejecuta ningún merge sin esa aprobación.
+2. Fusionar `chore/accelerated-mode` (workflow/permisos) en ambos repos; después 1.3 admin detail/panel y 1.4 backend/client, resolviendo los conflictos de docs y de `profiles` que se indiquen en el mapa.
+3. Ejecutar la etapa 1.5 (reservas, zona roja) con la máquina de estados pura, exclusión SQL, test de concurrencia, vencimiento idempotente y `NotificationsPort`; luego 1.6 (catálogo/recomendaciones) y 1.7 (demo).
+4. Web: implementar la UI de cada etapa leyendo primero el contrato publicado en README/PROGRESS del backend.
+5. Revisión senior de autenticación y de las zonas rojas antes de producción; push de `main` solo con autorización del desarrollador.
 
 ## Registro de sesiones
 | Fecha | Qué se hizo | Quién |
@@ -112,3 +139,4 @@
 | 2026-10-24 | Revisión pre-merge: `jsonb`, UUID en rutas admin, jerarquía de áreas en `PUT /profile` y tests e2e | Agente (pendiente de revisión) |
 | 2026-10-24 | Merge local de 1.3 en `main` (`a3a42bc`); gates verdes; sin push | Agente (instrucción del desarrollador) |
 | 2026-10-25 | Formato de `profiles`/e2e; permisos de skills; instalación revisada de `prisma-client-api` y `supabase-postgres-best-practices`; `prisma-cli` rechazada; docs actualizados; e2e no ejecutados | Agente (pendiente de revisión) |
+| 2026-10-30 | Modo ACELERADO en ambos repos; allows de verificación/migraciones; ADR-020 a 023 (P-07, P-10 parcial, P-11, P-12); `BOOKING_REQUEST_TTL_HOURS`; auditoría e2e (28/28 en `steam_society_test`); mapa de ramas pendiente de aprobación | Agente (pendiente de revisión) |

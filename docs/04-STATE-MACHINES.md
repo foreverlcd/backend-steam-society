@@ -27,13 +27,15 @@ Estados terminales: `declined`, `cancelled`, `expired`, `completed`, `no_show`. 
 | `requested` | aceptar (de pago) | `awaiting_payment` | mentora | `payment_required = true` (Hito 2) | Fija el plazo de pago; el módulo payments crea el pago (evento) |
 | `requested` | rechazar | `declined` | mentora | Motivo opcional | Libera la sesión 1:1 (`session` → `cancelled`); notifica a la mentee |
 | `requested` / `awaiting_payment` | cancelar | `cancelled` | mentee | Antes de confirmar | Libera la sesión; registra `cancelled_by` y `cancelled_at` |
-| `requested` / `awaiting_payment` | vencer | `expired` | sistema | `now > expires_at` | Libera la sesión; notifica. Se evalúa al consultar y por una tarea periódica |
+| `requested` / `awaiting_payment` | vencer | `expired` | sistema | `now > expires_at` | Libera la sesión; notifica. Se evalúa al consultar y por una tarea periódica; la actualización es idempotente (ADR-023) |
 | `awaiting_payment` | pago acreditado | `confirmed` | sistema (evento de payments) | Pago `paid` | Igual que aceptar gratuita |
 | `confirmed` | cancelar | `cancelled` | mentee o mentora | Gratuita: hasta el inicio. De pago: **política pendiente (DA-05)** | Registra `cancelled_by` y `cancel_reason`; libera la sesión 1:1; reembolso según DA-05 (Hito 2); cuenta para la reputación |
 | `confirmed` | completar | `completed` | sistema o mentora | `now >= ends_at` | `completed_at`; habilita reseñas (Hito 3) |
 | `confirmed` | no-show | `no_show` | mentora (ausente mentee) o mentee (ausente mentora) | `now > starts_at` | Registra `no_show_party`; cuenta para la reputación |
 
 Cuidados con sesiones gratuitas: más no-shows y ningún pago asociado. Los no-shows y cancelaciones tardías de mentees alimentan una señal de fiabilidad (Hito 3, `trust`).
+
+Notificaciones: se envían después del commit vía `NotificationsPort`; un fallo de correo se registra y NO revierte la reserva (ADR-022). El plazo de respuesta sale de `BOOKING_REQUEST_TTL_HOURS` (ADR-021).
 
 ## Sesión (`session`)
 `open` → `cancelled` | `completed`. En 1:1 la sesión nace con la solicitud y se cancela cuando su única reserva termina sin confirmarse o se cancela. En grupales (futuro) sigue `open` mientras haya reservas válidas.

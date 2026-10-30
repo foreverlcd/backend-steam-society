@@ -39,6 +39,8 @@ Variables principales:
 - `APP_URL`, `SMTP_URL`, `SMTP_FROM`: enlace de recuperación y correo saliente.
   En local, Mailpit expone SMTP en `127.0.0.1:1025` y la bandeja en
   `http://127.0.0.1:8025`.
+- `BOOKING_REQUEST_TTL_HOURS`: plazo de respuesta de una solicitud de reserva,
+  en horas (entero positivo, 48 por defecto; R-06, ADR-021).
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD`: solo para `pnpm db:seed`. El registro público
   nunca crea administradores.
 

@@ -18,7 +18,7 @@ Una mentora que quiera recibir mentoría necesita otra cuenta con otro correo (d
 - **R-03** Una mentora tiene una o varias ofertas. Cada oferta es gratuita o de pago, con duración propia. Precio en entero de unidad mínima + moneda ISO 4217.
 - **R-04** La disponibilidad pertenece a la mentora, no a la oferta. La duración de la oferta define el tamaño del bloque dentro de ese horario.
 - **R-05** La mentee elige a su mentora. El sistema recomienda, nunca asigna.
-- **R-06** Cada solicitud de sesión la aprueba la mentora. Si no responde en el plazo, la solicitud vence. Plazo: 48 h [PLACEHOLDER].
+- **R-06** Cada solicitud de sesión la aprueba la mentora. Si no responde en el plazo, la solicitud vence. Plazo: 48 h por defecto, configurable con `BOOKING_REQUEST_TTL_HOURS` (ADR-021).
 - **R-07** Las sesiones gratuitas nunca crean pagos ni asientos en el ledger.
 - **R-08** Pagos y comisiones: Hito 2. La política de cancelación y reembolso es una decisión pendiente (DA-05).
 - **R-09** La fecha de nacimiento se guarda en el registro. Aún NO hay lógica de menores (DA-01).

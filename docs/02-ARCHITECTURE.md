@@ -65,7 +65,7 @@ En módulos hexagonales el dominio NUNCA importa Prisma ni Nest: se traduce en l
 1. Cada módulo es dueño de sus tablas. Otro módulo no las lee ni las escribe: usa el servicio exportado del módulo dueño o escucha sus eventos de dominio.
 2. Excepción: claves foráneas hacia `user` (integridad referencial).
 3. Dependencias permitidas (flecha = "puede depender de"): `scheduling → profiles`, `matching → profiles, scheduling`, `payments → scheduling` (por evento), `notifications ← eventos de todos`. Nadie depende de `admin`. Evita ciclos; si aparece uno, se detiene y se pregunta.
-4. Efectos laterales entre módulos por eventos internos de dominio (ej. `BookingConfirmed`). El mecanismo (emisor en proceso, y outbox si hace falta fiabilidad) se decide cuando aparezca el primer caso [PENDIENTE P-11].
+4. Efectos laterales entre módulos: en el Hito 1 no hay bus de eventos; el caso de uso confirma la transacción y después llama a `NotificationsPort` (ADR-022). El outbox se decide en el Hito 2.
 5. `PrismaModule` NO es global: cada módulo que accede a datos lo importa.
 6. Se vigila con una regla de lint o dependency-cruiser cuando haya 3 o más módulos [a confirmar herramienta].
 
@@ -79,7 +79,7 @@ En módulos hexagonales el dominio NUNCA importa Prisma ni Nest: se traduce en l
 `Controller` (HTTP, validación, DTO) → `Service` (regla de negocio, transacción) → `PrismaService` → PostgreSQL. Los errores de dominio se lanzan como excepciones propias y un filtro global los traduce a HTTP (ver `06-CONVENTIONS.md`).
 
 ## Tiempo real y tareas en segundo plano (Hitos 1 y 3)
-- Vencimiento de solicitudes y recordatorios: tarea programada simple en proceso (decidir herramienta cuando se necesite, preferir lo que use solo PostgreSQL) [PENDIENTE P-12]. El vencimiento también se evalúa al consultar, para no depender de la tarea.
+- Vencimiento de solicitudes y recordatorios: tarea programada simple en proceso con `@nestjs/schedule` (ADR-023), además de evaluarse al consultar para no depender de la tarea. La actualización de vencimiento es idempotente.
 - WebSockets (chat y señalización): gateway dentro del mismo proceso de la API. Video: Hito 4.
 
 ## Calidad y evidencia por capa

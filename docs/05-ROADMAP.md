@@ -1,8 +1,8 @@
 # 05 · Hoja de ruta y criterios de aceptación
 
-Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. Antes de cada etapa el agente propone un plan corto y espera confirmación (salvo lo ya detallado aquí).
+Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. En modo acelerado se sigue la etapa completa sin pedir confirmación del plan; solo se para en las condiciones de 'Detente y pregunta' o al cerrar la etapa.
 
-**Estado 2026-10-25:** backend 1.3 fusionado en `main` `ac6eee7` (11 commits adelante de `origin/main` `74f7370`, sin push); frontend 1.1b y 1.3b fusionados en `15cf79a`. Siguiente etapa: 1.4. Los e2e no se ejecutaron en la auditoría; los ejecuta el desarrollador.
+**Estado 2026-10-30:** modo acelerado activo. Backend `main` `4b4b57e` (6 commits adelante de `origin/main` `ac6eee7`, sin push); frontend `main` `00d327b`. Pendientes de merge: 1.3 admin detail/panel y 1.4 backend/client. E2E de `main`: 28/28 verdes contra `steam_society_test`; 1.4 reporta 36. Siguiente: aprobar el mapa de ramas y ejecutar 1.5.
 
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 
@@ -29,12 +29,12 @@ Seeds provisorios de áreas STEAM e idiomas (el equipo entregará las listas def
 **API:** `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`; admin `GET /v1/admin/mentors?status=`, `POST /v1/admin/mentors/:id/approve|reject|suspend|reactivate`.
 **Aceptación:** una mentora no `approved` no es visible por ninguna ruta pública; cada aprobación o rechazo deja registro de auditoría; validación estricta de entradas; `submit` rechaza un onboarding incompleto y `GET|PUT /v1/me/onboarding` expone `completion`.
 
-### 1.4: Ofertas y disponibilidad (SIGUIENTE)
-CRUD de ofertas (varias por mentora; archivar en vez de borrar) · reglas de disponibilidad con zona IANA · cálculo de slots (`GET /v1/mentors/:id/slots`) respetando antelación mínima y máxima, sesiones existentes y duración de la oferta. Evaluar librería de fechas con soporte IANA [PENDIENTE P-07].
+### 1.4: Ofertas y disponibilidad (en rama, pendiente de merge)
+CRUD de ofertas (varias por mentora; archivar en vez de borrar) · reglas de disponibilidad con zona IANA · cálculo de slots (`GET /v1/mentors/:id/slots`) respetando antelación mínima y máxima, sesiones existentes y duración de la oferta. Librería de fechas con soporte IANA: `temporal-polyfill` 1.0.6 (ADR-020).
 **Aceptación:** tests de propiedades (ningún slot se solapa con una sesión; todo slot cae dentro de las reglas); casos con zonas con horario de verano (ej. `America/New_York`, `Europe/Madrid`) y cambios de hora; CHECKs de oferta probados en integración.
 
 ### 1.5: Reservas (ZONA ROJA, hexagonal)
-Solicitar, aceptar, rechazar, cancelar, vencer, completar y no-show, según `04-STATE-MACHINES.md`; migración con SQL a mano (exclusión y CHECK); notificaciones por correo; enlace de sesión externo.
+Solicitar, aceptar, rechazar, cancelar, vencer, completar y no-show, según `04-STATE-MACHINES.md`; migración con SQL a mano (exclusión y CHECK); notificaciones por correo después del commit (ADR-022); vencimiento al consultar + tarea con `@nestjs/schedule` (ADR-023); plazo de respuesta `BOOKING_REQUEST_TTL_HOURS` (ADR-021); enlace de sesión externo.
 **Aceptación:** tabla exhaustiva de transiciones; test de concurrencia (dos solicitudes al mismo horario: una gana); vencimiento correcto aunque no corra la tarea; mentee sin solapes (R-12); ninguna reserva gratuita crea pago (R-07).
 
 ### 1.6: Catálogo y recomendaciones

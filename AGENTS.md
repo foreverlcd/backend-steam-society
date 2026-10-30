@@ -27,14 +27,14 @@ TypeScript, Node 24 LTS, pnpm, NestJS 12 (ESM, Vitest, oxlint), PostgreSQL 18 co
 - Prisma 7: generador `prisma-client`, salida en `src/generated/prisma` (no se versiona), el `datasource` NO lleva `url` (vive en `prisma.config.ts`), el cliente exige adaptador, no existe `$on('beforeExit')`. Fechas: `@db.Timestamptz(3)`.
 - La API corre en el puerto 3000; el frontend en 3001 (`WEB_ORIGIN`).
 
-## Modo de trabajo (acordado con el desarrollador)
-El desarrollador es junior y único dev. Tú implementas; él revisa cada diff.
-- Una rama por etapa (`feat/<etapa>-<tema>`). Commits pequeños en inglés con Conventional Commits. NUNCA commitees en `main`, NUNCA `git push`, NUNCA reescribas historia. Él revisa `git diff main...HEAD` y hace el merge.
-- Antes de implementar algo no trivial, propón un plan corto (archivos, decisiones, riesgos) y espera confirmación. Excepción: lo ya detallado en `docs/05-ROADMAP.md` para la etapa vigente.
-- Con reglas de negocio: test primero (rojo), luego el código (verde).
-- Al terminar cada tarea entrega: (1) qué hiciste y por qué en 3 a 5 líneas, con un ejemplo simple de lo no obvio; (2) qué debe comprobar él a mano; (3) qué debería poder explicar.
-- Zonas rojas: autenticación, scheduling/reservas, payments/ledger y seguridad. Implementas, pero con tests de invariantes obligatorios, cambios más pequeños y una lista "puntos para revisar con lupa". Nada de esto va a producción sin revisión de un desarrollador senior.
-- Decisiones marcadas PENDIENTE en `docs/07-DECISIONS.md`: NO las tomes. Investiga con documentación oficial, propón 2 o 3 opciones con pros y contras, y espera su decisión.
+## Modo de trabajo: ACELERADO
+El desarrollador es el único dev y revisa por ETAPA, no por tarea.
+- Sigue docs/05-ROADMAP.md etapa por etapa. Encadena las tareas de la etapa SIN pedir confirmación del plan. Solo te detienes en las condiciones de 'Detente y pregunta' o al cerrar la etapa.
+- Una rama por etapa o tema. NUNCA commitees en main, NUNCA push, NUNCA reescribas historia: el desarrollador hace el merge.
+- Calidad obligatoria (no se acelera): build, lint y test, y e2e cuando haya API y base de datos, en verde antes de cerrar. Test primero en reglas de negocio. Tests de invariantes en zonas rojas.
+- Ya NO se exigen explicaciones didácticas, ejemplos cotidianos ni la lista 'qué debería poder explicar'.
+- Al cerrar cada etapa, UN informe de máx. 25 líneas: qué se hizo, evidencia (comandos y resultados), decisiones tomadas dentro de lo permitido, riesgos, 'puntos para revisar con lupa' (obligatorio en zonas rojas), pasos de verificación manual y estado de PROGRESS.md.
+- Las decisiones PENDIENTES de docs/07-DECISIONS.md siguen sin tomarse por tu cuenta.
 
 ## Detente y pregunta antes de
 - Instalar una dependencia (justifícala: necesidad real, mantenimiento, licencia, tamaño).
