@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-25 · Etapa vigente: **1.4 Ofertas y disponibilidad (siguiente); 1.3 backend fusionada en `main` (`ac6eee7`), pendiente de push y revisión senior. Frontend 1.1b y 1.3b fusionados en `15cf79a`.**
+Última actualización: 2026-10-30 · Etapa vigente: **1.3 detalle admin en las ramas `feat/1.3-admin-detail` (backend) y `feat/1.3-admin-panel` (frontend), pendiente de revisión y merge. 1.4 sigue implementada en `feat/1.4-offerings-availability` (backend) y `feat/1.4-scheduling-client` (frontend), también pendiente de merge. `main` local `4b4b57e`, 6 commits adelante de `origin/main` `ac6eee7`, sin push.**
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -20,7 +20,7 @@
   - CSRF con `enableCsrfProtection({ trustedOrigins })`; rate limit por IP + correo en login y recuperación con `@nestjs/throttler`.
   - Seed de admin con `ADMIN_EMAIL`/`ADMIN_PASSWORD`; nunca por registro público. Probado en `steam_society_test`: `admin|active|$argon2id`.
   - Validación con Zod 4 + `StandardSchemaValidationPipe`; `ConfigModule` valida el entorno al arrancar y falla rápido si falta `SESSION_SECRET` o es corto.
-- Tests: 73 unitarios (11 archivos) verdes con `pnpm test`; `pnpm build` y `pnpm lint` verdes tras el formateo del 2026-10-25. Los 28 e2e no se ejecutaron en la auditoría: los debe ejecutar el desarrollador con la base y Mailpit levantados; no afirmar que están verdes.
+- Tests: en esta rama, 73 unitarios (11 archivos) y 30 e2e verdes; `pnpm build` y `pnpm lint` verdes. En `feat/1.4-offerings-availability`: 115 unitarios y 36 e2e verdes. El detalle admin añade e2e de 200, 403, 404 y UUID inválido.
 - README reescrito: puesta en marcha, variables, API, sesiones/CSRF/CORS, Mailpit, seed y base de tests.
 - `feat/1.2-identity` fusionada en `main` con merge commit `64e8559` (`--no-ff`) y subida a `origin/main`; las ramas `feat/1.1a-prisma-postgres`, `chore/hardening-basics` y `feat/1.2-identity` también tienen upstream.
 - Commits de la sesión anterior en `main`: `fd884b7` (area + migración inicial), `5c9102d` (health contrato), `e8f2333` (CORS), `69f6598` (README).
@@ -45,7 +45,9 @@
 - [x] Seeds provisionales: idiomas `es`, `en`, `qu`; áreas Ciencia, Tecnología, Ingeniería y Matemáticas con subáreas.
 - [x] `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`.
 - [x] Onboarding versión 1 con las preguntas de producto entregadas; respuestas en `onboarding_response` y proyección a perfil/áreas/idiomas.
-- [x] Admin: `GET /v1/admin/mentors?status=`, `approve`, `reject`, `suspend`, `reactivate`; rechazo con motivo.
+- [x] Admin: `GET /v1/admin/mentors?status=`, `GET /v1/admin/mentors/:id`, `approve`, `reject`, `suspend`, `reactivate`; rechazo con motivo.
+- [x] Detalle admin: `{ mentor, onboarding }` con perfil, `minNoticeHours`, `maxAdvanceDays`, áreas, idiomas, pasos, respuestas, completitud y opciones; reutiliza `buildOnboarding('mentor', ...)`.
+- [x] Frontend admin: bandeja con filtros por estado y cursor, detalle completo del onboarding, acciones aprobar/rechazar/suspender/reactivar y manejo de 401/403; 40 tests verdes en `feat/1.3-admin-panel`.
 - [x] Máquina de estados pura y test exhaustivo; transiciones admin + `audit_log` en una transacción; perfil editable sin cambiar estado.
 - [x] Tests de rol, validación, versión de onboarding, jerarquía de áreas, auditoría append-only y flujo completo de aprobación.
 - [x] Hardening: `completion: { complete, missing }` en onboarding, `submit` rechaza incompletos con `ONBOARDING_INCOMPLETE`, test de contrato config↔Zod.
@@ -66,6 +68,8 @@
 - La edad no se guarda en el onboarding: se deriva de `user.birth_date` para mostrarla.
 - La completitud se calcula desde la config; el frontend no duplica las reglas de obligatoriedad.
 - El área principal se guarda como respuesta y también en la tabla de áreas junto con las subáreas; la jerarquía se valida en el servicio.
+- Detalle admin: `GET /v1/admin/mentors/:id` devuelve `{ mentor, onboarding }`; `mentor` añade `minNoticeHours` y `maxAdvanceDays` al resumen de la bandeja y `onboarding` reutiliza `buildOnboarding('mentor', ...)`.
+- La UI admin no duplica reglas de completitud: muestra `onboarding.completion` y los pasos que devuelve la API; las acciones se deshabilitan según el estado de la máquina de estados.
 
 ## Skills
 
@@ -86,17 +90,18 @@
 - 1.3: el onboarding acepta guardados parciales; `completion` ya se calcula en servidor y `submit` bloquea incompletos. El frontend debe consumir `completion` y no duplicar la regla.
 - 1.3: el perfil `approved` sigue editable por decisión de producto; las ediciones post-aprobación no se auditan. Si se quiere re-revisión al cambiar campos sensibles, es una regla nueva.
 - 1.3: `onboarding_response` puede conservar filas antiguas de `age`; `GET /v1/me/onboarding` filtra a los códigos vigentes. Decidir si se hace una limpieza de datos en una migración posterior.
-- 1.3: falta `GET /v1/admin/mentors/:id` con las respuestas completas del onboarding (LinkedIn, rol, apoyos, industrias, niveles y disponibilidad) para que el admin revise con contexto antes de aprobar.
+- 1.3: el detalle admin ya muestra todas las respuestas del onboarding, pero la UI no muestra el historial de `audit_log` ni quién revisó antes; si se necesita trazabilidad visible, es una tarea nueva.
+- 1.3: la UI admin se probó con `fetch` y componentes mockeados, no contra la API real; falta una prueba de contrato frontend-API antes del piloto.
 - 1.3: los seeds de áreas e idiomas son provisionales; el equipo de producto debe entregar las listas definitivas.
 - 1.3: no hay ruta pública de catálogo todavía; la regla "solo `approved` visible" se implementará al crear esa ruta en 1.6.
 - Skills: `prisma-cli` no se instaló; decidir si se acepta una versión adaptada sin `prisma init`/`npx` o si se deja fuera.
 
 ## Siguiente
-1. Frontend 1.1b y 1.3b ya fusionados (`15cf79a`); siguiente: perfil y vista admin, consumiendo `completion` y `GET /v1/admin/mentors/:id`.
-2. Backend: añadir `GET /v1/admin/mentors/:id` con onboarding completo antes de la vista admin.
-3. Ejecutar `pnpm test:e2e` con Docker/Postgres y Mailpit; no se ejecutaron en la auditoría.
-4. Revisión senior de la zona roja de autenticación antes de producción; push de `main` cuando el desarrollador lo autorice.
-5. Etapa 1.4: ofertas y disponibilidad; el onboarding ya deja preferencias de horario, pero las reglas reales llegan en 1.4.
+1. Revisar `git diff main...HEAD` de `feat/1.3-admin-detail` y `feat/1.3-admin-panel`; hacer el merge cuando el desarrollador lo autorice.
+2. Revisar y fusionar 1.4 (`feat/1.4-offerings-availability` y `feat/1.4-scheduling-client`) antes de la UI de ofertas/disponibilidad.
+3. Frontend 1.4: implementar la UI de ofertas/disponibilidad/slots sobre el cliente ya listo.
+4. 1.5: reservas y sesiones (zona roja); sigue bloqueada por P-10 (plazo de respuesta), P-12 (tarea periódica) y P-11 (eventos internos).
+5. Revisión senior de autenticación y de las zonas rojas antes de producción; push de `main` solo con autorización.
 
 ## Registro de sesiones
 | Fecha | Qué se hizo | Quién |
@@ -112,3 +117,4 @@
 | 2026-10-24 | Revisión pre-merge: `jsonb`, UUID en rutas admin, jerarquía de áreas en `PUT /profile` y tests e2e | Agente (pendiente de revisión) |
 | 2026-10-24 | Merge local de 1.3 en `main` (`a3a42bc`); gates verdes; sin push | Agente (instrucción del desarrollador) |
 | 2026-10-25 | Formato de `profiles`/e2e; permisos de skills; instalación revisada de `prisma-client-api` y `supabase-postgres-best-practices`; `prisma-cli` rechazada; docs actualizados; e2e no ejecutados | Agente (pendiente de revisión) |
+| 2026-10-30 | Detalle admin `GET /v1/admin/mentors/:id` con onboarding completo y e2e; UI admin con bandeja, filtros, detalle y acciones; 73 unitarios y 30 e2e backend, 40 tests frontend | Agente (pendiente de revisión) |

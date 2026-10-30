@@ -106,10 +106,13 @@ después de que la API ya está levantada. Cuando la base vuelve, `/health` resp
 | GET | `/v1/me/onboarding` | Sesión `mentor`/`mentee` | Configuración versionada, respuestas y taxonomías |
 | PUT | `/v1/me/onboarding` | Sesión `mentor`/`mentee` | Guarda respuestas del onboarding |
 | GET | `/v1/admin/mentors?status=` | Sesión `admin` | Lista perfiles de mentoras |
+| GET | `/v1/admin/mentors/:id` | Sesión `admin` | Detalle con perfil y onboarding completo |
 | POST | `/v1/admin/mentors/:id/approve` | Sesión `admin` | Aprueba una mentora |
 | POST | `/v1/admin/mentors/:id/reject` | Sesión `admin` | Rechaza con `{ "reason": "..." }` |
 | POST | `/v1/admin/mentors/:id/suspend` | Sesión `admin` | Suspende una mentora aprobada |
 | POST | `/v1/admin/mentors/:id/reactivate` | Sesión `admin` | Reactiva una mentora suspendida |
+
+`GET /v1/admin/mentors/:id` devuelve `{ mentor, onboarding }`. `mentor` incluye el perfil, `minNoticeHours`, `maxAdvanceDays`, áreas, idiomas y estado; `onboarding` reutiliza la configuración versionada con `steps`, `answers`, `completion` y `options`. Responde `404 MENTOR_PROFILE_NOT_FOUND` si no existe y `400` si el UUID es inválido.
 
 Ejemplo de registro:
 
