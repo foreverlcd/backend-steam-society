@@ -82,6 +82,18 @@
 - `feat/1.4-scheduling-client` (frontend, HEAD `d627a37`, 4 commits): cliente/tipos/pruebas de scheduling, 36 tests reportados, sin UI.
 - La UI de 1.4 y la ejecución de 1.5 quedan a la espera del mapa de ramas y del merge.
 
+## Mapa de ramas (2026-10-30, pendiente de aprobación)
+| Repo | Rama | Base | Commits | Tests | Riesgo / notas |
+|---|---|---|---|---|---|
+| Backend | `chore/accelerated-mode` | `4b4b57e` | 5 | 73 unit y 28 e2e verdes; build/lint verdes | Solo workflow, permisos y docs; sin código |
+| Backend | `feat/1.3-admin-detail` | `4b4b57e` | 3 | 73 unit verdes; 30 e2e reportados; build/lint verdes | Zona roja (admin); conflictos de docs con accelerated y de `profiles` con 1.4 |
+| Backend | `feat/1.4-offerings-availability` | `4b4b57e` | 7 | 115 unit verificados; 36 e2e reportados; build/lint verdes | Zona roja (scheduling); conflictos de docs y `profiles`; añade migraciones y `temporal-polyfill` |
+| Web | `chore/accelerated-mode` | `00d327b` | 3 | 28 tests y lint verdes; build verde; `format:check` falla solo por `.agents/skills/*` | Solo workflow y permisos |
+| Web | `feat/1.3-admin-panel` | `00d327b` | 4 | 40 tests verificados; lint verde; build reportado | Zona roja (admin); conflictos en `AGENTS.md`, README y `errors.ts` |
+| Web | `feat/1.4-scheduling-client` | `00d327b` | 4 | 36 tests verificados; lint verde; build reportado | Zona roja (scheduling); conflictos en `AGENTS.md`, README y `errors.ts` |
+
+Orden recomendado en ambos repos: `chore/accelerated-mode` → 1.3 → 1.4. No se ejecutó ningún merge; el desarrollador revisa y fusiona.
+
 ## Skills
 
 - Política: revisión de solo lectura antes de instalar; copia manual de la carpeta a `.agents/skills/<id>/`; sin `npx skills add`, sin ejecutar scripts, sin symlinks y sin auto-actualización. Cada actualización se revisa y se registra en `docs/SKILLS.md`.
