@@ -35,6 +35,30 @@
       "resource": "docker compose logs *",
       "effect": "allow"
     },
+    { "action": "shell", "resource": "pnpm test:e2e", "effect": "allow" },
+    { "action": "shell", "resource": "pnpm format", "effect": "allow" },
+    { "action": "shell", "resource": "pnpm format:check", "effect": "allow" },
+    {
+      "action": "shell",
+      "resource": "pnpm exec prisma migrate dev *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "pnpm exec prisma migrate deploy",
+      "effect": "allow"
+    },
+    { "action": "shell", "resource": "docker compose up *", "effect": "allow" },
+    {
+      "action": "shell",
+      "resource": "docker compose start *",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "docker compose stop *",
+      "effect": "allow"
+    },
 
     { "action": "shell", "resource": "rm *", "effect": "deny" },
     { "action": "shell", "resource": "sudo *", "effect": "deny" },
