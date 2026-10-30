@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-30 · **Modo ACELERADO y política git autónoma activos.** `main` local ya incluye accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad; push pendiente. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes de merge. La ejecución de 1.5–1.7 continúa tras el push.
+Última actualización: 2026-10-30 · **Modo ACELERADO y política git autónoma activos.** `main` local ya incluye accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad (merges locales). **Push bloqueado:** el `deny` final `git push *` de `opencode.json` (línea 80) anula el `allow` de la línea 18; la prueba `--force-with-lease --dry-run` también fue rechazada. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes. 1.5 queda bloqueada hasta que el desarrollador ajuste el permiso y se publique `main`.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -156,7 +156,7 @@ Orden recomendado en ambos repos: `chore/accelerated-mode` → 1.3 → 1.4. No s
 - Skills: `prisma-cli` no se instaló; decidir si se acepta una versión adaptada sin `prisma init`/`npx` o si se deja fuera.
 
 ## Siguiente
-1. Ejecutar los gates del merge de 1.4 y push de `main` y las ramas backend.
+1. Desbloquear el push: el desarrollador debe retirar o mover el `deny` final `git push *` de `opencode.json` (línea 80); no lo modifica el agente. Después: `git push origin main` y las ramas backend una por una.
 2. Etapa 1.5 (reservas, zona roja): máquina de estados pura, exclusión SQL, test de concurrencia, vencimiento idempotente, `NotificationsPort` y reemplazo de `NoSessionConflictAdapter` por el adaptador real; luego 1.6 (catálogo/recomendaciones) y 1.7 (demo).
 3. Web: UI de 1.4 sobre `feat/1.4-scheduling-client` y UI de cada etapa leyendo primero el contrato publicado en README/PROGRESS del backend.
 4. Revisión senior de autenticación y de las zonas rojas antes de producción.
@@ -178,3 +178,4 @@ Orden recomendado en ambos repos: `chore/accelerated-mode` → 1.3 → 1.4. No s
 | 2026-10-30 | Modo ACELERADO en ambos repos; allows de verificación/migraciones; ADR-020 a 023 (P-07, P-10 parcial, P-11, P-12); `BOOKING_REQUEST_TTL_HOURS`; auditoría e2e (28/28 en `steam_society_test`); mapa de ramas aprobado | Agente (revisión del desarrollador) |
 | 2026-10-30 | Detalle admin `GET /v1/admin/mentors/:id` con onboarding completo y e2e; UI admin con bandeja, filtros, detalle y acciones; 73 unitarios y 30 e2e backend, 40 tests frontend | Agente (revisión del desarrollador) |
 | 2026-10-26 | 1.4 Ofertas/disponibilidad/slots: migraciones, dominio DST, CRUD, puerto de sesiones falso, puerto de settings de mentora, tests y docs; frontend: rama `feat/1.4-scheduling-client` con cliente/tipos/pruebas de 1.4 (36 tests verdes, sin UI) | Agente (revisión del desarrollador) |
+| 2026-10-30 | Merges locales `chore/git-policy` (`d9d9b1e`), 1.3 (`69f8f2a`) y 1.4 (`275f3cd`); gates: 115 unitarios y 38 e2e verdes; 9 migraciones al día. Push bloqueado por el `deny` final `git push *` de `opencode.json` | Agente (instrucción del desarrollador) |
