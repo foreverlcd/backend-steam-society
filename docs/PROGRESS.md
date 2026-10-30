@@ -85,7 +85,7 @@
 ## Mapa de ramas (2026-10-30, pendiente de aprobación)
 | Repo | Rama | Base | Commits | Tests | Riesgo / notas |
 |---|---|---|---|---|---|
-| Backend | `chore/accelerated-mode` | `4b4b57e` | 5 | 73 unit y 28 e2e verdes; build/lint verdes | Solo workflow, permisos y docs; sin código |
+| Backend | `chore/accelerated-mode` | `4b4b57e` | 7 (incl. ajustes de docs) | 73 unit y 28 e2e verdes; build/lint verdes | Solo workflow, permisos y docs; sin código |
 | Backend | `feat/1.3-admin-detail` | `4b4b57e` | 3 | 73 unit verdes; 30 e2e reportados; build/lint verdes | Zona roja (admin); conflictos de docs con accelerated y de `profiles` con 1.4 |
 | Backend | `feat/1.4-offerings-availability` | `4b4b57e` | 7 | 115 unit verificados; 36 e2e reportados; build/lint verdes | Zona roja (scheduling); conflictos de docs y `profiles`; añade migraciones y `temporal-polyfill` |
 | Web | `chore/accelerated-mode` | `00d327b` | 3 | 28 tests y lint verdes; build verde; `format:check` falla solo por `.agents/skills/*` | Solo workflow y permisos |
