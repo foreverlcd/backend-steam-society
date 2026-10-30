@@ -30,11 +30,18 @@ TypeScript, Node 24 LTS, pnpm, NestJS 12 (ESM, Vitest, oxlint), PostgreSQL 18 co
 ## Modo de trabajo: ACELERADO
 El desarrollador es el único dev y revisa por ETAPA, no por tarea.
 - Sigue docs/05-ROADMAP.md etapa por etapa. Encadena las tareas de la etapa SIN pedir confirmación del plan. Solo te detienes en las condiciones de 'Detente y pregunta' o al cerrar la etapa.
-- Una rama por etapa o tema. NUNCA commitees en main, NUNCA push, NUNCA reescribas historia: el desarrollador hace el merge.
 - Calidad obligatoria (no se acelera): build, lint y test, y e2e cuando haya API y base de datos, en verde antes de cerrar. Test primero en reglas de negocio. Tests de invariantes en zonas rojas.
 - Ya NO se exigen explicaciones didácticas, ejemplos cotidianos ni la lista 'qué debería poder explicar'.
 - Al cerrar cada etapa, UN informe de máx. 25 líneas: qué se hizo, evidencia (comandos y resultados), decisiones tomadas dentro de lo permitido, riesgos, 'puntos para revisar con lupa' (obligatorio en zonas rojas), pasos de verificación manual y estado de PROGRESS.md.
 - Las decisiones PENDIENTES de docs/07-DECISIONS.md siguen sin tomarse por tu cuenta.
+
+## Git: política autónoma
+- Antes de cada merge a main: `git tag backup/pre-merge-<rama>` (local; no se pushea). Merge siempre con --no-ff y con main limpio.
+- Gates tras cada merge: backend build, lint, test y test:e2e; web build, lint y test. Si fallan, NO hagas push: corrige con un commit nuevo o revierte el merge con `git revert -m 1 <merge>`.
+- Conflictos: en docs/*.md conserva ambos estados reales verificándolos contra el código; en pnpm-lock.yaml regenera con `pnpm install`, nunca a mano; en src/ o test/ puedes resolver si los cambios de ambos lados son aditivos y todos los gates pasan (lista cada conflicto y su resolución); en prisma/schema.prisma o prisma/migrations/ DETENTE y pregunta. Nunca edites una migración aplicada.
+- Push: solo `git push origin <rama>`; nunca force, nunca borrar ramas remotas, nunca tags. Antes del primer push de la sesión muestra `git remote -v` y revisa los commits a subir (origin/main..HEAD) buscando secretos (password, secret, token, api key, claves privadas, URLs con credenciales) y .env versionados.
+- Tras cada merge o push, informe de 5 líneas: hash del merge, archivos de zonas rojas tocados, resultado de los gates, conflictos y cómo se resolvieron.
+- Sigue prohibido reescribir historia, git reset, git clean y rebase.
 
 ## Detente y pregunta antes de
 - Instalar una dependencia (justifícala: necesidad real, mantenimiento, licencia, tamaño).
