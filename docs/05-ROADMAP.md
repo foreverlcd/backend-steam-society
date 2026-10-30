@@ -2,7 +2,7 @@
 
 Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. En modo acelerado se sigue la etapa completa sin pedir confirmación del plan; solo se para en las condiciones de 'Detente y pregunta' o al cerrar la etapa.
 
-**Estado 2026-10-30:** modo acelerado activo. Backend `main` `4b4b57e` (6 commits adelante de `origin/main` `ac6eee7`, sin push); frontend `main` `00d327b`. Pendientes de merge: 1.3 admin detail/panel y 1.4 backend/client. E2E de `main`: 28/28 verdes contra `steam_society_test`; 1.4 reporta 36. Siguiente: aprobar el mapa de ramas y ejecutar 1.5.
+**Estado 2026-10-30:** modo acelerado y política git autónoma activos. `main` local ya incluye accelerated-mode y 1.3 admin detail (merge local; push pendiente). Quedan por fusionar 1.4 backend/client. E2E de `main` antes de 1.3: 28/28; 1.3 reporta 30. Siguiente: fusionar 1.4 y ejecutar 1.5.
 
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 
@@ -24,10 +24,11 @@ Repo web (Next.js) en sesión aparte con su propio `AGENTS.md`. Una página que 
 **Aceptación:** tests de integración del flujo completo; contraseñas con hash adecuado y nunca en logs; cookies `httpOnly`, `secure` y `sameSite` apropiados al esquema con dos orígenes; no se puede crear un admin por registro público; enumeración de usuarios mitigada (misma respuesta exista o no el correo). Lista "puntos para revisar con lupa" entregada.
 
 ### 1.3: Perfiles, onboarding y aprobación (cerrada)
-Backend fusionado en `main` `ac6eee7`; frontend 1.3b fusionado en `15cf79a`. Pendiente: revisión senior, push y e2e a cargo del desarrollador.
+Backend base fusionado en `main` `ac6eee7`; frontend 1.3b fusionado en `15cf79a`. El detalle admin se añadió después en `feat/1.3-admin-detail` y `feat/1.3-admin-panel`. Pendiente: revisión senior, merge, push y prueba de contrato frontend-API.
 Seeds provisorios de áreas STEAM e idiomas (el equipo entregará las listas definitivas) · perfiles de mentora y mentee · onboarding versionado como configuración (`ONBOARDING_VERSION = 1`) · estado de la mentora (`04-STATE-MACHINES.md`) y aprobación por admin con `audit_log`.
-**API:** `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`; admin `GET /v1/admin/mentors?status=`, `POST /v1/admin/mentors/:id/approve|reject|suspend|reactivate`.
-**Aceptación:** una mentora no `approved` no es visible por ninguna ruta pública; cada aprobación o rechazo deja registro de auditoría; validación estricta de entradas; `submit` rechaza un onboarding incompleto y `GET|PUT /v1/me/onboarding` expone `completion`.
+**API:** `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`; admin `GET /v1/admin/mentors?status=`, `GET /v1/admin/mentors/:id`, `POST /v1/admin/mentors/:id/approve|reject|suspend|reactivate`.
+**Detalle admin:** `{ mentor, onboarding }`; `mentor` incluye perfil, `minNoticeHours`, `maxAdvanceDays`, áreas, idiomas y estado; `onboarding` incluye `version`, `steps`, `answers`, `completion` y `options`, reutilizando la configuración versionada. `403` si no es admin, `404 MENTOR_PROFILE_NOT_FOUND` si no existe, `400` si el UUID es inválido.
+**Aceptación:** una mentora no `approved` no es visible por ninguna ruta pública; cada aprobación o rechazo deja registro de auditoría; validación estricta de entradas; `submit` rechaza un onboarding incompleto y `GET|PUT /v1/me/onboarding` expone `completion`; el admin puede revisar el onboarding completo antes de decidir.
 
 ### 1.4: Ofertas y disponibilidad (en rama, pendiente de merge)
 CRUD de ofertas (varias por mentora; archivar en vez de borrar) · reglas de disponibilidad con zona IANA · cálculo de slots (`GET /v1/mentors/:id/slots`) respetando antelación mínima y máxima, sesiones existentes y duración de la oferta. Librería de fechas con soporte IANA: `temporal-polyfill` 1.0.6 (ADR-020).

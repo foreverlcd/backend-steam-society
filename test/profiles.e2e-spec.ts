@@ -298,6 +298,73 @@ describe('Profiles and onboarding (e2e)', () => {
       .expect(409);
   });
 
+  it('returns the full mentor detail with onboarding answers for admin review', async () => {
+    const mentor = await registerAndLogin('mentor');
+    const admin = await createAdmin();
+    await completeMentorOnboarding(mentor.cookie);
+    await submitMentor(mentor.cookie);
+    const mentorId = (await prisma.mentorProfile.findFirstOrThrow()).userId;
+
+    const response = await request(app.getHttpServer())
+      .get(`/v1/admin/mentors/${mentorId}`)
+      .set('Cookie', admin.cookie)
+      .expect(200);
+
+    expect(response.body.mentor).toMatchObject({
+      userId: mentorId,
+      email: mentor.email,
+      status: 'pending_review',
+      userStatus: 'active',
+      country: 'PE',
+      city: 'Lima',
+      yearsExperience: 6,
+      minNoticeHours: 24,
+      maxAdvanceDays: 60,
+    });
+    expect(response.body.mentor.areas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: technology.id, name: 'Tecnología' }),
+        expect.objectContaining({ id: ai.id, name: 'Inteligencia artificial' }),
+      ]),
+    );
+    expect(response.body.mentor.languages).toEqual([
+      { code: 'es', name: 'Español' },
+    ]);
+
+    expect(response.body.onboarding).toMatchObject({
+      version: 1,
+      role: 'mentor',
+      completion: { complete: true, missing: [] },
+    });
+    expect(response.body.onboarding.steps).toHaveLength(4);
+    expect(response.body.onboarding.answers).toMatchObject({
+      linkedinUrl: 'https://www.linkedin.com/in/test-mentor',
+      professionalRole: 'professional',
+      availabilityPreferences: ['mornings', 'evenings'],
+    });
+    expect(response.body.onboarding.options.areas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: technology.id, name: 'Tecnología' }),
+      ]),
+    );
+  });
+
+  it('returns 404 for an unknown mentor detail and forbids non-admins', async () => {
+    const admin = await createAdmin();
+    const mentor = await registerAndLogin('mentor');
+
+    const missing = await request(app.getHttpServer())
+      .get(`/v1/admin/mentors/${randomUUID()}`)
+      .set('Cookie', admin.cookie)
+      .expect(404);
+    expect(missing.body.code).toBe('MENTOR_PROFILE_NOT_FOUND');
+
+    await request(app.getHttpServer())
+      .get(`/v1/admin/mentors/${randomUUID()}`)
+      .set('Cookie', mentor.cookie)
+      .expect(403);
+  });
+
   it('rejects with a reason and clears it when the mentor resubmits', async () => {
     const mentor = await registerAndLogin('mentor');
     const admin = await createAdmin();
@@ -455,6 +522,13 @@ describe('Profiles and onboarding (e2e)', () => {
       .expect(400);
 
     expect(response.body.statusCode).toBe(400);
+
+    const detail = await request(app.getHttpServer())
+      .get('/v1/admin/mentors/not-a-uuid')
+      .set('Cookie', admin.cookie)
+      .expect(400);
+
+    expect(detail.body.statusCode).toBe(400);
   });
 
   it('blocks mentor submission until required onboarding answers exist', async () => {

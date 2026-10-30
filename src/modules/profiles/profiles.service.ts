@@ -225,6 +225,28 @@ export class ProfilesService {
     };
   }
 
+  async getMentorForAdmin(mentorId: string): Promise<{
+    mentor: ReturnType<typeof toAdminMentorDetail>;
+    onboarding: ReturnType<typeof buildOnboarding>;
+  }> {
+    const record = await this.profiles.findAdminMentorById(mentorId);
+
+    if (!record) {
+      throw mentorProfileNotFound();
+    }
+
+    const [responses, areas, languages] = await Promise.all([
+      this.profiles.findOnboardingResponses(mentorId, ONBOARDING_VERSION),
+      this.profiles.findActiveAreas(),
+      this.profiles.findLanguages(),
+    ]);
+
+    return {
+      mentor: toAdminMentorDetail(record),
+      onboarding: buildOnboarding('mentor', responses, areas, languages),
+    };
+  }
+
   approveMentor(
     admin: AuthUser,
     mentorId: string,
@@ -738,6 +760,14 @@ function toAdminMentor(profile: AdminMentorRecord) {
       code: language.code,
       name: language.name,
     })),
+  };
+}
+
+function toAdminMentorDetail(profile: AdminMentorRecord) {
+  return {
+    ...toAdminMentor(profile),
+    minNoticeHours: profile.minNoticeHours,
+    maxAdvanceDays: profile.maxAdvanceDays,
   };
 }
 

@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-30 · **Modo ACELERADO activo.** Rama `chore/accelerated-mode` en backend y frontend, creada desde `main`; contiene solo workflow, permisos y registro de decisiones, sin push. Las ramas `feat/1.3-admin-detail` (backend), `feat/1.3-admin-panel` (frontend), `feat/1.4-offerings-availability` (backend) y `feat/1.4-scheduling-client` (frontend) siguen pendientes de revisión y merge. `main` local `4b4b57e`, 6 commits adelante de `origin/main` `ac6eee7`, sin push. La ejecución de 1.5–1.7 espera la aprobación del mapa de ramas.
+Última actualización: 2026-10-30 · **Modo ACELERADO y política git autónoma activos.** `main` local ya incluye accelerated-mode y 1.3 admin detail; push pendiente. `feat/1.3-admin-panel` (frontend), `feat/1.4-offerings-availability` (backend) y `feat/1.4-scheduling-client` (frontend) siguen pendientes de merge. La ejecución de 1.5–1.7 continúa tras fusionar 1.4.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -20,7 +20,7 @@
   - CSRF con `enableCsrfProtection({ trustedOrigins })`; rate limit por IP + correo en login y recuperación con `@nestjs/throttler`.
   - Seed de admin con `ADMIN_EMAIL`/`ADMIN_PASSWORD`; nunca por registro público. Probado en `steam_society_test`: `admin|active|$argon2id`.
   - Validación con Zod 4 + `StandardSchemaValidationPipe`; `ConfigModule` valida el entorno al arrancar y falla rápido si falta `SESSION_SECRET` o es corto.
-- Tests: 73 unitarios (11 archivos) verdes con `pnpm test`; `pnpm build` y `pnpm lint` verdes. El 2026-10-30 se ejecutaron 28 e2e (3 archivos) contra `steam_society_test` en `127.0.0.1:5433`: 28/28 verdes. La rama 1.4 reporta 115 unitarios y 36 e2e (no re-ejecutados en esta auditoría).
+- Tests: 73 unitarios (11 archivos) verdes; `pnpm build` y `pnpm lint` verdes. El 2026-10-30 se ejecutaron 28 e2e base y, tras fusionar 1.3, 30 e2e (3 archivos) contra `steam_society_test` en `127.0.0.1:5433`. La rama 1.4 reporta 115 unitarios y 36 e2e (no re-ejecutados aún). El detalle admin añade e2e de 200, 403, 404 y UUID inválido.
 - README reescrito: puesta en marcha, variables, API, sesiones/CSRF/CORS, Mailpit, seed y base de tests.
 - `feat/1.2-identity` fusionada en `main` con merge commit `64e8559` (`--no-ff`) y subida a `origin/main`; las ramas `feat/1.1a-prisma-postgres`, `chore/hardening-basics` y `feat/1.2-identity` también tienen upstream.
 - Commits de la sesión anterior en `main`: `fd884b7` (area + migración inicial), `5c9102d` (health contrato), `e8f2333` (CORS), `69f6598` (README).
@@ -45,7 +45,9 @@
 - [x] Seeds provisionales: idiomas `es`, `en`, `qu`; áreas Ciencia, Tecnología, Ingeniería y Matemáticas con subáreas.
 - [x] `GET|PUT /v1/me/profile`, `POST /v1/me/profile/submit`, `GET|PUT /v1/me/onboarding`.
 - [x] Onboarding versión 1 con las preguntas de producto entregadas; respuestas en `onboarding_response` y proyección a perfil/áreas/idiomas.
-- [x] Admin: `GET /v1/admin/mentors?status=`, `approve`, `reject`, `suspend`, `reactivate`; rechazo con motivo.
+- [x] Admin: `GET /v1/admin/mentors?status=`, `GET /v1/admin/mentors/:id`, `approve`, `reject`, `suspend`, `reactivate`; rechazo con motivo.
+- [x] Detalle admin: `{ mentor, onboarding }` con perfil, `minNoticeHours`, `maxAdvanceDays`, áreas, idiomas, pasos, respuestas, completitud y opciones; reutiliza `buildOnboarding('mentor', ...)`.
+- [x] Frontend admin: bandeja con filtros por estado y cursor, detalle completo del onboarding, acciones aprobar/rechazar/suspender/reactivar y manejo de 401/403; 40 tests verdes en `feat/1.3-admin-panel`.
 - [x] Máquina de estados pura y test exhaustivo; transiciones admin + `audit_log` en una transacción; perfil editable sin cambiar estado.
 - [x] Tests de rol, validación, versión de onboarding, jerarquía de áreas, auditoría append-only y flujo completo de aprobación.
 - [x] Hardening: `completion: { complete, missing }` en onboarding, `submit` rechaza incompletos con `ONBOARDING_INCOMPLETE`, test de contrato config↔Zod.
@@ -66,6 +68,8 @@
 - La edad no se guarda en el onboarding: se deriva de `user.birth_date` para mostrarla.
 - La completitud se calcula desde la config; el frontend no duplica las reglas de obligatoriedad.
 - El área principal se guarda como respuesta y también en la tabla de áreas junto con las subáreas; la jerarquía se valida en el servicio.
+- Detalle admin: `GET /v1/admin/mentors/:id` devuelve `{ mentor, onboarding }`; `mentor` añade `minNoticeHours` y `maxAdvanceDays` al resumen de la bandeja y `onboarding` reutiliza `buildOnboarding('mentor', ...)`.
+- La UI admin no duplica reglas de completitud: muestra `onboarding.completion` y los pasos que devuelve la API; las acciones se deshabilitan según el estado de la máquina de estados.
 
 ## Modo acelerado y decisiones 2026-10-30
 - Workflow ACELERADO adoptado en `AGENTS.md` de ambos repos: se encadenan las tareas de la etapa sin pedir confirmación del plan; solo se para en 'Detente y pregunta' o al cerrar la etapa. Se mantiene la calidad obligatoria y el informe único de cierre (máx. 25 líneas).
@@ -113,17 +117,18 @@ Orden recomendado en ambos repos: `chore/accelerated-mode` → 1.3 → 1.4. No s
 - 1.3: el onboarding acepta guardados parciales; `completion` ya se calcula en servidor y `submit` bloquea incompletos. El frontend debe consumir `completion` y no duplicar la regla.
 - 1.3: el perfil `approved` sigue editable por decisión de producto; las ediciones post-aprobación no se auditan. Si se quiere re-revisión al cambiar campos sensibles, es una regla nueva.
 - 1.3: `onboarding_response` puede conservar filas antiguas de `age`; `GET /v1/me/onboarding` filtra a los códigos vigentes. Decidir si se hace una limpieza de datos en una migración posterior.
-- 1.3: `GET /v1/admin/mentors/:id` con onboarding completo está implementado en `feat/1.3-admin-detail` (pendiente de merge); la UI admin está en `feat/1.3-admin-panel` (pendiente de merge).
+- 1.3: el detalle admin ya muestra todas las respuestas del onboarding, pero la UI no muestra el historial de `audit_log` ni quién revisó antes; si se necesita trazabilidad visible, es una tarea nueva.
+- 1.3: la UI admin está en `feat/1.3-admin-panel` (pendiente de merge) y se probó con `fetch` y componentes mockeados, no contra la API real; falta una prueba de contrato frontend-API antes del piloto.
 - 1.3: los seeds de áreas e idiomas son provisionales; el equipo de producto debe entregar las listas definitivas.
 - 1.3: no hay ruta pública de catálogo todavía; la regla "solo `approved` visible" se implementará al crear esa ruta en 1.6.
 - Skills: `prisma-cli` no se instaló; decidir si se acepta una versión adaptada sin `prisma init`/`npx` o si se deja fuera.
 
 ## Siguiente
-1. Aprobar el mapa de ramas (E) y el orden de merge; no se ejecuta ningún merge sin esa aprobación.
-2. Fusionar `chore/accelerated-mode` (workflow/permisos) en ambos repos; después 1.3 admin detail/panel y 1.4 backend/client, resolviendo los conflictos de docs y de `profiles` que se indiquen en el mapa.
-3. Ejecutar la etapa 1.5 (reservas, zona roja) con la máquina de estados pura, exclusión SQL, test de concurrencia, vencimiento idempotente y `NotificationsPort`; luego 1.6 (catálogo/recomendaciones) y 1.7 (demo).
-4. Web: implementar la UI de cada etapa leyendo primero el contrato publicado en README/PROGRESS del backend.
-5. Revisión senior de autenticación y de las zonas rojas antes de producción; push de `main` solo con autorización del desarrollador.
+1. Fusionar `feat/1.4-offerings-availability` (backend) y `feat/1.4-scheduling-client` (frontend), resolviendo los conflictos de docs y de `profiles`.
+2. Ejecutar la etapa 1.5 (reservas, zona roja) con la máquina de estados pura, exclusión SQL, test de concurrencia, vencimiento idempotente y `NotificationsPort`; luego 1.6 (catálogo/recomendaciones) y 1.7 (demo).
+3. Web: implementar la UI de cada etapa leyendo primero el contrato publicado en README/PROGRESS del backend; la UI de 1.4 queda pendiente.
+4. Revisión senior de autenticación y de las zonas rojas antes de producción.
+5. Push de `main` y ramas con autorización del desarrollador.
 
 ## Registro de sesiones
 | Fecha | Qué se hizo | Quién |
@@ -139,4 +144,5 @@ Orden recomendado en ambos repos: `chore/accelerated-mode` → 1.3 → 1.4. No s
 | 2026-10-24 | Revisión pre-merge: `jsonb`, UUID en rutas admin, jerarquía de áreas en `PUT /profile` y tests e2e | Agente (pendiente de revisión) |
 | 2026-10-24 | Merge local de 1.3 en `main` (`a3a42bc`); gates verdes; sin push | Agente (instrucción del desarrollador) |
 | 2026-10-25 | Formato de `profiles`/e2e; permisos de skills; instalación revisada de `prisma-client-api` y `supabase-postgres-best-practices`; `prisma-cli` rechazada; docs actualizados; e2e no ejecutados | Agente (pendiente de revisión) |
-| 2026-10-30 | Modo ACELERADO en ambos repos; allows de verificación/migraciones; ADR-020 a 023 (P-07, P-10 parcial, P-11, P-12); `BOOKING_REQUEST_TTL_HOURS`; auditoría e2e (28/28 en `steam_society_test`); mapa de ramas pendiente de aprobación | Agente (pendiente de revisión) |
+| 2026-10-30 | Modo ACELERADO en ambos repos; allows de verificación/migraciones; ADR-020 a 023 (P-07, P-10 parcial, P-11, P-12); `BOOKING_REQUEST_TTL_HOURS`; auditoría e2e (28/28 en `steam_society_test`); mapa de ramas aprobado | Agente (revisión del desarrollador) |
+| 2026-10-30 | Detalle admin `GET /v1/admin/mentors/:id` con onboarding completo y e2e; UI admin con bandeja, filtros, detalle y acciones; 73 unitarios y 30 e2e backend, 40 tests frontend | Agente (revisión del desarrollador) |
