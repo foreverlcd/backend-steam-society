@@ -13,16 +13,31 @@
     { "action": "edit", "resource": "*.env.*", "effect": "deny" },
     { "action": "edit", "resource": "*.env.example", "effect": "allow" },
 
-    { "action": "shell", "resource": "git status", "effect": "allow" },
-    { "action": "shell", "resource": "git status *", "effect": "allow" },
-    { "action": "shell", "resource": "git diff", "effect": "allow" },
-    { "action": "shell", "resource": "git diff *", "effect": "allow" },
-    { "action": "shell", "resource": "git log *", "effect": "allow" },
-    { "action": "shell", "resource": "git show *", "effect": "allow" },
-    { "action": "shell", "resource": "git branch *", "effect": "allow" },
-    { "action": "shell", "resource": "git switch *", "effect": "allow" },
-    { "action": "shell", "resource": "git add *", "effect": "allow" },
-    { "action": "shell", "resource": "git commit *", "effect": "allow" },
+    { "action": "shell", "resource": "git merge *", "effect": "allow" },
+    { "action": "shell", "resource": "git tag backup/*", "effect": "allow" },
+    { "action": "shell", "resource": "git push origin *", "effect": "allow" },
+    { "action": "shell", "resource": "git push upstream *", "effect": "allow" },
+    { "action": "shell", "resource": "git push --force*", "effect": "deny" },
+    { "action": "shell", "resource": "git push * --force*", "effect": "deny" },
+    { "action": "shell", "resource": "git push -f*", "effect": "deny" },
+    { "action": "shell", "resource": "git push * -f*", "effect": "deny" },
+    { "action": "shell", "resource": "git push --delete*", "effect": "deny" },
+    { "action": "shell", "resource": "git push * --delete*", "effect": "deny" },
+    { "action": "shell", "resource": "git push * :*", "effect": "deny" },
+    { "action": "shell", "resource": "git push * +*", "effect": "deny" },
+    { "action": "shell", "resource": "git push * --tags*", "effect": "deny" },
+    { "action": "shell", "resource": "git push * --mirror*", "effect": "deny" },
+    { "action": "shell", "resource": "git branch -D *", "effect": "deny" },
+    { "action": "shell", "resource": "git reset *", "effect": "deny" },
+    { "action": "shell", "resource": "git clean *", "effect": "deny" },
+    { "action": "shell", "resource": "git rebase *", "effect": "deny" },
+
+    { "action": "shell", "resource": "pnpm install *", "effect": "allow" },
+    { "action": "shell", "resource": "pnpm add *", "effect": "allow" },
+    { "action": "shell", "resource": "pnpm remove *", "effect": "allow" },
+    { "action": "shell", "resource": "pnpm update *", "effect": "allow" },
+    { "action": "shell", "resource": "*.sh*", "effect": "allow" },
+    { "action": "*", "resource": "*.sh*", "effect": "*" },
 
     { "action": "shell", "resource": "pnpm test *", "effect": "allow" },
     { "action": "shell", "resource": "pnpm build", "effect": "allow" },
@@ -75,8 +90,16 @@
     { "action": "skill", "resource": "find-skills", "effect": "deny" },
     { "action": "skill", "resource": "caveman*", "effect": "deny" },
     { "action": "skill", "resource": "shadcn", "effect": "deny" },
-    { "action": "skill", "resource": "migrate-radix-to-base", "effect": "deny" },
+    {
+      "action": "skill",
+      "resource": "migrate-radix-to-base",
+      "effect": "deny"
+    },
     { "action": "skill", "resource": "prisma-client-api", "effect": "allow" },
-    { "action": "skill", "resource": "postgres-best-practices", "effect": "ask" }
+    {
+      "action": "skill",
+      "resource": "postgres-best-practices",
+      "effect": "ask"
+    }
   ]
 }
