@@ -20,7 +20,7 @@
   - CSRF con `enableCsrfProtection({ trustedOrigins })`; rate limit por IP + correo en login y recuperación con `@nestjs/throttler`.
   - Seed de admin con `ADMIN_EMAIL`/`ADMIN_PASSWORD`; nunca por registro público. Probado en `steam_society_test`: `admin|active|$argon2id`.
   - Validación con Zod 4 + `StandardSchemaValidationPipe`; `ConfigModule` valida el entorno al arrancar y falla rápido si falta `SESSION_SECRET` o es corto.
-- Tests: `feat/1.4-offerings-availability` reporta 115 unitarios (15 archivos) y 36 e2e (4 archivos) verdes el 2026-10-26, con `pnpm build` y `pnpm lint` verdes. El 2026-10-30, tras fusionar 1.3, se ejecutaron 73 unitarios y 30 e2e contra `steam_society_test` en `127.0.0.1:5433`. Los gates del merge de 1.4 se ejecutan al cerrar este merge.
+- Tests: `feat/1.4-offerings-availability` reporta 115 unitarios (15 archivos) y 36 e2e el 2026-10-26. Tras el merge de 1.4 en `main` (2026-10-30): `pnpm build`, `pnpm lint` y 115 unitarios verdes; 38 e2e (4 archivos) verdes contra `steam_society_test` en `127.0.0.1:5433`, con las 9 migraciones aplicadas.
 - README reescrito: puesta en marcha, variables, API, sesiones/CSRF/CORS, Mailpit, seed y base de tests.
 - `feat/1.2-identity` fusionada en `main` con merge commit `64e8559` (`--no-ff`) y subida a `origin/main`; las ramas `feat/1.1a-prisma-postgres`, `chore/hardening-basics` y `feat/1.2-identity` también tienen upstream.
 - Commits de la sesión anterior en `main`: `fd884b7` (area + migración inicial), `5c9102d` (health contrato), `e8f2333` (CORS), `69f6598` (README).

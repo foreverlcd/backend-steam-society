@@ -2,7 +2,7 @@
 
 Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. En modo acelerado se sigue la etapa completa sin pedir confirmación del plan; solo se para en las condiciones de 'Detente y pregunta' o al cerrar la etapa.
 
-**Estado 2026-10-30:** modo acelerado y política git autónoma activos. `main` local ya incluye accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad (merges locales; push pendiente). Frontend: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` siguen pendientes de merge. Backend tras 1.4: 115 unitarios y 36 e2e reportados. Siguiente: gates del merge, push y etapa 1.5.
+**Estado 2026-10-30:** modo acelerado y política git autónoma activos. `main` local ya incluye accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad (merges locales; push pendiente). Frontend: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` siguen pendientes de merge. Backend tras 1.4: 115 unitarios y 38 e2e verdes. Siguiente: push y etapa 1.5.
 
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 
