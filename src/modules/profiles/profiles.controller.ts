@@ -75,6 +75,11 @@ export class AdminMentorsController {
     return this.profiles.listMentors(query);
   }
 
+  @Get(':id')
+  getMentor(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.profiles.getMentorForAdmin(id);
+  }
+
   @Post(':id/approve')
   @HttpCode(200)
   approve(

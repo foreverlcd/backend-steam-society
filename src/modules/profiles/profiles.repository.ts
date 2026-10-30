@@ -94,6 +94,13 @@ export class ProfilesRepository {
     });
   }
 
+  findAdminMentorById(userId: string): Promise<AdminMentorRecord | null> {
+    return this.prisma.mentorProfile.findUnique({
+      where: { userId },
+      include: adminMentorInclude,
+    });
+  }
+
   findMentorStatus(
     userId: string,
     tx?: Prisma.TransactionClient,
