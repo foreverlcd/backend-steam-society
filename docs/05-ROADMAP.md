@@ -2,7 +2,7 @@
 
 Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. En modo acelerado se sigue la etapa completa sin pedir confirmación del plan; solo se para en las condiciones de 'Detente y pregunta' o al cerrar la etapa.
 
-**Estado 2026-10-30:** modo acelerado y política git autónoma activos. `main` local ya incluye accelerated-mode y 1.3 admin detail (merge local; push pendiente). Quedan por fusionar 1.4 backend/client. E2E de `main` antes de 1.3: 28/28; 1.3 reporta 30. Siguiente: fusionar 1.4 y ejecutar 1.5.
+**Estado 2026-10-30:** modo acelerado y política git autónoma activos. `main` local ya incluye accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad (merges locales; push pendiente). Frontend: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` siguen pendientes de merge. Backend tras 1.4: 115 unitarios y 36 e2e reportados. Siguiente: gates del merge, push y etapa 1.5.
 
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 
@@ -30,9 +30,17 @@ Seeds provisorios de áreas STEAM e idiomas (el equipo entregará las listas def
 **Detalle admin:** `{ mentor, onboarding }`; `mentor` incluye perfil, `minNoticeHours`, `maxAdvanceDays`, áreas, idiomas y estado; `onboarding` incluye `version`, `steps`, `answers`, `completion` y `options`, reutilizando la configuración versionada. `403` si no es admin, `404 MENTOR_PROFILE_NOT_FOUND` si no existe, `400` si el UUID es inválido.
 **Aceptación:** una mentora no `approved` no es visible por ninguna ruta pública; cada aprobación o rechazo deja registro de auditoría; validación estricta de entradas; `submit` rechaza un onboarding incompleto y `GET|PUT /v1/me/onboarding` expone `completion`; el admin puede revisar el onboarding completo antes de decidir.
 
-### 1.4: Ofertas y disponibilidad (en rama, pendiente de merge)
-CRUD de ofertas (varias por mentora; archivar en vez de borrar) · reglas de disponibilidad con zona IANA · cálculo de slots (`GET /v1/mentors/:id/slots`) respetando antelación mínima y máxima, sesiones existentes y duración de la oferta. Librería de fechas con soporte IANA: `temporal-polyfill` 1.0.6 (ADR-020).
-**Aceptación:** tests de propiedades (ningún slot se solapa con una sesión; todo slot cae dentro de las reglas); casos con zonas con horario de verano (ej. `America/New_York`, `Europe/Madrid`) y cambios de hora; CHECKs de oferta probados en integración.
+### 1.4: Ofertas y disponibilidad (fusionada en main)
+CRUD de ofertas (varias por mentora; archivar en vez de borrar) · reglas de disponibilidad con zona IANA · cálculo de slots (`GET /v1/mentors/:id/slots`) respetando antelación mínima y máxima, sesiones existentes y duración de la oferta. P-07 resuelta con `temporal-polyfill` 1.0.6 (ADR-020).
+
+**Contrato:**
+- `GET|POST /v1/me/offerings`, `PATCH /v1/me/offerings/:id`, `POST /v1/me/offerings/:id/archive`. Solo mentoras; crear/editar exige `mentor_profile.status = approved` y `user.status = active`; archivar es lógico y funciona también si la mentora dejó de estar aprobada.
+- Oferta: `{ id, mentorId, title, description, type: 'one_to_one', durationMinutes, capacity: 1, isFree, priceMinor, currency, active, archivedAt, createdAt, updatedAt }`. `durationMinutes` entre 15 y 240; gratuita ⇒ `priceMinor = 0`; de pago ⇒ `priceMinor > 0`; moneda ISO 4217 con `PEN` por defecto.
+- `GET|PUT /v1/me/availability`: `{ timezone, rules: [{ id, weekday, startTime, endTime, timezone, validFrom, validTo }] }`. `PUT` reemplaza todas las reglas; `weekday` 1–7, horas `HH:mm`, `endTime > startTime`, zona IANA (si se omite se usa `user.timezone`), `validTo >= validFrom`.
+- `GET /v1/mentors/:id/slots?offeringId&from&to` (público): `{ mentorId, offeringId, durationMinutes, slots: [{ startsAt, endsAt, timezone, localStart, localEnd }] }`. `startsAt`/`endsAt` son ISO UTC; `localStart`/`localEnd` usan la zona de la regla. Rango máximo 90 días; se respetan `min_notice_hours`/`max_advance_days`; se excluyen slots ocupados por sesiones (puerto falso en 1.4, adaptador real en 1.5). La mentora debe estar `approved`, la usuaria `active` y la oferta activa/no archivada.
+- Errores `{ statusCode, code, message }`: `MENTOR_ONLY`, `MENTOR_PROFILE_NOT_FOUND`, `MENTOR_NOT_APPROVED`, `OFFERING_NOT_FOUND`, `OFFERING_ARCHIVED`, `INVALID_OFFERING_PRICE`, `INVALID_CURRENCY`, `INVALID_TIMEZONE`, `INVALID_AVAILABILITY_RANGE`, `INVALID_SLOT_RANGE`, `SLOT_RANGE_TOO_LARGE`, `INVALID_AVAILABILITY_RULE`.
+
+**Aceptación:** build/lint/test/e2e verdes; tests de propiedades (ningún slot se solapa con una sesión; todo slot cae dentro de las reglas); casos con zonas con horario de verano (America/New_York, Europe/Madrid) y cambios de hora; CHECKs de oferta y disponibilidad probados en PostgreSQL; frontend: cliente/tipos/pruebas de 1.4 en `feat/1.4-scheduling-client` (36 tests verdes), sin UI; pruebas de contrato con `fetch` mock, no e2e contra la API real.
 
 ### 1.5: Reservas (ZONA ROJA, hexagonal)
 Solicitar, aceptar, rechazar, cancelar, vencer, completar y no-show, según `04-STATE-MACHINES.md`; migración con SQL a mano (exclusión y CHECK); notificaciones por correo después del commit (ADR-022); vencimiento al consultar + tarea con `@nestjs/schedule` (ADR-023); plazo de respuesta `BOOKING_REQUEST_TTL_HOURS` (ADR-021); enlace de sesión externo.

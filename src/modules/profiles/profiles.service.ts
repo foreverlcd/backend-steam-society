@@ -85,6 +85,16 @@ export class ProfilesService {
     return { role, profile: profile ? toMenteeProfile(profile) : null };
   }
 
+  async getMentorSchedulingSettings(userId: string): Promise<{
+    status: MentorStatus;
+    userStatus: 'pending_verification' | 'active' | 'suspended' | 'deleted';
+    minNoticeHours: number;
+    maxAdvanceDays: number;
+    timezone: string;
+  } | null> {
+    return this.profiles.findMentorSchedulingSettings(userId);
+  }
+
   async updateProfile(
     user: AuthUser,
     input: UpdateProfileInput,

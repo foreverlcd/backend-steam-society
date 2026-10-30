@@ -162,13 +162,19 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - `onboarding_response`: `id`, `user_id`, `question_code`, `answer` (jsonb), `version`, `created_at`. UK `(user_id, question_code)`. Las señales del matching NO viven en JSON: van en relaciones y columnas tipadas.
 
 **scheduling**
-- `availability_rule`: `id`, `user_id` (mentora o mentee), `weekday` (1=lunes … 7=domingo, ISO), `start_time`, `end_time` (hora local), `timezone` (IANA), `valid_from`, `valid_to` (fechas, opcionales), `created_at`. CHECK `end_time > start_time`.
-- `offering`: `id`, `mentor_id` (FK a `mentor_profile`), `title`, `description`, `type` (en el MVP la API solo crea `one_to_one`), `duration_minutes`, `capacity` (1 para `one_to_one`), `is_free`, `price_minor`, `currency`, `active`, `archived_at`, `created_at`, `updated_at`. CHECK: `is_free` ⇒ `price_minor = 0`; no `is_free` ⇒ `price_minor > 0`; `duration_minutes` entre 15 y 240 [PLACEHOLDER]; `capacity >= 1`.
+- `availability_rule`: `id`, `user_id` (mentora o mentee), `weekday` (1=lunes … 7=domingo, ISO), `start_time`, `end_time` (`TIME(0)`, hora local), `timezone` (IANA, `varchar(64)`), `valid_from`, `valid_to` (fechas, opcionales), `created_at`. CHECK: `weekday BETWEEN 1 AND 7`; `end_time > start_time`; `timezone` no vacía; `valid_to >= valid_from` cuando ambas existen.
+- `offering`: `id`, `mentor_id` (FK a `mentor_profile`), `title`, `description`, `type` (en el MVP la API solo crea `one_to_one`), `duration_minutes`, `capacity` (1 para `one_to_one`), `is_free`, `price_minor`, `currency`, `active`, `archived_at`, `created_at`, `updated_at`. CHECK: `is_free` ⇒ `price_minor = 0`; no `is_free` ⇒ `price_minor > 0`; `duration_minutes` entre 15 y 240; `capacity >= 1`; `one_to_one` ⇒ `capacity = 1`; `currency` cumple `^[A-Z]{3}$`.
 - `session`: `id`, `offering_id`, `mentor_id` (denormalizado para la restricción de exclusión), `starts_at`, `ends_at`, `capacity`, `status`, `meeting_url` (enlace externo en el Hito 1), `created_at`. CHECK `ends_at > starts_at`.
 - `booking`: `id`, `session_id`, `mentee_id`, `status`, `message` (nota de la mentee), `requested_at`, `responded_at`, `expires_at`, `confirmed_at`, `cancelled_at`, `cancelled_by`, `cancel_reason`, `completed_at`, `no_show_party`, `payment_required` (copia de la oferta al solicitar), `price_minor` y `currency` (copias al solicitar), `created_at`, `updated_at`.
 
 **admin**
 - `audit_log`: `id`, `actor_user_id`, `action`, `entity_type`, `entity_id`, `metadata` (jsonb), `created_at`. Solo se insertan filas; un trigger `audit_log_append_only` rechaza `UPDATE` y `DELETE` incluso por SQL directo.
+
+**Implementado en 1.4**
+- `availability_rule.start_time` y `end_time` son `TIME(0)`; la API recibe y devuelve `HH:mm`. Cada regla puede tener su propia zona IANA; si se omite, se usa `user.timezone`.
+- `offering` solo se crea como `one_to_one` con `capacity = 1`. La API acepta `isFree` + `priceMinor` (entero en unidad mínima) y `currency` ISO 4217 (default `PEN`); una oferta gratuita normaliza el precio a 0 y una de pago exige precio > 0. Archivar es un borrado lógico (`active = false`, `archived_at`).
+- La lectura pública de slots exige mentora `approved`, usuaria `active`, oferta `active` y no archivada. El puerto `SessionConflictPort` devuelve `[]` en 1.4; el adaptador real de `session`/`booking` llega en 1.5. `scheduling` obtiene el estado, la zona y la antelación con `MentorSettingsPort`, implementado sobre el servicio de `profiles`; no lee tablas de otro módulo.
+- CHECKs de oferta y disponibilidad probados en `test/scheduling.e2e-spec.ts`; los slots y DST en `src/modules/scheduling/domain/slot-generator.spec.ts`.
 
 **Implementado en 1.3**
 - `language.code` es `varchar(2)` en minúsculas (`CHECK`); los idiomas iniciales son `es`, `en` y `qu`.
@@ -210,7 +216,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 | 1.1a | `area` |
 | 1.2 | `user`, `auth_session`, `password_reset_token` |
 | 1.3 | `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response`, `audit_log` (migraciones `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage` y `20261024224933_use_jsonb_for_json_columns`) |
-| 1.4 | `availability_rule`, `offering` |
+| 1.4 | `availability_rule`, `offering` (migraciones `20261026161007_add_offerings_and_availability` y `20261026162005_use_time_for_availability`) |
 | 1.5 | `session`, `booking` + SQL a mano (exclusión y CHECK) |
 | 1.6 | `search_vector` y extensiones de búsqueda |
 | 2 / 3 | Ver esqueleto arriba |

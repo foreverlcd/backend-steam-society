@@ -41,6 +41,7 @@ src/
   config/                    validación de variables de entorno
   shared/                    núcleo compartido SIN lógica de negocio
     prisma/                  PrismaService, PrismaModule (NO global)
+    time/                    Temporal/IANA (temporal-polyfill, ADR-020)
     errors/ · money/ · clock/ · pagination/
   health/                    módulo técnico
   generated/prisma/          cliente generado (NO se versiona)
@@ -73,6 +74,7 @@ En módulos hexagonales el dominio NUNCA importa Prisma ni Nest: se traduce en l
 - **Puerto**: interfaz definida por el núcleo (ej. `Clock`, `BookingRepository`, `PaymentGateway`).
 - **Adaptador**: implementación con tecnología concreta (Prisma, proveedor de pagos, correo). Hay además adaptadores falsos para tests.
 - **Regla para crear un puerto**: solo si hay una segunda implementación real o falsa para tests, o un proveedor que probablemente cambie. Si no, no se crea.
+- **Ejemplo 1.4**: `MentorSettingsPort` vive en `scheduling` y `ProfilesMentorSettingsAdapter` lo implementa llamando al servicio exportado de `profiles`; así `scheduling` no lee `mentor_profile` ni `user`.
 - La lógica de dominio son funciones y clases puras, testeables sin base de datos.
 
 ## Flujo de una petición (módulo de capas)
