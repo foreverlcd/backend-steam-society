@@ -2,7 +2,7 @@
 
 Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. En modo acelerado se sigue la etapa completa sin pedir confirmación del plan; solo se para en las condiciones de 'Detente y pregunta' o al cerrar la etapa.
 
-**Estado 2026-10-30:** modo acelerado y política git autónoma activos. `main` ya está publicado en `origin` con accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad. Backend: `feat/1.5-bookings` implementada en rama, con 219 unitarios y 50 e2e verdes. Frontend: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` pendientes; la UI de 1.5 aún no empieza. Siguiente: revisión de 1.5 y etapa 1.6 (catálogo/recomendaciones).
+**Estado 2026-10-30:** modo acelerado y política git autónoma activos. `main` ya está publicado en `origin` con accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad. Backend: `feat/1.5-bookings` implementada y publicada en `origin`, con 219 unitarios y 50 e2e verdes. Frontend: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` pendientes; la UI de 1.5 aún no empieza. Siguiente: revisión de 1.5 y etapa 1.6 (catálogo/recomendaciones).
 
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 

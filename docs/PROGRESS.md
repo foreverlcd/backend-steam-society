@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-30 · **Modo ACELERADO y política git autónoma activos.** `main` ya está publicado en `origin` (`2366d55`) con accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad. `feat/1.5-bookings` implementa reservas (zona roja) y se publica al cerrar esta sesión. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes; la UI de 1.5 aún no empieza.
+Última actualización: 2026-10-30 · **Modo ACELERADO y política git autónoma activos.** `main` ya está publicado en `origin` (`2366d55`) con accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad. `feat/1.5-bookings` implementa reservas (zona roja) y queda publicada en `origin`; el merge a `main` queda pendiente de revisión. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes; la UI de 1.5 aún no empieza.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -133,7 +133,7 @@
 - No se tomaron decisiones PENDIENTES fuera de las aprobadas en el mensaje del desarrollador.
 
 ## Etapa 1.5: en rama (pendiente de revisión y merge)
-- `feat/1.5-bookings` (creada desde `main` `2366d55`): reservas, migración, adaptador de sesiones, tarea de vencimiento, tests y contrato. Se publica en `origin` al cerrar la sesión; el merge a `main` queda para la revisión por etapa.
+- `feat/1.5-bookings` (creada desde `main` `2366d55`): reservas, migración, adaptador de sesiones, tarea de vencimiento, tests y contrato. Publicada en `origin/feat/1.5-bookings`; el merge a `main` queda para la revisión por etapa.
 - `main` (`2366d55`, publicado) ya contiene accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad.
 - Web: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` siguen pendientes de revisión/merge; la UI de 1.5 no ha empezado.
 
@@ -141,7 +141,7 @@
 | Repo | Rama | Estado |
 |---|---|---|
 | Backend | `main` | `2366d55` publicado en `origin`; 115 unitarios y 38 e2e al cerrar 1.4 |
-| Backend | `feat/1.5-bookings` | En revisión; 219 unitarios y 50 e2e; build/lint verdes; 10 migraciones aplicadas en dev y test |
+| Backend | `feat/1.5-bookings` | Publicada en `origin`; en revisión; 219 unitarios y 50 e2e; build/lint verdes; 10 migraciones aplicadas en dev y test |
 | Web | `feat/1.3-admin-panel` | Pendiente de revisión/merge; 40 tests |
 | Web | `feat/1.4-scheduling-client` | Pendiente de revisión/merge; 36 tests, sin UI |
 
@@ -209,4 +209,4 @@
 | 2026-10-30 | Detalle admin `GET /v1/admin/mentors/:id` con onboarding completo y e2e; UI admin con bandeja, filtros, detalle y acciones; 73 unitarios y 30 e2e backend, 40 tests frontend | Agente (revisión del desarrollador) |
 | 2026-10-26 | 1.4 Ofertas/disponibilidad/slots: migraciones, dominio DST, CRUD, puerto de sesiones falso, puerto de settings de mentora, tests y docs; frontend: rama `feat/1.4-scheduling-client` con cliente/tipos/pruebas de 1.4 (36 tests verdes, sin UI) | Agente (revisión del desarrollador) |
 | 2026-10-30 | Merges locales `chore/git-policy` (`d9d9b1e`), 1.3 (`69f8f2a`) y 1.4 (`275f3cd`); gates: 115 unitarios y 38 e2e verdes; 9 migraciones al día. Push bloqueado por el `deny` final `git push *` de `opencode.json` | Agente (instrucción del desarrollador) |
-| 2026-10-30 | 1.5 Reservas (zona roja): migración con exclusión/CHECKs, máquina de estados, API, locks, vencimiento, notificaciones, adaptador de sesiones, tests y contrato; gates 219 unitarios, 50 e2e, build/lint verdes | Agente (pendiente de revisión) |
+| 2026-10-30 | 1.5 Reservas (zona roja): migración con exclusión/CHECKs, máquina de estados, API, locks, vencimiento, notificaciones, adaptador de sesiones, tests y contrato; gates 219 unitarios, 50 e2e, build/lint verdes; rama publicada en `origin` | Agente (pendiente de revisión) |
