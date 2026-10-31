@@ -122,6 +122,43 @@ enum OfferingType {
   @@map("offering_type")
 }
 
+enum SessionStatus {
+  open
+  cancelled
+  completed
+
+  @@map("session_status")
+}
+
+enum BookingStatus {
+  requested
+  awaiting_payment
+  confirmed
+  declined
+  cancelled
+  expired
+  completed
+  no_show
+
+  @@map("booking_status")
+}
+
+enum CancelActor {
+  mentee
+  mentor
+  admin
+  system
+
+  @@map("cancel_actor")
+}
+
+enum NoShowParty {
+  mentee
+  mentor
+
+  @@map("no_show_party")
+}
+
 model Language {
   code            String           @id @db.VarChar(2)
   name            String
@@ -151,6 +188,7 @@ model MentorProfile {
   areas           MentorArea[]
   languages       MentorLanguage[]
   offerings       Offering[]
+  sessions        Session[]
 
   @@index([status])
   @@map("mentor_profile")
@@ -168,6 +206,7 @@ model MenteeProfile {
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
   interests      MenteeInterest[]
   languages      MenteeLanguage[]
+  bookings       Booking[]
 
   @@map("mentee_profile")
 }
@@ -277,7 +316,54 @@ model Offering {
   archivedAt      DateTime?     @map("archived_at") @db.Timestamptz(3)
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  sessions        Session[]
 
   @@index([mentorId, active])
   @@map("offering")
+}
+
+model Session {
+  id         String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  offeringId String        @map("offering_id") @db.Uuid
+  offering   Offering      @relation(fields: [offeringId], references: [id], onDelete: Restrict)
+  mentorId   String        @map("mentor_id") @db.Uuid
+  mentor     MentorProfile @relation(fields: [mentorId], references: [userId], onDelete: Restrict)
+  startsAt   DateTime      @map("starts_at") @db.Timestamptz(3)
+  endsAt     DateTime      @map("ends_at") @db.Timestamptz(3)
+  capacity   Int
+  status     SessionStatus @default(open)
+  meetingUrl String?       @map("meeting_url")
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  bookings   Booking[]
+
+  @@index([mentorId, startsAt])
+  @@map("session")
+}
+
+model Booking {
+  id              String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  sessionId       String        @map("session_id") @db.Uuid
+  session         Session       @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  menteeId        String        @map("mentee_id") @db.Uuid
+  mentee          MenteeProfile @relation(fields: [menteeId], references: [userId], onDelete: Restrict)
+  status          BookingStatus @default(requested)
+  message         String?
+  requestedAt     DateTime      @default(now()) @map("requested_at") @db.Timestamptz(3)
+  respondedAt     DateTime?     @map("responded_at") @db.Timestamptz(3)
+  expiresAt       DateTime      @map("expires_at") @db.Timestamptz(3)
+  confirmedAt     DateTime?     @map("confirmed_at") @db.Timestamptz(3)
+  cancelledAt     DateTime?     @map("cancelled_at") @db.Timestamptz(3)
+  cancelledBy     CancelActor?  @map("cancelled_by")
+  cancelReason    String?       @map("cancel_reason")
+  completedAt     DateTime?     @map("completed_at") @db.Timestamptz(3)
+  noShowParty     NoShowParty?  @map("no_show_party")
+  paymentRequired Boolean       @map("payment_required")
+  priceMinor      Int           @map("price_minor")
+  currency        String        @db.VarChar(3)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([menteeId, status])
+  @@index([sessionId, status])
+  @@map("booking")
 }

@@ -18,21 +18,29 @@ export class MailerService {
   }
 
   async sendPasswordReset(to: string, token: string): Promise<void> {
-    if (!this.transporter) {
-      throw new Error('SMTP_URL is not configured');
-    }
-
     const resetUrl = `${this.appUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
-    await this.transporter.sendMail({
-      from: this.from,
+    await this.send(
       to,
-      subject: 'Restablece tu contraseña de Steam Society',
-      text: [
+      'Restablece tu contraseña de Steam Society',
+      [
         'Recibimos una solicitud para restablecer tu contraseña.',
         `Abre este enlace (válido 1 hora y un solo uso): ${resetUrl}`,
         'Si no fuiste tú, ignora este correo.',
       ].join('\n\n'),
+    );
+  }
+
+  async send(to: string, subject: string, text: string): Promise<void> {
+    if (!this.transporter) {
+      throw new Error('SMTP_URL is not configured');
+    }
+
+    await this.transporter.sendMail({
+      from: this.from,
+      to,
+      subject,
+      text,
     });
   }
 }

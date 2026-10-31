@@ -107,6 +107,21 @@ después de que la API ya está levantada. Cuando la base vuelve, `/health` resp
 | POST | `/v1/me/profile/submit` | Sesión `mentor` | Envía el perfil a revisión |
 | GET | `/v1/me/onboarding` | Sesión `mentor`/`mentee` | Configuración versionada, respuestas y taxonomías |
 | PUT | `/v1/me/onboarding` | Sesión `mentor`/`mentee` | Guarda respuestas del onboarding |
+| GET | `/v1/me/offerings` | Sesión `mentor` | Lista las ofertas propias |
+| POST | `/v1/me/offerings` | Sesión `mentor` | Crea una oferta 1:1 |
+| PATCH | `/v1/me/offerings/:id` | Sesión `mentor` | Edita una oferta propia |
+| POST | `/v1/me/offerings/:id/archive` | Sesión `mentor` | Archiva una oferta (borrado lógico) |
+| GET | `/v1/me/availability` | Sesión `mentor` | Devuelve las reglas de disponibilidad |
+| PUT | `/v1/me/availability` | Sesión `mentor` | Reemplaza todas las reglas de disponibilidad |
+| GET | `/v1/mentors/:id/slots?offeringId&from&to` | Pública | Slots reservables de una mentora |
+| POST | `/v1/bookings` | Sesión `mentee` | Solicita una reserva 1:1 |
+| GET | `/v1/bookings?status=&limit=&cursor=` | Sesión `mentee`/`mentor` | Lista reservas propias con cursor |
+| GET | `/v1/bookings/:id` | Sesión `mentee`/`mentor` | Detalle de una reserva propia |
+| POST | `/v1/bookings/:id/accept` | Sesión `mentor` | Acepta una solicitud |
+| POST | `/v1/bookings/:id/decline` | Sesión `mentor` | Rechaza una solicitud |
+| POST | `/v1/bookings/:id/cancel` | Sesión `mentee`/`mentor` | Cancela una reserva |
+| POST | `/v1/bookings/:id/complete` | Sesión `mentor` | Marca la sesión como realizada |
+| POST | `/v1/bookings/:id/no-show` | Sesión `mentee`/`mentor` | Registra una ausencia |
 | GET | `/v1/admin/mentors?status=` | Sesión `admin` | Lista perfiles de mentoras |
 | GET | `/v1/admin/mentors/:id` | Sesión `admin` | Detalle con perfil y onboarding completo |
 | POST | `/v1/admin/mentors/:id/approve` | Sesión `admin` | Aprueba una mentora |
@@ -150,6 +165,51 @@ El token es aleatorio de 32 bytes, se guarda solo su hash SHA-256, caduca en una
 hora y es de un solo uso. Al cambiarla se revocan todas las sesiones de esa
 usuaria. En local, abre `http://127.0.0.1:8025` para ver el correo de Mailpit.
 
+### Ofertas, disponibilidad y slots
+
+- Una mentora `approved` y activa crea ofertas `one_to_one` con `title`,
+  `description?`, `durationMinutes` (15–240), `isFree` y `priceMinor`/`currency`
+  (ISO 4217, `PEN` por defecto). Una oferta gratuita normaliza `priceMinor` a 0;
+  una de pago exige `priceMinor > 0`.
+- `PUT /v1/me/availability` recibe `{ rules: [{ weekday, startTime, endTime,
+  timezone, validFrom?, validTo? }] }` y reemplaza todas las reglas. `weekday`
+  usa ISO (1 = lunes, 7 = domingo); las horas son `HH:mm`; las fechas son
+  `YYYY-MM-DD`.
+- `GET /v1/mentors/:id/slots` exige `offeringId`, `from` y `to` (máximo 90 días),
+  aplica antelación mínima/máxima y devuelve `{ startsAt, endsAt, timezone,
+  localStart, localEnd }` por slot. Los slots ocupados por sesiones no se
+  devuelven.
+
+### Reservas (1.5)
+
+- `POST /v1/bookings` recibe `{ offeringId, startsAt, message? }`. `startsAt` es
+  un ISO UTC que debe coincidir con un slot generado por la disponibilidad. La
+  mentee debe tener perfil completo y la mentora debe estar `approved`.
+- La reserva nace en `requested` y fija `expiresAt` con
+  `BOOKING_REQUEST_TTL_HOURS` (48 h por defecto). Se crea la `session` 1:1 y la
+  `booking` en una sola transacción; la exclusión SQL impide solapes de la
+  mentora (R-15) y la comprobación transaccional impide solapes de la mentee
+  (R-12).
+- Aceptar una reserva gratuita exige `{ meetingUrl }` y pasa a `confirmed`.
+  Aceptar una de pago pasa a `awaiting_payment` sin crear ningún pago (el
+  módulo de pagos es del Hito 2). `decline` y `cancel` aceptan `{ reason? }`.
+- `complete` exige que la sesión haya terminado; `no-show` exige que haya
+  empezado. La persona que llama queda registrada en `noShowParty`.
+- Una reserva gratuita confirmada solo se puede cancelar antes de `startsAt`;
+  la política de cancelación de reservas de pago queda pendiente (DA-05).
+- El vencimiento se evalúa al leer o actuar sobre la reserva y con una tarea
+  periódica cada 60 s; la actualización es idempotente. Una reserva vencida
+  libera su `session`.
+- Las notificaciones se envían después del commit y son best-effort: un fallo de
+  correo no revierte la reserva (ADR-022).
+- R-07: una reserva gratuita siempre tiene `paymentRequired = false` y
+  `priceMinor = 0`; no existe ninguna tabla de pagos en el Hito 1.
+- Errores estables: `BOOKING_NOT_FOUND`, `BOOKING_FORBIDDEN`,
+  `BOOKING_ROLE_NOT_ALLOWED`, `MENTEE_PROFILE_REQUIRED`,
+  `BOOKING_SLOT_UNAVAILABLE`, `BOOKING_SLOT_TAKEN`,
+  `BOOKING_MENTEE_OVERLAP`, `BOOKING_STATUS_CONFLICT`, `BOOKING_EXPIRED`,
+  `INVALID_BOOKING_TRANSITION`, `MEETING_URL_REQUIRED`.
+
 ### Perfiles, onboarding y aprobación
 
 - `mentor` y `mentee` editan su propio perfil; un `admin` no tiene perfil de mentoría.
@@ -164,10 +224,10 @@ usuaria. En local, abre `http://127.0.0.1:8025` para ver el correo de Mailpit.
 
 El esquema vive en `prisma/schema.prisma` y la configuración del CLI en
 `prisma.config.ts`. Las tablas de autenticación son `user`, `auth_session` y
-`password_reset_token`; `session` queda reservado para las sesiones de mentoría
-de la etapa 1.5. La etapa 1.3 añade `language`, `mentor_profile`,
+`password_reset_token`. La etapa 1.3 añade `language`, `mentor_profile`,
 `mentee_profile`, las tablas de áreas/idiomas por perfil, `onboarding_response`
-y `audit_log`.
+y `audit_log`; 1.4 añade `offering` y `availability_rule`; 1.5 añade `session` y
+`booking` con exclusión SQL, CHECKs e índice único parcial.
 
 Comandos disponibles:
 

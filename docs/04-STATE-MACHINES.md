@@ -23,8 +23,8 @@ Estados terminales: `declined`, `cancelled`, `expired`, `completed`, `no_show`. 
 | Desde | Evento | Hacia | Quién | Guardas | Efectos |
 |---|---|---|---|---|---|
 | (nuevo) | solicitar | `requested` | mentee | Mentora `approved`, oferta activa, horario dentro de la disponibilidad y de la antelación mínima y máxima, sin solapes (R-12, R-15), capacidad libre | Crea `session` (1:1) y `booking` en una transacción; fija `expires_at` (R-06); copia `payment_required`, `price_minor` y `currency` de la oferta; notifica a la mentora |
-| `requested` | aceptar (gratuita) | `confirmed` | mentora | `payment_required = false` | `confirmed_at`; genera el enlace de la sesión; notifica a ambas |
-| `requested` | aceptar (de pago) | `awaiting_payment` | mentora | `payment_required = true` (Hito 2) | Fija el plazo de pago; el módulo payments crea el pago (evento) |
+| `requested` | aceptar (gratuita) | `confirmed` | mentora | `payment_required = false` | `confirmed_at`; registra el enlace externo (`meetingUrl`) que aporta la mentora; notifica a ambas |
+| `requested` | aceptar (de pago) | `awaiting_payment` | mentora | `payment_required = true` (Hito 2) | Deja la reserva a la espera del pago; el plazo de pago y el pago se definen en el Hito 2 |
 | `requested` | rechazar | `declined` | mentora | Motivo opcional | Libera la sesión 1:1 (`session` → `cancelled`); notifica a la mentee |
 | `requested` / `awaiting_payment` | cancelar | `cancelled` | mentee | Antes de confirmar | Libera la sesión; registra `cancelled_by` y `cancelled_at` |
 | `requested` / `awaiting_payment` | vencer | `expired` | sistema | `now > expires_at` | Libera la sesión; notifica. Se evalúa al consultar y por una tarea periódica; la actualización es idempotente (ADR-023) |
@@ -37,8 +37,17 @@ Cuidados con sesiones gratuitas: más no-shows y ningún pago asociado. Los no-s
 
 Notificaciones: se envían después del commit vía `NotificationsPort`; un fallo de correo se registra y NO revierte la reserva (ADR-022). El plazo de respuesta sale de `BOOKING_REQUEST_TTL_HOURS` (ADR-021).
 
+Implementación 1.5:
+- La tabla de transiciones es una función pura en `src/modules/bookings/domain/booking-status.ts`, con test exhaustivo de todos los pares estado/evento y de las guardas temporales (`expire`, `complete`, `no_show`).
+- Cada transición se ejecuta con `UPDATE booking SET ... WHERE id = ? AND status = <estado leído>` dentro de una transacción; si el estado cambió, responde `409 BOOKING_STATUS_CONFLICT`. La `session` asociada se actualiza en la misma transacción (`cancelled` o `completed`).
+- La creación de la solicitud valida disponibilidad y antelación con el generador de slots de 1.4 y crea `session` + `booking` en una transacción con locks de asesoría por mentee y mentora. La exclusión `session_no_overlap` y el índice único parcial de asiento son la red de seguridad.
+- Aceptar una reserva gratuita exige `meetingUrl` (la API no genera enlaces); una de pago pasa a `awaiting_payment` sin crear pago. El plazo de pago queda pendiente del Hito 2: por ahora `expires_at` conserva el TTL de la solicitud.
+- `decline` guarda el motivo en `cancel_reason`; `cancel` guarda `cancelled_by`, `cancelled_at` y el motivo. Una reserva gratuita confirmada solo se puede cancelar antes de `starts_at`; la política de cancelación de reservas de pago queda pendiente (DA-05). `complete` y `no-show` marcan la sesión como `completed`.
+- El vencimiento se evalúa en cada lectura/acción (`expireById`) y por una tarea `@Interval(60_000)` (`expireDue`); ambas actualizaciones son idempotentes y liberan la sesión. Una reserva vencida responde `409 BOOKING_EXPIRED` al intentar actuar sobre ella.
+- Las notificaciones se envían después de la transacción; si fallan, solo se registra el nombre del error y la reserva sigue siendo válida.
+
 ## Sesión (`session`)
-`open` → `cancelled` | `completed`. En 1:1 la sesión nace con la solicitud y se cancela cuando su única reserva termina sin confirmarse o se cancela. En grupales (futuro) sigue `open` mientras haya reservas válidas.
+`open` → `cancelled` | `completed`. En 1:1 la sesión nace con la solicitud y se cancela cuando su única reserva termina sin confirmarse o se cancela. En grupales (futuro) sigue `open` mientras haya reservas válidas. En 1.5 la sesión se crea y se actualiza desde el repositorio de `bookings`; `PrismaSessionConflictAdapter` solo lee las sesiones no canceladas para el cálculo de slots.
 
 ## Perfil de mentora (`mentor_profile.status`)
 ```mermaid

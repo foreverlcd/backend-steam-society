@@ -35,7 +35,7 @@ Checklist para crear uno: carpeta en `src/modules/<contexto>/` · `*.module.ts` 
 - Dobles: `vi.fn()` y `{ provide: X, useValue: falso }` en `Test.createTestingModule`. Si Nest no resuelve una dependencia en el test, probar `@Inject(Clase)` explícito [a confirmar con la documentación de Nest 12].
 
 ## Git
-- Ramas `feat/<etapa>-<tema>`, `fix/<tema>`, `chore/<tema>`, `docs/<tema>`. Nunca commitear en `main`. El agente no hace `push`.
+- Ramas `feat/<etapa>-<tema>`, `fix/<tema>`, `chore/<tema>`, `docs/<tema>`. Nunca commitear en `main` sin merge. Política autónoma vigente: el agente puede `git push origin <rama>` (nunca `--force`, tags ni borrado de ramas remotas); antes de fusionar en `main` crea el tag local `backup/pre-merge-<rama>`, usa `--no-ff` y ejecuta todos los gates.
 - Commits pequeños y atómicos, Conventional Commits en inglés: `feat(db): add area model`, `test(health): cover db down`, `docs: update progress`.
 - Antes de pedir revisión: `pnpm build && pnpm lint && pnpm test` en verde y `git diff main...HEAD` leído por el propio agente.
 - `src/generated/`, `.env`, `dist/` y `node_modules/` no se versionan.

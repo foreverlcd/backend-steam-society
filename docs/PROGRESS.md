@@ -1,13 +1,13 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-30 · **Modo ACELERADO y política git autónoma activos.** `main` local ya incluye accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad (merges locales). **Push bloqueado:** el `deny` final `git push *` de `opencode.json` (línea 80) anula el `allow` de la línea 18; la prueba `--force-with-lease --dry-run` también fue rechazada. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes. 1.5 queda bloqueada hasta que el desarrollador ajuste el permiso y se publique `main`.
+Última actualización: 2026-10-30 · **Modo ACELERADO y política git autónoma activos.** `main` ya está publicado en `origin` (`2366d55`) con accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad. `feat/1.5-bookings` implementa reservas (zona roja) y queda publicada en `origin`; el merge a `main` queda pendiente de revisión. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes; la UI de 1.5 aún no empieza.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
 - Docker Compose: Postgres 18.6-alpine en `127.0.0.1:5433` y Mailpit `v1.27` (SMTP `1025`, bandeja `8025`).
 - Prisma 7.10.1: `prisma.config.ts`, `PrismaService` (PrismaPg) y `PrismaModule` NO global en `src/shared/prisma/`.
 - Modelo `Area`: `id` uuid v7 por defecto de base (`uuidv7()`), `name` único, `parent_id` opcional con FK `ON DELETE RESTRICT`, `active` default `true`, `created_at` `timestamptz(3)`, `@@map("area")`.
-- Migraciones aplicadas en desarrollo y en `steam_society_test`: `20261024173759_add_area`, `20261024212009_fix_area_columns_and_uuidv7`, `20261024214215_add_identity`, `20261024215500_add_user_birth_date_check`, `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage`, `20261024224933_use_jsonb_for_json_columns`, `20261026161007_add_offerings_and_availability`, `20261026162005_use_time_for_availability`.
+- Migraciones aplicadas en desarrollo y en `steam_society_test`: `20261024173759_add_area`, `20261024212009_fix_area_columns_and_uuidv7`, `20261024214215_add_identity`, `20261024215500_add_user_birth_date_check`, `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage`, `20261024224933_use_jsonb_for_json_columns`, `20261026161007_add_offerings_and_availability`, `20261026162005_use_time_for_availability`, `20261030234248_add_sessions_and_bookings` (10).
 - `GET /health` (sin prefijo): 200 `{status:'ok',db:'up'}` / 503 `{status:'error',db:'down'}`. El fallo se registra con `Logger` usando solo el nombre del error y su código de Prisma (nunca el mensaje ni la cadena de conexión).
 - CORS: `WEB_ORIGIN` separada por comas; `parseWebOrigins()` normaliza. Sin variable, CORS desactivado. Con orígenes, `credentials: true`.
 - `X-Powered-By` eliminada con `app.useSecurityHeaders()` (NestJS 12.1+); `configureApp()` centraliza seguridad, CORS, CSRF, sesión, prefijo `/v1` y el pipe de validación.
@@ -67,7 +67,35 @@
 - [x] Documentos actualizados (`PROGRESS`, `05-ROADMAP`, `07-DECISIONS`, `03-DATA-MODEL`).
 - [ ] Revisión del diff por el desarrollador y merge; frontend: cliente/tipos/pruebas listos en rama, UI pendiente.
 
+## Etapa 1.5: reservas (zona roja)
+- [x] Migración `20261030234248_add_sessions_and_bookings` con `session`/`booking`, enums `session_status`, `booking_status`, `cancel_actor` y `no_show_party`; aplicada en `steam_society` y `steam_society_test`.
+- [x] SQL a mano: `btree_gist`, exclusión `session_no_overlap` (R-15), índice único parcial `booking_active_seat_uk`, CHECKs de fechas, precio/moneda, cancelación, no-show y completado.
+- [x] Máquina de estados pura `booking-status.ts` con test exhaustivo de transiciones y guardas temporales.
+- [x] `POST /v1/bookings` con validación de disponibilidad, perfil de mentee, mentora aprobada, oferta activa, locks de asesoría por mentee/mentora y creación transaccional de `session` + `booking`.
+- [x] `GET /v1/bookings` (cursor y filtro por estado) y `GET /v1/bookings/:id` con vencimiento evaluado al leer.
+- [x] Acciones `accept` (gratuita exige `meetingUrl`; de pago → `awaiting_payment`), `decline`, `cancel`, `complete` y `no-show` con `UPDATE ... WHERE status = <leído>`.
+- [x] Vencimiento idempotente al consultar/actuar + tarea `@Interval(60_000)` con `@nestjs/schedule`; libera la sesión y notifica.
+- [x] `NotificationsPort` + adaptador de correo; envío después del commit, best-effort, sin outbox (ADR-022).
+- [x] `PrismaSessionConflictAdapter` reemplaza `NoSessionConflictAdapter`; los slots públicos ya excluyen sesiones no canceladas.
+- [x] `MenteeProfilePort` evita que `bookings` lea `mentee_profile`; sin perfil responde `400 MENTEE_PROFILE_REQUIRED`.
+- [x] Tests: 219 unitarios (17 archivos) y 50 e2e (5 archivos), incluidos concurrencia, R-12, R-15, vencimiento idempotente, CHECKs y R-07.
+- [x] Contrato de 1.5 publicado en `README.md`; `docs/02`, `03`, `04`, `05`, `06` y ADR-014 actualizados.
+- [ ] Revisión del diff por el desarrollador y revisión senior de la zona roja.
+- [ ] UI del frontend de reservas y prueba de contrato real.
+
 ## Decisiones tomadas (acumuladas)
+### 1.5 (2026-10-30)
+- `@nestjs/schedule@12.0.2` (compatible con NestJS 12; usa `cron@4.4.0`) y `ScheduleModule.forRoot()` en `AppModule`.
+- `BOOKING_REQUEST_TTL_HOURS` validado en entorno, entero positivo, 48 h por defecto (ADR-021).
+- API de reservas: `POST/GET /v1/bookings`, `GET /v1/bookings/:id` y acciones `accept`, `decline`, `cancel`, `complete`, `no-show`.
+- Aceptar una reserva gratuita exige `meetingUrl`; las de pago pasan a `awaiting_payment` sin módulo de pagos (Hito 2).
+- `cancel_reason` almacena también el motivo de rechazo para no añadir columnas fuera de `docs/03`.
+- Vencimiento: evaluación al leer/actuar + tarea cada 60 s; `UPDATE` idempotente con guarda de estado.
+- Notificaciones después del commit, best-effort, sin outbox; errores solo con nombre de error.
+- Se reutilizan los puertos de `scheduling` exportados; el adaptador real de sesiones reemplaza `NoSessionConflictAdapter`.
+- Las reservas 1:1 crean una `session` por solicitud; la exclusión `session_no_overlap` protege R-15 y un lock de asesoría por mentee/mentor protege R-12.
+- El plazo de pago de `awaiting_payment` queda pendiente del Hito 2: por ahora conserva `expires_at` de la solicitud.
+
 ### 1.4 (2026-10-26)
 - P-07 aceptada (ADR-020): `temporal-polyfill` 1.0.6, aislado en `src/shared/time/` y en el dominio de slots; Node 24.22.1 no expone `Temporal`.
 - Ofertas `one_to_one` con capacidad 1 y duración 15–240; gratuita ⇒ `priceMinor = 0`; de pago ⇒ `priceMinor > 0`; moneda ISO 4217 con `PEN` por defecto.
@@ -104,22 +132,18 @@
 - Auditoría e2e: `pnpm test:e2e` reportó PostgreSQL `steam_society_test` en `127.0.0.1:5433`, 7 migraciones y 28/28 tests verdes. La base de desarrollo es `steam_society` (misma instancia, base distinta); `docker compose port postgres 5432` confirma `127.0.0.1:5433`.
 - No se tomaron decisiones PENDIENTES fuera de las aprobadas en el mensaje del desarrollador.
 
-## Etapa 1.4: en rama (no fusionada)
-- `feat/1.4-offerings-availability` (HEAD `8ee0c09`, 7 commits desde `main`): ofertas, disponibilidad, slots con DST, migraciones `20261026161007_add_offerings_and_availability` y `20261026162005_use_time_for_availability`, 115 unitarios y 36 e2e reportados.
-- `feat/1.4-scheduling-client` (frontend, HEAD `d627a37`, 4 commits): cliente/tipos/pruebas de scheduling, 36 tests reportados, sin UI.
-- La UI de 1.4 y la ejecución de 1.5 quedan a la espera del mapa de ramas y del merge.
+## Etapa 1.5: en rama (pendiente de revisión y merge)
+- `feat/1.5-bookings` (creada desde `main` `2366d55`): reservas, migración, adaptador de sesiones, tarea de vencimiento, tests y contrato. Publicada en `origin/feat/1.5-bookings`; el merge a `main` queda para la revisión por etapa.
+- `main` (`2366d55`, publicado) ya contiene accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad.
+- Web: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` siguen pendientes de revisión/merge; la UI de 1.5 no ha empezado.
 
-## Mapa de ramas (2026-10-30, pendiente de aprobación)
-| Repo | Rama | Base | Commits | Tests | Riesgo / notas |
-|---|---|---|---|---|---|
-| Backend | `chore/accelerated-mode` | `4b4b57e` | 7 (incl. ajustes de docs) | 73 unit y 28 e2e verdes; build/lint verdes | Solo workflow, permisos y docs; sin código |
-| Backend | `feat/1.3-admin-detail` | `4b4b57e` | 3 | 73 unit verdes; 30 e2e reportados; build/lint verdes | Zona roja (admin); conflictos de docs con accelerated y de `profiles` con 1.4 |
-| Backend | `feat/1.4-offerings-availability` | `4b4b57e` | 7 | 115 unit verificados; 36 e2e reportados; build/lint verdes | Zona roja (scheduling); conflictos de docs y `profiles`; añade migraciones y `temporal-polyfill` |
-| Web | `chore/accelerated-mode` | `00d327b` | 3 | 28 tests y lint verdes; build verde; `format:check` falla solo por `.agents/skills/*` | Solo workflow y permisos |
-| Web | `feat/1.3-admin-panel` | `00d327b` | 4 | 40 tests verificados; lint verde; build reportado | Zona roja (admin); conflictos en `AGENTS.md`, README y `errors.ts` |
-| Web | `feat/1.4-scheduling-client` | `00d327b` | 4 | 36 tests verificados; lint verde; build reportado | Zona roja (scheduling); conflictos en `AGENTS.md`, README y `errors.ts` |
-
-Orden recomendado en ambos repos: `chore/accelerated-mode` → 1.3 → 1.4. No se ejecutó ningún merge; el desarrollador revisa y fusiona.
+## Mapa de ramas (2026-10-30)
+| Repo | Rama | Estado |
+|---|---|---|
+| Backend | `main` | `2366d55` publicado en `origin`; 115 unitarios y 38 e2e al cerrar 1.4 |
+| Backend | `feat/1.5-bookings` | Publicada en `origin`; en revisión; 219 unitarios y 50 e2e; build/lint verdes; 10 migraciones aplicadas en dev y test |
+| Web | `feat/1.3-admin-panel` | Pendiente de revisión/merge; 40 tests |
+| Web | `feat/1.4-scheduling-client` | Pendiente de revisión/merge; 36 tests, sin UI |
 
 ## Skills
 
@@ -129,10 +153,16 @@ Orden recomendado en ambos repos: `chore/accelerated-mode` → 1.3 → 1.4. No s
 - `opencode.json`: `skill * ask`, deny de `find-skills`, `caveman*`, `shadcn` y `migrate-radix-to-base`; allow exacto de `prisma-client-api`. El ID real de Postgres es `supabase-postgres-best-practices`; la regla explícita `postgres-best-practices` se conserva como alias y la regla general `skill * ask` cubre el ID real.
 
 ## Pendiente / riesgos para revisión con lupa
+- 1.5 (zona roja): revisar la transacción de creación (`pg_advisory_xact_lock` mentee→mentora + exclusión SQL), la guarda `WHERE status = <leído>` de cada transición, el vencimiento idempotente y la cancelación de la sesión en la misma transacción.
+- 1.5: aceptar una reserva de pago deja `expires_at` con el TTL de la solicitud; el plazo de pago real y la transición `awaiting_payment → confirmed` llegan con payments (Hito 2). Hasta entonces no hay endpoint que confirme el pago.
+- 1.5: `meetingUrl` lo aporta la mentora; la API no genera enlaces. Al confirmar una reserva de pago (Hito 2) habrá que exigirlo también.
+- 1.5: las notificaciones son best-effort y sin outbox; si el proceso cae después del commit, el correo se pierde. Reintentos/outbox se deciden en el Hito 2 (ADR-022).
+- 1.5: la tarea `@Interval(60_000)` corre en cada instancia; el `UPDATE` es idempotente, pero no hay leader election. Aceptable con una instancia.
+- 1.5: una reserva gratuita confirmada solo se cancela antes de `starts_at`; la cancelación de una reserva de pago queda pendiente de DA-05.
+- 1.5: `cancel_reason` guarda también el motivo de rechazo; si producto quiere distinguirlos, requiere una columna nueva.
 - 1.4: el frontend ya tiene cliente, tipos y pruebas en `feat/1.4-scheduling-client` (36 tests verdes), pero no tiene UI de ofertas/disponibilidad/slots. Siguiente slice: pantallas de mentora y selector público.
 - 1.4: el cliente frontend está probado con `fetch` mock, no contra la API real; la prueba e2e de contrato y la UI quedan pendientes.
 - 1.4: `pnpm format:check` del frontend falla solo por archivos preexistentes de `.agents/skills/*`; no se tocaron. `pnpm build`, `pnpm lint` y `pnpm test` del frontend están verdes (36 tests).
-- 1.4: `SessionConflictPort` devuelve `[]`; no se pueden probar solapes con sesiones reales hasta que existan `session`/`booking` en 1.5.
 - 1.4: `PUT /v1/me/availability` reemplaza todas las reglas; no hay edición individual ni validación de solapes entre reglas (el generador deduplica slots).
 - 1.4: `start_time`/`end_time` son `TIME(0)`; el frontend debe enviar `HH:mm` sin segundos. `validFrom`/`validTo` son fechas `YYYY-MM-DD`.
 - 1.4: el rango máximo de slots es 90 días; si el frontend necesita más, consultar por semanas o paginar.
@@ -156,9 +186,9 @@ Orden recomendado en ambos repos: `chore/accelerated-mode` → 1.3 → 1.4. No s
 - Skills: `prisma-cli` no se instaló; decidir si se acepta una versión adaptada sin `prisma init`/`npx` o si se deja fuera.
 
 ## Siguiente
-1. Desbloquear el push: el desarrollador debe retirar o mover el `deny` final `git push *` de `opencode.json` (línea 80); no lo modifica el agente. Después: `git push origin main` y las ramas backend una por una.
-2. Etapa 1.5 (reservas, zona roja): máquina de estados pura, exclusión SQL, test de concurrencia, vencimiento idempotente, `NotificationsPort` y reemplazo de `NoSessionConflictAdapter` por el adaptador real; luego 1.6 (catálogo/recomendaciones) y 1.7 (demo).
-3. Web: UI de 1.4 sobre `feat/1.4-scheduling-client` y UI de cada etapa leyendo primero el contrato publicado en README/PROGRESS del backend.
+1. Revisar el diff de `feat/1.5-bookings` y la zona roja (reservas); si pasa, tag `backup/pre-merge-feat/1.5-bookings`, merge `--no-ff` a `main` y gates completos.
+2. Web: UI de 1.4 sobre `feat/1.4-scheduling-client` y UI de reservas de 1.5 leyendo el contrato publicado en README/PROGRESS del backend.
+3. Etapa 1.6 (catálogo/recomendaciones) y 1.7 (demo).
 4. Revisión senior de autenticación y de las zonas rojas antes de producción.
 
 ## Registro de sesiones
@@ -179,3 +209,4 @@ Orden recomendado en ambos repos: `chore/accelerated-mode` → 1.3 → 1.4. No s
 | 2026-10-30 | Detalle admin `GET /v1/admin/mentors/:id` con onboarding completo y e2e; UI admin con bandeja, filtros, detalle y acciones; 73 unitarios y 30 e2e backend, 40 tests frontend | Agente (revisión del desarrollador) |
 | 2026-10-26 | 1.4 Ofertas/disponibilidad/slots: migraciones, dominio DST, CRUD, puerto de sesiones falso, puerto de settings de mentora, tests y docs; frontend: rama `feat/1.4-scheduling-client` con cliente/tipos/pruebas de 1.4 (36 tests verdes, sin UI) | Agente (revisión del desarrollador) |
 | 2026-10-30 | Merges locales `chore/git-policy` (`d9d9b1e`), 1.3 (`69f8f2a`) y 1.4 (`275f3cd`); gates: 115 unitarios y 38 e2e verdes; 9 migraciones al día. Push bloqueado por el `deny` final `git push *` de `opencode.json` | Agente (instrucción del desarrollador) |
+| 2026-10-30 | 1.5 Reservas (zona roja): migración con exclusión/CHECKs, máquina de estados, API, locks, vencimiento, notificaciones, adaptador de sesiones, tests y contrato; gates 219 unitarios, 50 e2e, build/lint verdes; rama publicada en `origin` | Agente (pendiente de revisión) |

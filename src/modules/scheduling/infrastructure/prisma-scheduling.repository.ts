@@ -143,6 +143,14 @@ export class PrismaSchedulingRepository implements SchedulingRepositoryPort {
 
     return record ? toOffering(record) : null;
   }
+
+  async findOfferingById(offeringId: string): Promise<Offering | null> {
+    const record = await this.prisma.offering.findUnique({
+      where: { id: offeringId },
+    });
+
+    return record ? toOffering(record) : null;
+  }
 }
 
 function toOffering(record: OfferingRecord): Offering {

@@ -9,8 +9,8 @@ import { MENTOR_SETTINGS_PORT } from './application/ports/mentor-settings.port.j
 import { SESSION_CONFLICT_PORT } from './application/ports/session-conflict.port.js';
 import { SCHEDULING_REPOSITORY } from './application/ports/scheduling.repository.js';
 import { SlotsService } from './application/slots.service.js';
-import { NoSessionConflictAdapter } from './infrastructure/no-session-conflict.adapter.js';
 import { PrismaSchedulingRepository } from './infrastructure/prisma-scheduling.repository.js';
+import { PrismaSessionConflictAdapter } from './infrastructure/prisma-session-conflict.adapter.js';
 import { ProfilesMentorSettingsAdapter } from './infrastructure/profiles-mentor-settings.adapter.js';
 import { AvailabilityController } from './presentation/availability.controller.js';
 import { OfferingsController } from './presentation/offerings.controller.js';
@@ -25,9 +25,9 @@ import { SlotsController } from './presentation/slots.controller.js';
     SlotsService,
     { provide: SCHEDULING_REPOSITORY, useClass: PrismaSchedulingRepository },
     { provide: MENTOR_SETTINGS_PORT, useClass: ProfilesMentorSettingsAdapter },
-    { provide: SESSION_CONFLICT_PORT, useClass: NoSessionConflictAdapter },
+    { provide: SESSION_CONFLICT_PORT, useClass: PrismaSessionConflictAdapter },
     { provide: CLOCK, useClass: SystemClock },
   ],
-  exports: [SlotsService],
+  exports: [SlotsService, SCHEDULING_REPOSITORY, MENTOR_SETTINGS_PORT],
 })
 export class SchedulingModule {}

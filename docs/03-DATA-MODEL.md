@@ -173,8 +173,16 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 **Implementado en 1.4**
 - `availability_rule.start_time` y `end_time` son `TIME(0)`; la API recibe y devuelve `HH:mm`. Cada regla puede tener su propia zona IANA; si se omite, se usa `user.timezone`.
 - `offering` solo se crea como `one_to_one` con `capacity = 1`. La API acepta `isFree` + `priceMinor` (entero en unidad mínima) y `currency` ISO 4217 (default `PEN`); una oferta gratuita normaliza el precio a 0 y una de pago exige precio > 0. Archivar es un borrado lógico (`active = false`, `archived_at`).
-- La lectura pública de slots exige mentora `approved`, usuaria `active`, oferta `active` y no archivada. El puerto `SessionConflictPort` devuelve `[]` en 1.4; el adaptador real de `session`/`booking` llega en 1.5. `scheduling` obtiene el estado, la zona y la antelación con `MentorSettingsPort`, implementado sobre el servicio de `profiles`; no lee tablas de otro módulo.
+- La lectura pública de slots exige mentora `approved`, usuaria `active`, oferta `active` y no archivada. En 1.4 `SessionConflictPort` devolvía `[]`; en 1.5 lo implementa `PrismaSessionConflictAdapter` leyendo `session` no canceladas. `scheduling` obtiene el estado, la zona y la antelación con `MentorSettingsPort`, implementado sobre el servicio de `profiles`; no lee tablas de otro módulo.
 - CHECKs de oferta y disponibilidad probados en `test/scheduling.e2e-spec.ts`; los slots y DST en `src/modules/scheduling/domain/slot-generator.spec.ts`.
+
+**Implementado en 1.5**
+- `session` y `booking` viven en la migración `20261030234248_add_sessions_and_bookings`, creada con `--create-only` y completada a mano con `btree_gist`, la exclusión, el índice único parcial y los CHECK que Prisma no expresa.
+- `session` es 1:1 en el MVP: nace `open` con la solicitud, pasa a `cancelled` al rechazar/cancelar/vencer y a `completed` al completar o registrar no-show. `meeting_url` es un enlace externo que aporta la mentora al aceptar una reserva gratuita.
+- `booking` copia `payment_required`, `price_minor` y `currency` de la oferta al solicitar. `cancel_reason` guarda también el motivo de rechazo para no añadir una columna fuera de este modelo. `expires_at` sale de `BOOKING_REQUEST_TTL_HOURS`.
+- Restricciones SQL: `session_no_overlap` (`EXCLUDE USING gist` por `mentor_id` y `tstzrange(starts_at, ends_at, '[)')`, solo sesiones no canceladas), `booking_active_seat_uk` (único parcial por `(session_id, mentee_id)` en estados activos), `session_ends_after_starts_check`, `session_capacity_positive_check`, `booking_expires_after_request_check`, `booking_price_check`, `booking_currency_check`, `booking_cancel_fields_check`, `booking_no_show_party_check` y `booking_completed_at_check`.
+- La creación de la reserva usa una transacción con `pg_advisory_xact_lock` por mentee y por mentora (en ese orden) para serializar R-12 y R-15; la exclusión SQL queda como red de seguridad. La reserva de una mentee sin `mentee_profile` se rechaza con `400 MENTEE_PROFILE_REQUIRED` mediante `MenteeProfilePort`, sin leer la tabla de `profiles` desde `bookings`.
+- `PrismaSessionConflictAdapter` excluye las sesiones canceladas y alimenta el cálculo de slots de 1.4. Los CHECK y la exclusión se prueban en `test/bookings.e2e-spec.ts`.
 
 **Implementado en 1.3**
 - `language.code` es `varchar(2)` en minúsculas (`CHECK`); los idiomas iniciales son `es`, `en` y `qu`.
@@ -217,7 +225,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 | 1.2 | `user`, `auth_session`, `password_reset_token` |
 | 1.3 | `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response`, `audit_log` (migraciones `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage` y `20261024224933_use_jsonb_for_json_columns`) |
 | 1.4 | `availability_rule`, `offering` (migraciones `20261026161007_add_offerings_and_availability` y `20261026162005_use_time_for_availability`) |
-| 1.5 | `session`, `booking` + SQL a mano (exclusión y CHECK) |
+| 1.5 | `session`, `booking` + SQL a mano (exclusión y CHECK) en `20261030234248_add_sessions_and_bookings` |
 | 1.6 | `search_vector` y extensiones de búsqueda |
 | 2 / 3 | Ver esqueleto arriba |
 

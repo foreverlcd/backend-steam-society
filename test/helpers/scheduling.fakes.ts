@@ -200,6 +200,10 @@ export class InMemorySchedulingRepository
 
     return offering;
   }
+
+  async findOfferingById(offeringId: string): Promise<Offering | null> {
+    return this.offerings.get(offeringId) ?? null;
+  }
 }
 
 export class FakeSessionConflictPort implements SessionConflictPort {
