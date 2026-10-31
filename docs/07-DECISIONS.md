@@ -43,7 +43,7 @@ Por qué: despensa estricta y buen soporte. Descartado: npm; Bun como runtime (r
 
 **ADR-013 · Un rol por cuenta; la mentora aprueba cada solicitud; varias ofertas por mentora; el admin no se crea por registro.** (Decisiones de producto del 2026-10-24.)
 
-**ADR-014 · Flujo de trabajo con agente.** El agente implementa en ramas, sin `push`; el desarrollador revisa cada diff y hace el merge; zonas rojas con tests de invariantes y revisión senior antes de producción.
+**ADR-014 · Flujo de trabajo con agente.** El agente implementa en ramas y puede publicar solo la rama de trabajo con `git push origin <rama>`; nunca fuerza, borra ramas remotas ni sube tags. El merge a `main` se hace con `--no-ff`, tag local `backup/pre-merge-<rama>` y gates verdes; el desarrollador revisa por etapa. Zonas rojas con tests de invariantes y revisión senior antes de producción. (Actualizado 2026-10-30 por la política git autónoma de `AGENTS.md`.)
 
 **ADR-015 · UUID v7 generado por PostgreSQL (`uuidv7()`).** (2026-10-24) Por qué: ordenado por tiempo, mejor localidad de índice, y el id existe también en inserciones hechas fuera de Prisma. Descartado: `uuid()` de Prisma (se genera en el cliente, no en SQL manual) y uuid v4 (aleatorio). Consecuencia: `@default(dbgenerated("uuidv7()")) @db.Uuid` en todas las tablas nuevas; requiere PostgreSQL 18.
 

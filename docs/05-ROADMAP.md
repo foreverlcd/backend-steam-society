@@ -2,7 +2,7 @@
 
 Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. En modo acelerado se sigue la etapa completa sin pedir confirmación del plan; solo se para en las condiciones de 'Detente y pregunta' o al cerrar la etapa.
 
-**Estado 2026-10-30:** modo acelerado y política git autónoma activos. `main` local ya incluye accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad (merges locales). Push bloqueado por el `deny` final `git push *` de `opencode.json`; frontend: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` pendientes. Backend tras 1.4: 115 unitarios y 38 e2e verdes. Siguiente: desbloquear push y ejecutar 1.5.
+**Estado 2026-10-30:** modo acelerado y política git autónoma activos. `main` ya está publicado en `origin` con accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad. Backend: `feat/1.5-bookings` implementada en rama, con 219 unitarios y 50 e2e verdes. Frontend: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` pendientes; la UI de 1.5 aún no empieza. Siguiente: revisión de 1.5 y etapa 1.6 (catálogo/recomendaciones).
 
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 
@@ -45,6 +45,12 @@ CRUD de ofertas (varias por mentora; archivar en vez de borrar) · reglas de dis
 ### 1.5: Reservas (ZONA ROJA, hexagonal)
 Solicitar, aceptar, rechazar, cancelar, vencer, completar y no-show, según `04-STATE-MACHINES.md`; migración con SQL a mano (exclusión y CHECK); notificaciones por correo después del commit (ADR-022); vencimiento al consultar + tarea con `@nestjs/schedule` (ADR-023); plazo de respuesta `BOOKING_REQUEST_TTL_HOURS` (ADR-021); enlace de sesión externo.
 **Aceptación:** tabla exhaustiva de transiciones; test de concurrencia (dos solicitudes al mismo horario: una gana); vencimiento correcto aunque no corra la tarea; mentee sin solapes (R-12); ninguna reserva gratuita crea pago (R-07).
+
+Implementado en la rama `feat/1.5-bookings`:
+- Migración `20261030234248_add_sessions_and_bookings` con `btree_gist`, exclusión `session_no_overlap`, índice único parcial `booking_active_seat_uk` y CHECKs.
+- API `POST/GET /v1/bookings`, `GET /v1/bookings/:id` y acciones `accept`, `decline`, `cancel`, `complete`, `no-show`; `PrismaSessionConflictAdapter` reemplaza el puerto falso de 1.4.
+- Evidencia: 219 unitarios (17 archivos) y 50 e2e (5 archivos), incluidos concurrencia, R-12, R-15, vencimiento idempotente y R-07; `pnpm build` y `pnpm lint` verdes.
+- Pendiente de revisión: contrato publicado en `README.md`; UI del frontend y prueba de contrato real.
 
 ### 1.6: Catálogo y recomendaciones
 Búsqueda y filtros (texto completo y trigramas de PostgreSQL) con paginación por cursor · recomendaciones con razón según `08-MATCHING.md` · script de evaluación con personas sintéticas.
