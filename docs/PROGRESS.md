@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-30 · **Modo ACELERADO y política git autónoma activos.** `main` ya está publicado en `origin` (`2366d55`) con accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad. `feat/1.5-bookings` implementa reservas (zona roja) y queda publicada en `origin`; el merge a `main` queda pendiente de revisión. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes; la UI de 1.5 aún no empieza.
+Última actualización: 2026-10-30 · **Modo ACELERADO y política git autónoma activos.** `main` (`7d9cda7`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas. `feat/1.5-bookings` quedó fusionada con `--no-ff` y publicada. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes; la UI de 1.5 aún no empieza. Siguiente: 1.6 catálogo/recomendaciones.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -140,8 +140,8 @@
 ## Mapa de ramas (2026-10-30)
 | Repo | Rama | Estado |
 |---|---|---|
-| Backend | `main` | `2366d55` publicado en `origin`; 115 unitarios y 38 e2e al cerrar 1.4 |
-| Backend | `feat/1.5-bookings` | Publicada en `origin`; en revisión; 219 unitarios y 50 e2e; build/lint verdes; 10 migraciones aplicadas en dev y test |
+| Backend | `main` | `7d9cda7` publicado en `origin`; incluye 1.5 (219 unitarios y 50 e2e) |
+| Backend | `feat/1.5-bookings` | Fusionada en `main` con `--no-ff`; revisión senior pendiente |
 | Web | `feat/1.3-admin-panel` | Pendiente de revisión/merge; 40 tests |
 | Web | `feat/1.4-scheduling-client` | Pendiente de revisión/merge; 36 tests, sin UI |
 
@@ -210,3 +210,4 @@
 | 2026-10-26 | 1.4 Ofertas/disponibilidad/slots: migraciones, dominio DST, CRUD, puerto de sesiones falso, puerto de settings de mentora, tests y docs; frontend: rama `feat/1.4-scheduling-client` con cliente/tipos/pruebas de 1.4 (36 tests verdes, sin UI) | Agente (revisión del desarrollador) |
 | 2026-10-30 | Merges locales `chore/git-policy` (`d9d9b1e`), 1.3 (`69f8f2a`) y 1.4 (`275f3cd`); gates: 115 unitarios y 38 e2e verdes; 9 migraciones al día. Push bloqueado por el `deny` final `git push *` de `opencode.json` | Agente (instrucción del desarrollador) |
 | 2026-10-30 | 1.5 Reservas (zona roja): migración con exclusión/CHECKs, máquina de estados, API, locks, vencimiento, notificaciones, adaptador de sesiones, tests y contrato; gates 219 unitarios, 50 e2e, build/lint verdes; rama publicada en `origin` | Agente (pendiente de revisión) |
+| 2026-10-30 | Merge `--no-ff` de 1.5 en `main` (`7d9cda7`); gates 219 unitarios y 50 e2e verdes; `main` publicado en `origin` | Agente (instrucción del desarrollador) |
