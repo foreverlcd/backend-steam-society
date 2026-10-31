@@ -8,6 +8,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   SMTP_URL: z.url().optional(),
   APP_URL: z.url().default('http://localhost:3001'),
+  BOOKING_REQUEST_TTL_HOURS: z.coerce.number().int().positive().default(48),
   SMTP_FROM: z
     .string()
     .min(1)

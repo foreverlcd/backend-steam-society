@@ -56,4 +56,5 @@ export interface SchedulingRepositoryPort {
     mentorId: string,
     offeringId: string,
   ): Promise<Offering | null>;
+  findOfferingById(offeringId: string): Promise<Offering | null>;
 }

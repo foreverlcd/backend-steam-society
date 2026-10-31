@@ -85,6 +85,10 @@ export class ProfilesService {
     return { role, profile: profile ? toMenteeProfile(profile) : null };
   }
 
+  async hasMenteeProfile(userId: string): Promise<boolean> {
+    return (await this.profiles.findMenteeProfile(userId)) !== null;
+  }
+
   async getMentorSchedulingSettings(userId: string): Promise<{
     status: MentorStatus;
     userStatus: 'pending_verification' | 'active' | 'suspended' | 'deleted';

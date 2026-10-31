@@ -44,6 +44,6 @@ import { UserRepository } from './user.repository.js';
     { provide: APP_GUARD, useClass: SessionAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
-  exports: [AuthService],
+  exports: [AuthService, MailerService],
 })
 export class AuthModule {}
