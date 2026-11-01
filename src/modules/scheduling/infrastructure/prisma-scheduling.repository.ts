@@ -26,6 +26,25 @@ export class PrismaSchedulingRepository implements SchedulingRepositoryPort {
     return records.map(toOffering);
   }
 
+  async listActiveOfferingsForMentors(
+    mentorIds: string[],
+  ): Promise<Offering[]> {
+    if (mentorIds.length === 0) {
+      return [];
+    }
+
+    const records = await this.prisma.offering.findMany({
+      where: {
+        mentorId: { in: mentorIds },
+        active: true,
+        archivedAt: null,
+      },
+      orderBy: [{ mentorId: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    return records.map(toOffering);
+  }
+
   async findOffering(
     mentorId: string,
     offeringId: string,
@@ -93,6 +112,25 @@ export class PrismaSchedulingRepository implements SchedulingRepositoryPort {
     const records = await this.prisma.availabilityRule.findMany({
       where: { userId },
       orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
+    });
+
+    return records.map(toAvailabilityRule);
+  }
+
+  async listAvailabilityRulesForUsers(
+    userIds: string[],
+  ): Promise<AvailabilityRule[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    const records = await this.prisma.availabilityRule.findMany({
+      where: { userId: { in: userIds } },
+      orderBy: [
+        { userId: 'asc' },
+        { weekday: 'asc' },
+        { startTime: 'asc' },
+      ],
     });
 
     return records.map(toAvailabilityRule);

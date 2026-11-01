@@ -28,6 +28,11 @@ import { SlotsController } from './presentation/slots.controller.js';
     { provide: SESSION_CONFLICT_PORT, useClass: PrismaSessionConflictAdapter },
     { provide: CLOCK, useClass: SystemClock },
   ],
-  exports: [SlotsService, SCHEDULING_REPOSITORY, MENTOR_SETTINGS_PORT],
+  exports: [
+    SlotsService,
+    SCHEDULING_REPOSITORY,
+    MENTOR_SETTINGS_PORT,
+    SESSION_CONFLICT_PORT,
+  ],
 })
 export class SchedulingModule {}

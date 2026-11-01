@@ -113,7 +113,10 @@ después de que la API ya está levantada. Cuando la base vuelve, `/health` resp
 | POST | `/v1/me/offerings/:id/archive` | Sesión `mentor` | Archiva una oferta (borrado lógico) |
 | GET | `/v1/me/availability` | Sesión `mentor` | Devuelve las reglas de disponibilidad |
 | PUT | `/v1/me/availability` | Sesión `mentor` | Reemplaza todas las reglas de disponibilidad |
+| GET | `/v1/mentors?q=&areaId=&language=&country=&isFree=&maxPriceMinor=&currency=&limit=&cursor=` | Pública | Catálogo de mentoras aprobadas con ofertas activas |
+| GET | `/v1/mentors/:id` | Pública | Detalle público de una mentora y sus ofertas |
 | GET | `/v1/mentors/:id/slots?offeringId&from&to` | Pública | Slots reservables de una mentora |
+| GET | `/v1/me/recommendations?limit=` | Sesión `mentee` | Recomendaciones explicables (máx. 10) |
 | POST | `/v1/bookings` | Sesión `mentee` | Solicita una reserva 1:1 |
 | GET | `/v1/bookings?status=&limit=&cursor=` | Sesión `mentee`/`mentor` | Lista reservas propias con cursor |
 | GET | `/v1/bookings/:id` | Sesión `mentee`/`mentor` | Detalle de una reserva propia |
@@ -180,6 +183,29 @@ usuaria. En local, abre `http://127.0.0.1:8025` para ver el correo de Mailpit.
   localStart, localEnd }` por slot. Los slots ocupados por sesiones no se
   devuelven.
 
+### Catálogo y recomendaciones (1.6)
+
+- `GET /v1/mentors` es público y solo devuelve mentoras `approved` con cuenta
+  `active`. Acepta `q` (texto completo en español + trigramas), `areaId`,
+  `language` (ISO 639-1), `country` (ISO 3166-1 alfa-2), `isFree`,
+  `maxPriceMinor`, `currency` (default `PEN`), `limit` (1–50, default 20) y
+  `cursor`. Cada ítem incluye sus ofertas activas y `nextCursor` es opaco.
+- `GET /v1/mentors/:id` devuelve el detalle público con ofertas; responde
+  `404 MENTOR_NOT_FOUND` si la mentora no está aprobada o la cuenta no está
+  activa. Un cursor inválido responde `400 INVALID_CURSOR`.
+- `GET /v1/me/recommendations?limit=` es solo para `mentee` con perfil. Devuelve
+  `items` con `{ mentorId, mentor, score, breakdown, reason }` y `meta` con
+  `totalCandidates`, `eligibleCandidates`, `horizonDays` y `limit`. El máximo
+  es 10 y el valor por defecto es 3.
+- El motor es una función pura y explicable: filtros duros (idioma, área,
+  disponibilidad en 14 días, gratuidad/presupuesto, bloqueo) y puntaje
+  ponderado provisional 35/20/15/15/10/5. La razón se arma solo con los dos
+  componentes con más puntos y nunca con un LLM. La especificación y los
+  pendientes de producto están en `docs/08-MATCHING.md`.
+- La evaluación sintética se ejecuta con `pnpm eval:matching` (20 mentees y 30
+  mentoras, precision@3 con meta 0,6). La comparación con pares reales sigue
+  pendiente.
+
 ### Reservas (1.5)
 
 - `POST /v1/bookings` recibe `{ offeringId, startsAt, message? }`. `startsAt` es
@@ -227,7 +253,9 @@ El esquema vive en `prisma/schema.prisma` y la configuración del CLI en
 `password_reset_token`. La etapa 1.3 añade `language`, `mentor_profile`,
 `mentee_profile`, las tablas de áreas/idiomas por perfil, `onboarding_response`
 y `audit_log`; 1.4 añade `offering` y `availability_rule`; 1.5 añade `session` y
-`booking` con exclusión SQL, CHECKs e índice único parcial.
+`booking` con exclusión SQL, CHECKs e índice único parcial; 1.6 añade
+`search_vector` generada, `pg_trgm` e índices GIN/trigramas en
+`mentor_profile` y `area`.
 
 Comandos disponibles:
 
@@ -264,8 +292,15 @@ Luego ejecuta:
 pnpm test:e2e
 ```
 
-Los e2e truncan las tablas de autenticación, perfiles, onboarding y auditoría
-antes de cada prueba. No apuntes `steam_society_test` a una base con datos reales.
+Los e2e truncan las tablas de autenticación, perfiles, onboarding, ofertas,
+disponibilidad, reservas y auditoría antes de cada prueba. No apuntes
+`steam_society_test` a una base con datos reales.
+
+La evaluación sintética del matching no toca la base:
+
+```bash
+pnpm eval:matching
+```
 
 Comprobaciones de la definición de terminado:
 
@@ -274,6 +309,7 @@ pnpm build
 pnpm lint
 pnpm test
 pnpm test:e2e
+pnpm eval:matching
 ```
 
 ## Seguridad

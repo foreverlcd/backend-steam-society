@@ -48,6 +48,7 @@ export interface SchedulingRepositoryPort {
     archivedAt: Date,
   ): Promise<Offering | null>;
   listAvailabilityRules(userId: string): Promise<AvailabilityRule[]>;
+  listAvailabilityRulesForUsers(userIds: string[]): Promise<AvailabilityRule[]>;
   replaceAvailabilityRules(
     userId: string,
     rules: AvailabilityRuleData[],
@@ -57,4 +58,5 @@ export interface SchedulingRepositoryPort {
     offeringId: string,
   ): Promise<Offering | null>;
   findOfferingById(offeringId: string): Promise<Offering | null>;
+  listActiveOfferingsForMentors(mentorIds: string[]): Promise<Offering[]>;
 }

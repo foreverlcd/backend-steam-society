@@ -2,7 +2,7 @@
 
 Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. En modo acelerado se sigue la etapa completa sin pedir confirmación del plan; solo se para en las condiciones de 'Detente y pregunta' o al cerrar la etapa.
 
-**Estado 2026-10-30:** modo acelerado y política git autónoma activos. `main` (`7d9cda7`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas (219 unitarios y 50 e2e). Frontend: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` pendientes; la UI de 1.5 aún no empieza. Siguiente: etapa 1.6 (catálogo/recomendaciones).
+**Estado 2026-10-31:** modo acelerado y política git autónoma activos. `main` (`b04fd2e`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas (219 unitarios y 50 e2e). La etapa 1.6 (catálogo/recomendaciones) está implementada en `feat/1.6-catalog-matching`, pendiente de revisión y merge. Frontend: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` pendientes; la UI de 1.5 y 1.6 aún no empieza.
 
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 
@@ -55,6 +55,14 @@ Implementado y fusionado en `main` (merge `7d9cda7`):
 ### 1.6: Catálogo y recomendaciones
 Búsqueda y filtros (texto completo y trigramas de PostgreSQL) con paginación por cursor · recomendaciones con razón según `08-MATCHING.md` · script de evaluación con personas sintéticas.
 **Aceptación:** filtros duros nunca devuelven mentoras no aprobadas o sin disponibilidad; cada razón corresponde a un componente con puntos > 0 (test); precision@3 sobre las personas sintéticas reportada.
+
+Implementado en `feat/1.6-catalog-matching` (pendiente de revisión y merge):
+- Migración `20261031002413_add_catalog_search` con `pg_trgm`, `search_vector` generada e índices GIN/trigramas; `prisma migrate status` limpio en desarrollo y las 11 migraciones aplicadas en `steam_society_test`.
+- `GET /v1/mentors` (público) con `q`, `areaId`, `language`, `country`, `isFree`, `maxPriceMinor`, `currency`, `limit` y cursor opaco; `GET /v1/mentors/:id` devuelve el detalle público con ofertas activas. Solo aparecen mentoras `approved` con cuenta `active`.
+- `GET /v1/me/recommendations?limit=` (solo `mentee`) devuelve hasta 3 recomendaciones con `score`, `breakdown` y `reason`; filtros duros de idioma, área, disponibilidad, gratuidad/presupuesto y bloqueo; disponibilidad calculada con la oferta activa de menor duración en un horizonte de 14 días.
+- `pnpm eval:matching` ejecuta el fixture de 20 mentees y 30 mentoras; precision@3 actual 1,000 (meta 0,6). La evaluación humana de 10 pares reales sigue pendiente.
+- Evidencia: 228 unitarios (18 archivos) y 55 e2e (6 archivos), incluidos catálogo, cursor, detalle y recomendaciones; `pnpm build` y `pnpm lint` verdes.
+- Pesos y umbrales siguen siendo provisionales (`docs/08-MATCHING.md`); onboarding v1 no pregunta presupuesto ni "solo gratuitas", así que `onlyFree`/`maxPriceMinor` quedan `null` hasta una versión nueva.
 
 ### 1.7: Demo y endurecimiento
 Datos de demostración (seed) · guion de demo de 5 minutos · README de extremo a extremo · prueba de carga simple con k6 sobre catálogo y slots [meta a definir] · escaneo básico con OWASP ZAP [a confirmar].

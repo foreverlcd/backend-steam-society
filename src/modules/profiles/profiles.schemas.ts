@@ -135,6 +135,39 @@ export const listMentorsQuerySchema = z
 
 export type ListMentorsQuery = z.infer<typeof listMentorsQuerySchema>;
 
+export const publicMentorQuerySchema = z
+  .object({
+    q: z.string().trim().min(1).max(100).optional(),
+    areaId: z.uuid().optional(),
+    language: z
+      .string()
+      .regex(/^[a-z]{2}$/, 'Expected an ISO 639-1 code')
+      .optional(),
+    country: z
+      .string()
+      .regex(/^[A-Z]{2}$/, 'Expected an ISO 3166-1 alpha-2 code')
+      .optional(),
+    isFree: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
+    maxPriceMinor: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(2_147_483_647)
+      .optional(),
+    currency: z
+      .string()
+      .regex(/^[A-Z]{3}$/, 'Expected an ISO 4217 code')
+      .default('PEN'),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    cursor: z.string().max(500).optional(),
+  })
+  .strict();
+
+export type PublicMentorQuery = z.infer<typeof publicMentorQuerySchema>;
+
 export const rejectMentorSchema = z
   .object({
     reason: z.string().trim().min(1).max(1000),

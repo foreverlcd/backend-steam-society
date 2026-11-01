@@ -19,6 +19,8 @@ import { getOnboardingCompletion } from './onboarding.completion.js';
 import {
   getOnboardingConfig,
   getOnboardingQuestionCodes,
+  AVAILABILITY_PREFERENCES,
+  CURRENT_LEVELS,
   ONBOARDING_VERSION,
   type OnboardingRole,
 } from './onboarding.config.js';
@@ -30,14 +32,18 @@ import {
   type MentorAnswers,
   type MentorProfileUpdateInput,
   type OnboardingUpdateInput,
+  type PublicMentorQuery,
   type UpdateProfileInput,
 } from './profiles.schemas.js';
 import {
   ProfilesRepository,
   type AdminMentorRecord,
+  type MatchingMentorRecord,
   type MenteeProfileRecord,
   type MentorProfileRecord,
+  type PublicMentorRecord,
 } from './profiles.repository.js';
+import { decodeCatalogCursor, encodeCatalogCursor } from './catalog.cursor.js';
 
 const EXPERIENCE_RANGE_YEARS: Record<string, number> = {
   '3-5': 3,
@@ -59,6 +65,52 @@ const STATUS_ACTION: Record<MentorStatusEvent, string> = {
   suspend: 'mentor_profile.suspended',
   reactivate: 'mentor_profile.reactivated',
 };
+
+export interface PublicMentorProfile {
+  userId: string;
+  firstName: string | null;
+  lastName: string | null;
+  headline: string | null;
+  bio: string | null;
+  yearsExperience: number | null;
+  country: string | null;
+  city: string | null;
+  areas: Array<{ id: string; name: string; parentId: string | null }>;
+  languages: Array<{ code: string; name: string }>;
+}
+
+export interface MenteeMatchingProfile {
+  userId: string;
+  timezone: string;
+  areas: PublicMentorProfile['areas'];
+  languages: PublicMentorProfile['languages'];
+  careerStage:
+    | 'school'
+    | 'preuniversity'
+    | 'university'
+    | 'early_career'
+    | null;
+  currentLevel: 'beginner' | 'intermediate' | 'advanced' | null;
+  availabilityPreferences: Array<
+    'mornings' | 'afternoons' | 'evenings' | 'weekends'
+  >;
+  // Onboarding v1 does not ask for a budget or an "only free" preference yet.
+  // The matching domain supports both signals for a future onboarding version.
+  onlyFree: boolean | null;
+  maxPriceMinor: number | null;
+}
+
+export interface MatchingMentorCandidate extends PublicMentorProfile {
+  status: MentorStatus;
+  userStatus:
+    | 'pending_verification'
+    | 'active'
+    | 'suspended'
+    | 'deleted';
+  minNoticeHours: number;
+  maxAdvanceDays: number;
+  timezone: string;
+}
 
 @Injectable()
 export class ProfilesService {
@@ -259,6 +311,101 @@ export class ProfilesService {
       mentor: toAdminMentorDetail(record),
       onboarding: buildOnboarding('mentor', responses, areas, languages),
     };
+  }
+
+  async searchPublicMentors(query: PublicMentorQuery): Promise<{
+    items: PublicMentorProfile[];
+    nextCursor: string | null;
+  }> {
+    const cursor = decodeCatalogCursor(query.cursor);
+
+    if (query.cursor && !cursor) {
+      throw invalidCursor();
+    }
+
+    const result = await this.profiles.searchPublicMentors({
+      q: query.q,
+      areaId: query.areaId,
+      language: query.language,
+      country: query.country,
+      isFree: query.isFree,
+      maxPriceMinor: query.maxPriceMinor,
+      currency: query.currency,
+      limit: query.limit,
+      cursor: cursor ?? undefined,
+    });
+
+    return {
+      items: result.records.map(toPublicMentor),
+      nextCursor: result.nextCursor
+        ? encodeCatalogCursor(result.nextCursor)
+        : null,
+    };
+  }
+
+  async getPublicMentor(mentorId: string): Promise<PublicMentorProfile> {
+    const record = await this.profiles.findPublicMentor(mentorId);
+
+    if (!record) {
+      throw publicMentorNotFound();
+    }
+
+    return toPublicMentor(record);
+  }
+
+  async getMenteeMatchingProfile(
+    userId: string,
+  ): Promise<MenteeMatchingProfile | null> {
+    const record = await this.profiles.findMenteeMatchingProfile(userId);
+
+    if (!record) {
+      return null;
+    }
+
+    const responses = await this.profiles.findOnboardingResponses(
+      userId,
+      ONBOARDING_VERSION,
+    );
+    const answers = answersFromResponses('mentee', responses);
+    const currentLevel =
+      typeof answers.currentLevel === 'string' &&
+      (CURRENT_LEVELS as readonly string[]).includes(answers.currentLevel)
+        ? (answers.currentLevel as MenteeMatchingProfile['currentLevel'])
+        : null;
+    const availabilityPreferences = Array.isArray(
+      answers.availabilityPreferences,
+    )
+      ? answers.availabilityPreferences.filter(
+          (value): value is MenteeMatchingProfile['availabilityPreferences'][number] =>
+            typeof value === 'string' &&
+            (AVAILABILITY_PREFERENCES as readonly string[]).includes(value),
+        )
+      : [];
+
+    return {
+      userId,
+      timezone: record.user.timezone,
+      areas: record.interests.map(({ area }) => ({
+        id: area.id,
+        name: area.name,
+        parentId: area.parentId,
+      })),
+      languages: record.languages.map(({ language }) => ({
+        code: language.code,
+        name: language.name,
+      })),
+      careerStage: record.careerStage,
+      currentLevel,
+      availabilityPreferences,
+      onlyFree: null,
+      maxPriceMinor: null,
+    };
+  }
+
+  async listMatchingMentorCandidates(): Promise<MatchingMentorCandidate[]> {
+    const records = await this.profiles.listMatchingMentorCandidates();
+
+    return records.map(toMatchingMentorCandidate);
   }
 
   approveMentor(
@@ -785,6 +932,43 @@ function toAdminMentorDetail(profile: AdminMentorRecord) {
   };
 }
 
+function toPublicMentor(
+  profile: PublicMentorRecord | MatchingMentorRecord,
+): PublicMentorProfile {
+  return {
+    userId: profile.userId,
+    firstName: profile.user.firstName,
+    lastName: profile.user.lastName,
+    headline: profile.headline,
+    bio: profile.bio,
+    yearsExperience: profile.yearsExperience,
+    country: profile.country,
+    city: profile.city,
+    areas: profile.areas.map(({ area }) => ({
+      id: area.id,
+      name: area.name,
+      parentId: area.parentId,
+    })),
+    languages: profile.languages.map(({ language }) => ({
+      code: language.code,
+      name: language.name,
+    })),
+  };
+}
+
+function toMatchingMentorCandidate(
+  record: MatchingMentorRecord,
+): MatchingMentorCandidate {
+  return {
+    ...toPublicMentor(record),
+    status: record.status,
+    userStatus: record.user.status,
+    minNoticeHours: record.minNoticeHours,
+    maxAdvanceDays: record.maxAdvanceDays,
+    timezone: record.user.timezone,
+  };
+}
+
 function assertProfileFieldsForRole(
   role: OnboardingRole,
   input: UpdateProfileInput,
@@ -808,6 +992,22 @@ function mentorProfileNotFound(): NotFoundException {
     statusCode: 404,
     code: 'MENTOR_PROFILE_NOT_FOUND',
     message: 'Mentor profile not found',
+  });
+}
+
+function publicMentorNotFound(): NotFoundException {
+  return new NotFoundException({
+    statusCode: 404,
+    code: 'MENTOR_NOT_FOUND',
+    message: 'Mentor not found',
+  });
+}
+
+function invalidCursor(): BadRequestException {
+  return new BadRequestException({
+    statusCode: 400,
+    code: 'INVALID_CURSOR',
+    message: 'The pagination cursor is invalid',
   });
 }
 
