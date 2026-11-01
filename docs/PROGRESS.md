@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-31 · **Modo ACELERADO y política git autónoma activos.** `main` (`b04fd2e`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas. La etapa 1.6 (catálogo/recomendaciones) está implementada en `feat/1.6-catalog-matching` (228 unitarios y 55 e2e), publicada en `origin` hasta `e4779e7` y con docs locales pendientes de push; pendiente de revisión y merge. Web: la UI de 1.3 a 1.6 está en `feat/1.6-catalog-client` (merge local de 1.3/1.4 + 5 commits, HEAD `999f9a2`), con 65 tests, build y lint verdes; pendiente de revisión/merge. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
+Última actualización: 2026-10-31 · **Modo ACELERADO y política git autónoma activos.** `main` (`b04fd2e`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas. La etapa 1.6 (catálogo/recomendaciones) está implementada en `feat/1.6-catalog-matching` (228 unitarios y 55 e2e), publicada en `origin` hasta `e4779e7` y con docs locales pendientes de push; pendiente de revisión y merge. Web: la UI de 1.3 a 1.6 está en `feat/1.6-catalog-client` (merge local de 1.3/1.4 + 6 commits, HEAD `e210dac`), con 65 tests, build y lint verdes; pendiente de revisión/merge. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -162,7 +162,7 @@
 ## Etapa 1.6: en rama (publicada, pendiente de revisión y merge)
 - `feat/1.6-catalog-matching` (creada desde `main` `b04fd2e`, publicada en `origin`): catálogo público, búsqueda, recomendaciones, migración de búsqueda, tests y script de evaluación.
 - `main` (`b04fd2e`, publicado) ya contiene accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas.
-- Web: `feat/1.6-catalog-client` (creada desde `feat/1.3-admin-panel`, merge local de `feat/1.4-scheduling-client` en `2cd66dc`) tiene la UI completa: catálogo, detalle con reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil. Commits `cdb0687` (clientes API), `e7632d0` (catálogo público), `a13b282` (dashboard), `c915f53` (docs) y `999f9a2` (ajustes de disponibilidad y cancelación). Gates: build, lint, `tsc --noEmit` y 65 tests (15 archivos) verdes. Sin push; pendiente de revisión/merge.
+- Web: `feat/1.6-catalog-client` (creada desde `feat/1.3-admin-panel`, merge local de `feat/1.4-scheduling-client` en `2cd66dc`) tiene la UI completa: catálogo, detalle con reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil. Commits `cdb0687` (clientes API), `e7632d0` (catálogo público), `a13b282` (dashboard), `c915f53` (docs), `999f9a2` (ajustes de disponibilidad y cancelación) y `e210dac` (perfil de mentora sin onboarding). Gates: build, lint, `tsc --noEmit` y 65 tests (15 archivos) verdes. Sin push; pendiente de revisión/merge.
 
 ## Mapa de ramas (2026-10-31)
 | Repo | Rama | Estado |
@@ -172,7 +172,7 @@
 | Backend | `feat/1.6-catalog-matching` | Publicada en `origin` hasta `e4779e7`; docs locales pendientes de push; pendiente de revisión/merge; 228 unitarios y 55 e2e |
 | Web | `feat/1.3-admin-panel` | Integrada localmente en `feat/1.6-catalog-client` (merge `2cd66dc`); pendiente de merge a `main` |
 | Web | `feat/1.4-scheduling-client` | Integrada localmente en `feat/1.6-catalog-client` (merge `2cd66dc`); pendiente de merge a `main` |
-| Web | `feat/1.6-catalog-client` | HEAD `999f9a2`; UI 1.3–1.6, 65 tests, build y lint verdes; pendiente de revisión/merge; sin push |
+| Web | `feat/1.6-catalog-client` | HEAD `e210dac`; UI 1.3–1.6, 65 tests, build y lint verdes; pendiente de revisión/merge; sin push |
 
 ## Skills
 
@@ -253,4 +253,4 @@
 | 2026-10-30 | 1.5 Reservas (zona roja): migración con exclusión/CHECKs, máquina de estados, API, locks, vencimiento, notificaciones, adaptador de sesiones, tests y contrato; gates 219 unitarios, 50 e2e, build/lint verdes; rama publicada en `origin` | Agente (pendiente de revisión) |
 | 2026-10-30 | Merge `--no-ff` de 1.5 en `main` (`7d9cda7`); gates 219 unitarios y 50 e2e verdes; `main` publicado en `origin` | Agente (instrucción del desarrollador) |
 | 2026-10-31 | 1.6 Catálogo/recomendaciones: migración de búsqueda, endpoints públicos, motor puro, módulos `catalog`/`matching`, tests y script de evaluación; gates 228 unitarios y 55 e2e verdes; `main` en `b04fd2e`; rama publicada en `origin` (`62154e6`) | Agente (pendiente de revisión) |
-| 2026-10-31 | Web 1.3–1.6: merge local de 1.3/1.4 en `feat/1.6-catalog-client` (`2cd66dc`) y commits `cdb0687`, `e7632d0`, `a13b282`, `c915f53`, `999f9a2`; catálogo público, detalle con slots/reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil; 65 tests, build, lint y `tsc --noEmit` verdes; datos demo verificados por API | Agente (pendiente de revisión) |
+| 2026-10-31 | Web 1.3–1.6: merge local de 1.3/1.4 en `feat/1.6-catalog-client` (`2cd66dc`) y commits `cdb0687`, `e7632d0`, `a13b282`, `c915f53`, `999f9a2`, `e210dac`; catálogo público, detalle con slots/reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil; 65 tests, build, lint y `tsc --noEmit` verdes; datos demo verificados por API | Agente (pendiente de revisión) |
