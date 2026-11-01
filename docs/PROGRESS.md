@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-31 · **Modo ACELERADO y política git autónoma activos.** `main` (`b04fd2e`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas. La etapa 1.6 (catálogo/recomendaciones) está implementada en `feat/1.6-catalog-matching` (228 unitarios y 55 e2e), publicada en `origin` y pendiente de revisión y merge. Web: la UI de 1.3 a 1.6 está en `feat/1.6-catalog-client` (merge local de 1.3/1.4 + 4 commits, HEAD `c915f53`), con 65 tests, build y lint verdes; pendiente de revisión/merge. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
+Última actualización: 2026-10-31 · **Modo ACELERADO y política git autónoma activos.** `main` (`b04fd2e`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas. La etapa 1.6 (catálogo/recomendaciones) está implementada en `feat/1.6-catalog-matching` (228 unitarios y 55 e2e), publicada en `origin` hasta `e4779e7` y con docs locales pendientes de push; pendiente de revisión y merge. Web: la UI de 1.3 a 1.6 está en `feat/1.6-catalog-client` (merge local de 1.3/1.4 + 4 commits, HEAD `c915f53`), con 65 tests, build y lint verdes; pendiente de revisión/merge. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -169,7 +169,7 @@
 |---|---|---|
 | Backend | `main` | `b04fd2e` publicado en `origin`; incluye 1.5 (219 unitarios y 50 e2e) |
 | Backend | `feat/1.5-bookings` | Fusionada en `main` con `--no-ff`; revisión senior pendiente |
-| Backend | `feat/1.6-catalog-matching` | Publicada en `origin`; pendiente de revisión/merge; 228 unitarios y 55 e2e |
+| Backend | `feat/1.6-catalog-matching` | Publicada en `origin` hasta `e4779e7`; docs locales pendientes de push; pendiente de revisión/merge; 228 unitarios y 55 e2e |
 | Web | `feat/1.3-admin-panel` | Integrada localmente en `feat/1.6-catalog-client` (merge `2cd66dc`); pendiente de merge a `main` |
 | Web | `feat/1.4-scheduling-client` | Integrada localmente en `feat/1.6-catalog-client` (merge `2cd66dc`); pendiente de merge a `main` |
 | Web | `feat/1.6-catalog-client` | HEAD `c915f53`; UI 1.3–1.6, 65 tests, build y lint verdes; pendiente de revisión/merge; sin push |
