@@ -7,6 +7,8 @@ import { validateEnv } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { BookingsModule } from './modules/bookings/bookings.module.js';
+import { CatalogModule } from './modules/catalog/catalog.module.js';
+import { MatchingModule } from './modules/matching/matching.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { SchedulingModule } from './modules/scheduling/scheduling.module.js';
 import { PrismaModule } from './shared/prisma/prisma.module.js';
@@ -21,6 +23,8 @@ import { PrismaModule } from './shared/prisma/prisma.module.js';
     ProfilesModule,
     SchedulingModule,
     BookingsModule,
+    CatalogModule,
+    MatchingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

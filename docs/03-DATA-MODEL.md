@@ -156,7 +156,7 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 **profiles**
 - `area`: `id` (uuid v7), `name` (UK global en el MVP), `parent_id` (null = área raíz; autorrelación con `ON DELETE RESTRICT`), `active` (default `true`), `created_at` (`timestamptz(3)`).
 - `language`: `code` (PK, ISO 639-1: `es`, `en`, `qu`…), `name`.
-- `mentor_profile`: `user_id` (PK y FK a `user`, 1:1), `headline`, `bio`, `years_experience`, `country` (ISO 3166-1 alfa-2), `city`, `status`, `reviewed_by` (FK a `user`), `reviewed_at`, `rejection_reason`, `min_notice_hours` (default 24), `max_advance_days` (default 60), `created_at`, `updated_at`. Columna `search_vector` (tsvector generada) llega en 1.6.
+- `mentor_profile`: `user_id` (PK y FK a `user`, 1:1), `headline`, `bio`, `years_experience`, `country` (ISO 3166-1 alfa-2), `city`, `status`, `reviewed_by` (FK a `user`), `reviewed_at`, `rejection_reason`, `min_notice_hours` (default 24), `max_advance_days` (default 60), `search_vector` (tsvector generada, 1.6), `created_at`, `updated_at`.
 - `mentee_profile`: `user_id` (PK y FK), `goals`, `education_level`, `career_stage`, `country`, `city`, `created_at`, `updated_at`.
 - `mentor_area(mentor_id, area_id)`, `mentee_interest(mentee_id, area_id)`, `mentor_language(mentor_id, language_code)`, `mentee_language(mentee_id, language_code)`: claves primarias compuestas.
 - `onboarding_response`: `id`, `user_id`, `question_code`, `answer` (jsonb), `version`, `created_at`. UK `(user_id, question_code)`. Las señales del matching NO viven en JSON: van en relaciones y columnas tipadas.
@@ -183,6 +183,12 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - Restricciones SQL: `session_no_overlap` (`EXCLUDE USING gist` por `mentor_id` y `tstzrange(starts_at, ends_at, '[)')`, solo sesiones no canceladas), `booking_active_seat_uk` (único parcial por `(session_id, mentee_id)` en estados activos), `session_ends_after_starts_check`, `session_capacity_positive_check`, `booking_expires_after_request_check`, `booking_price_check`, `booking_currency_check`, `booking_cancel_fields_check`, `booking_no_show_party_check` y `booking_completed_at_check`.
 - La creación de la reserva usa una transacción con `pg_advisory_xact_lock` por mentee y por mentora (en ese orden) para serializar R-12 y R-15; la exclusión SQL queda como red de seguridad. La reserva de una mentee sin `mentee_profile` se rechaza con `400 MENTEE_PROFILE_REQUIRED` mediante `MenteeProfilePort`, sin leer la tabla de `profiles` desde `bookings`.
 - `PrismaSessionConflictAdapter` excluye las sesiones canceladas y alimenta el cálculo de slots de 1.4. Los CHECK y la exclusión se prueban en `test/bookings.e2e-spec.ts`.
+
+**Implementado en 1.6**
+- Migración `20261031002413_add_catalog_search`, creada con `--create-only`: extensión `pg_trgm`; columna generada `mentor_profile.search_vector` con pesos `A` (headline), `B` (bio) y `C` (city); índices GIN sobre `search_vector`, trigramas sobre `headline`, `bio`, `city` y `area.name`.
+- Prisma no modela columnas generadas: `searchVector` se declara como `Unsupported("tsvector")?` con `@default(dbgenerated(...))` para que `prisma migrate` no intente recrearla; los índices GIN/trigramas sí se declaran en `schema.prisma`. La columna se calcula en PostgreSQL y no se escribe desde la aplicación.
+- La búsqueda usa `websearch_to_tsquery('spanish', q)` y `similarity(...) >= 0.2` como respaldo para errores de tipeo. El cursor del catálogo es opaco (`base64url` de `{ rank, userId }`) y ordena por `rank DESC, userId ASC`.
+- El matching no crea tablas: lee las señales tipadas de `mentor_profile`, `mentee_profile`, áreas, idiomas, ofertas y disponibilidad a través de los servicios de `profiles` y `scheduling`.
 
 **Implementado en 1.3**
 - `language.code` es `varchar(2)` en minúsculas (`CHECK`); los idiomas iniciales son `es`, `en` y `qu`.
@@ -213,10 +219,10 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 | Cada transacción del ledger suma cero por moneda; las líneas son inmutables (Hito 2) | Restricción diferida y bloqueo de UPDATE y DELETE | Test de invariantes |
 | Un webhook se procesa una sola vez (Hito 2) | UK `(provider, event_id)` | Test de reenvío duplicado |
 
-SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y restricción `EXCLUDE USING gist (mentor_id WITH =, tstzrange(starts_at, ends_at, '[)') WITH &&) WHERE (status <> 'cancelled')` sobre `session`; los CHECK anteriores; en 1.6, extensión `pg_trgm`, columna `search_vector` generada e índices GIN. Prisma admite índices parciales con `where` en el schema [verificado en notas de versión; confirmar sintaxis en la documentación v7].
+SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y restricción `EXCLUDE USING gist (mentor_id WITH =, tstzrange(starts_at, ends_at, '[)') WITH &&) WHERE (status <> 'cancelled')` sobre `session`; los CHECK anteriores; en 1.6, extensión `pg_trgm`, columna `search_vector` generada e índices GIN (implementado en `20261031002413_add_catalog_search`). Prisma admite índices parciales con `where` en el schema [verificado en notas de versión; confirmar sintaxis en la documentación v7].
 
 ## Índices mínimos
-`user(email)` UK · `mentor_profile(status)` · `offering(mentor_id, active)` · `session(mentor_id, starts_at)` · `booking(mentee_id, status)` · `booking(session_id, status)` · `availability_rule(user_id, weekday)` · `audit_log(entity_type, entity_id)`.
+`user(email)` UK · `mentor_profile(status)` · `offering(mentor_id, active)` · `session(mentor_id, starts_at)` · `booking(mentee_id, status)` · `booking(session_id, status)` · `availability_rule(user_id, weekday)` · `audit_log(entity_type, entity_id)` · `mentor_profile` GIN en `search_vector` y trigramas en `headline`, `bio`, `city` · `area` trigrama en `name`.
 
 ## Migraciones por etapa
 | Etapa | Tablas nuevas |
@@ -226,7 +232,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 | 1.3 | `language`, `mentor_profile`, `mentee_profile`, `mentor_area`, `mentee_interest`, `mentor_language`, `mentee_language`, `onboarding_response`, `audit_log` (migraciones `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage` y `20261024224933_use_jsonb_for_json_columns`) |
 | 1.4 | `availability_rule`, `offering` (migraciones `20261026161007_add_offerings_and_availability` y `20261026162005_use_time_for_availability`) |
 | 1.5 | `session`, `booking` + SQL a mano (exclusión y CHECK) en `20261030234248_add_sessions_and_bookings` |
-| 1.6 | `search_vector` y extensiones de búsqueda |
+| 1.6 | `search_vector` y extensiones de búsqueda (`20261031002413_add_catalog_search`) |
 | 2 / 3 | Ver esqueleto arriba |
 
 Regla: nunca editar una migración ya aplicada; se crea otra. Cada migración lleva un nombre descriptivo (ej. `add_area`).

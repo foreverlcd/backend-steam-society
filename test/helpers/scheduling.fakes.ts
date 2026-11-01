@@ -1,6 +1,9 @@
 import type { Clock } from '../../src/shared/clock/clock.js';
 import type { MentorSettingsPort } from '../../src/modules/scheduling/application/ports/mentor-settings.port.js';
-import type { SessionConflictPort } from '../../src/modules/scheduling/application/ports/session-conflict.port.js';
+import type {
+  MentorBusyInterval,
+  SessionConflictPort,
+} from '../../src/modules/scheduling/application/ports/session-conflict.port.js';
 import type {
   AvailabilityRuleData,
   CreateOfferingData,
@@ -166,6 +169,23 @@ export class InMemorySchedulingRepository
     return [...(this.rules.get(userId) ?? [])];
   }
 
+  async listAvailabilityRulesForUsers(
+    userIds: string[],
+  ): Promise<AvailabilityRule[]> {
+    return userIds.flatMap((userId) => this.rules.get(userId) ?? []);
+  }
+
+  async listActiveOfferingsForMentors(
+    mentorIds: string[],
+  ): Promise<Offering[]> {
+    return [...this.offerings.values()].filter(
+      (offering) =>
+        mentorIds.includes(offering.mentorId) &&
+        offering.active &&
+        !offering.archivedAt,
+    );
+  }
+
   async replaceAvailabilityRules(
     userId: string,
     rules: AvailabilityRuleData[],
@@ -208,9 +228,18 @@ export class InMemorySchedulingRepository
 
 export class FakeSessionConflictPort implements SessionConflictPort {
   intervals: BusyInterval[] = [];
+  mentorIntervals: MentorBusyInterval[] = [];
 
   async findBusyIntervals(): Promise<BusyInterval[]> {
     return this.intervals;
+  }
+
+  async findBusyIntervalsForMentors(
+    mentorIds: string[],
+  ): Promise<MentorBusyInterval[]> {
+    return this.mentorIntervals.filter((interval) =>
+      mentorIds.includes(interval.mentorId),
+    );
   }
 }
 

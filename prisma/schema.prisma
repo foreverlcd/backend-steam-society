@@ -18,6 +18,7 @@ model Area {
   mentorAreas     MentorArea[]
   menteeInterests MenteeInterest[]
 
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "area_name_trgm_idx", type: Gin)
   @@map("area")
 }
 
@@ -169,28 +170,33 @@ model Language {
 }
 
 model MentorProfile {
-  userId          String           @id @map("user_id") @db.Uuid
-  user            User             @relation("MentorProfile", fields: [userId], references: [id], onDelete: Cascade)
+  userId          String                   @id @map("user_id") @db.Uuid
+  user            User                     @relation("MentorProfile", fields: [userId], references: [id], onDelete: Cascade)
   headline        String?
   bio             String?
-  yearsExperience Int?             @map("years_experience")
-  country         String?          @db.VarChar(2)
+  searchVector    Unsupported("tsvector")? @default(dbgenerated("((setweight(to_tsvector('spanish'::regconfig, COALESCE(headline, ''::text)), 'A'::\"char\") || setweight(to_tsvector('spanish'::regconfig, COALESCE(bio, ''::text)), 'B'::\"char\")) || setweight(to_tsvector('spanish'::regconfig, COALESCE(city, ''::text)), 'C'::\"char\"))")) @map("search_vector")
+  yearsExperience Int?                     @map("years_experience")
+  country         String?                  @db.VarChar(2)
   city            String?
-  status          MentorStatus     @default(draft)
-  reviewedBy      String?          @map("reviewed_by") @db.Uuid
-  reviewer        User?            @relation("MentorReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
-  reviewedAt      DateTime?        @map("reviewed_at") @db.Timestamptz(3)
-  rejectionReason String?          @map("rejection_reason")
-  minNoticeHours  Int              @default(24) @map("min_notice_hours")
-  maxAdvanceDays  Int              @default(60) @map("max_advance_days")
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  status          MentorStatus             @default(draft)
+  reviewedBy      String?                  @map("reviewed_by") @db.Uuid
+  reviewer        User?                    @relation("MentorReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?                @map("reviewed_at") @db.Timestamptz(3)
+  rejectionReason String?                  @map("rejection_reason")
+  minNoticeHours  Int                      @default(24) @map("min_notice_hours")
+  maxAdvanceDays  Int                      @default(60) @map("max_advance_days")
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
   areas           MentorArea[]
   languages       MentorLanguage[]
   offerings       Offering[]
   sessions        Session[]
 
   @@index([status])
+  @@index([bio(ops: raw("gin_trgm_ops"))], map: "mentor_profile_bio_trgm_idx", type: Gin)
+  @@index([city(ops: raw("gin_trgm_ops"))], map: "mentor_profile_city_trgm_idx", type: Gin)
+  @@index([headline(ops: raw("gin_trgm_ops"))], map: "mentor_profile_headline_trgm_idx", type: Gin)
+  @@index([searchVector], type: Gin)
   @@map("mentor_profile")
 }
 

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma/client.js';
+import { Prisma } from '../../generated/prisma/client.js';
 import type { MentorStatus } from './domain/mentor-status.js';
 import { PrismaService } from '../../shared/prisma/prisma.service.js';
 
@@ -26,6 +26,33 @@ const adminMentorInclude = {
   },
 } satisfies Prisma.MentorProfileInclude;
 
+const publicMentorInclude = {
+  ...mentorInclude,
+  user: {
+    select: {
+      firstName: true,
+      lastName: true,
+    },
+  },
+} satisfies Prisma.MentorProfileInclude;
+
+const matchingMenteeInclude = {
+  ...menteeInclude,
+  user: { select: { timezone: true } },
+} satisfies Prisma.MenteeProfileInclude;
+
+const matchingMentorInclude = {
+  ...mentorInclude,
+  user: {
+    select: {
+      firstName: true,
+      lastName: true,
+      status: true,
+      timezone: true,
+    },
+  },
+} satisfies Prisma.MentorProfileInclude;
+
 export type MentorProfileRecord = Prisma.MentorProfileGetPayload<{
   include: typeof mentorInclude;
 }>;
@@ -37,6 +64,30 @@ export type MenteeProfileRecord = Prisma.MenteeProfileGetPayload<{
 export type AdminMentorRecord = Prisma.MentorProfileGetPayload<{
   include: typeof adminMentorInclude;
 }>;
+
+export type PublicMentorRecord = Prisma.MentorProfileGetPayload<{
+  include: typeof publicMentorInclude;
+}>;
+
+export type MatchingMenteeRecord = Prisma.MenteeProfileGetPayload<{
+  include: typeof matchingMenteeInclude;
+}>;
+
+export type MatchingMentorRecord = Prisma.MentorProfileGetPayload<{
+  include: typeof matchingMentorInclude;
+}>;
+
+export interface PublicMentorSearchData {
+  q?: string;
+  areaId?: string;
+  language?: string;
+  country?: string;
+  isFree?: boolean;
+  maxPriceMinor?: number;
+  currency: string;
+  limit: number;
+  cursor?: { rank: number; userId: string };
+}
 
 export interface MentorProfileData {
   headline?: string | null;
@@ -328,6 +379,155 @@ export class ProfilesRepository {
       orderBy: { userId: 'asc' },
       take: limit + 1,
       ...(cursor ? { cursor: { userId: cursor }, skip: 1 } : {}),
+    });
+  }
+
+  async searchPublicMentors(data: PublicMentorSearchData): Promise<{
+    records: PublicMentorRecord[];
+    nextCursor: { rank: number; userId: string } | null;
+  }> {
+    const q = data.q?.trim();
+    const rank = q
+      ? Prisma.sql`GREATEST(
+          ts_rank_cd(mp."search_vector", websearch_to_tsquery('spanish', ${q})),
+          similarity(coalesce(mp."headline", ''), ${q}),
+          similarity(coalesce(mp."bio", ''), ${q}) * 0.5
+        )::double precision`
+      : Prisma.sql`0::double precision`;
+    const conditions: Prisma.Sql[] = [
+      Prisma.sql`mp."status" = 'approved'`,
+      Prisma.sql`u."status" = 'active'`,
+    ];
+
+    if (q) {
+      conditions.push(Prisma.sql`(
+        mp."search_vector" @@ websearch_to_tsquery('spanish', ${q})
+        OR similarity(coalesce(mp."headline", ''), ${q}) >= 0.2
+        OR similarity(coalesce(mp."bio", ''), ${q}) >= 0.2
+        OR similarity(coalesce(mp."city", ''), ${q}) >= 0.2
+        OR EXISTS (
+          SELECT 1
+          FROM "mentor_area" ma
+          JOIN "area" a ON a."id" = ma."area_id"
+          WHERE ma."mentor_id" = mp."user_id"
+            AND similarity(a."name", ${q}) >= 0.2
+        )
+      )`);
+    }
+
+    if (data.areaId) {
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "mentor_area" ma
+        WHERE ma."mentor_id" = mp."user_id" AND ma."area_id" = ${data.areaId}::uuid
+      )`);
+    }
+
+    if (data.language) {
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "mentor_language" ml
+        WHERE ml."mentor_id" = mp."user_id" AND ml."language_code" = ${data.language}
+      )`);
+    }
+
+    if (data.country) {
+      conditions.push(Prisma.sql`mp."country" = ${data.country}`);
+    }
+
+    if (data.isFree) {
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "offering" o
+        WHERE o."mentor_id" = mp."user_id"
+          AND o."active" = true
+          AND o."archived_at" IS NULL
+          AND o."is_free" = true
+      )`);
+    }
+
+    if (data.maxPriceMinor !== undefined) {
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "offering" o
+        WHERE o."mentor_id" = mp."user_id"
+          AND o."active" = true
+          AND o."archived_at" IS NULL
+          AND o."price_minor" <= ${data.maxPriceMinor}
+          AND o."currency" = ${data.currency}
+      )`);
+    }
+
+    const where = Prisma.join(conditions, ' AND ');
+    const cursorCondition = data.cursor
+      ? Prisma.sql`WHERE (ranked."rank" < ${data.cursor.rank})
+          OR (ranked."rank" = ${data.cursor.rank} AND ranked."userId" > ${data.cursor.userId})`
+      : Prisma.empty;
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{ userId: string; rank: number }>
+    >`
+      WITH ranked AS (
+        SELECT mp."user_id" AS "userId", ${rank} AS "rank"
+        FROM "mentor_profile" mp
+        JOIN "user" u ON u."id" = mp."user_id"
+        WHERE ${where}
+      )
+      SELECT "userId", "rank"
+      FROM ranked
+      ${cursorCondition}
+      ORDER BY "rank" DESC, "userId" ASC
+      LIMIT ${data.limit + 1}
+    `;
+
+    const hasMore = rows.length > data.limit;
+    const page = hasMore ? rows.slice(0, data.limit) : rows;
+    const last = page[page.length - 1];
+    const records =
+      page.length === 0
+        ? []
+        : await this.prisma.mentorProfile.findMany({
+            where: { userId: { in: page.map((row) => row.userId) } },
+            include: publicMentorInclude,
+          });
+    const byId = new Map(records.map((record) => [record.userId, record]));
+    const ordered = page
+      .map((row) => byId.get(row.userId))
+      .filter((record): record is PublicMentorRecord => Boolean(record));
+
+    return {
+      records: ordered,
+      nextCursor:
+        hasMore && last
+          ? { rank: last.rank, userId: last.userId }
+          : null,
+    };
+  }
+
+  findPublicMentor(userId: string): Promise<PublicMentorRecord | null> {
+    return this.prisma.mentorProfile.findFirst({
+      where: {
+        userId,
+        status: 'approved',
+        user: { status: 'active' },
+      },
+      include: publicMentorInclude,
+    });
+  }
+
+  findMenteeMatchingProfile(
+    userId: string,
+  ): Promise<MatchingMenteeRecord | null> {
+    return this.prisma.menteeProfile.findUnique({
+      where: { userId },
+      include: matchingMenteeInclude,
+    });
+  }
+
+  listMatchingMentorCandidates(): Promise<MatchingMentorRecord[]> {
+    return this.prisma.mentorProfile.findMany({
+      where: {
+        status: 'approved',
+        user: { status: 'active' },
+      },
+      include: matchingMentorInclude,
+      orderBy: { userId: 'asc' },
     });
   }
 

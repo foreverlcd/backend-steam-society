@@ -1,6 +1,6 @@
 # 08 · Matching: recomendaciones explicables (Etapa 1.6)
 
-Estado: **borrador**. Las señales, pesos y preguntas de onboarding dependen del equipo de producto [PLACEHOLDER]. El diseño garantiza que cambiarlos sea cambiar configuración, no reescribir código.
+Estado: **implementado como borrador**. Las señales, pesos y preguntas de onboarding siguen pendientes del equipo de producto [PLACEHOLDER]; la versión 1.6 usa la configuración provisional de `src/modules/matching/domain/matching.config.ts`. El diseño garantiza que cambiarlos sea cambiar configuración, no reescribir código.
 
 ## Principios
 - El sistema recomienda; la mentee elige (R-05). Nunca asigna.
@@ -46,6 +46,14 @@ Las preguntas de la versión 1 viven en `src/modules/profiles/onboarding.config.
 - **Juicio humano**: el equipo empareja a mano a 10 mentees reales con mentoras reales; se compara con la salida del motor. Es evidencia externa y reemplaza cualquier opinión interna.
 - Tests de propiedad: nunca aparece una mentora no aprobada; el puntaje está entre 0 y 100; cada frase de la razón corresponde a un componente con puntos > 0; cambiar los pesos cambia el orden de forma predecible.
 - Sesgos: revisar que ningún peso favorezca sistemáticamente a ciertos perfiles (país, idioma, área). Registrar hallazgos en `PROGRESS.md`.
+
+## Implementación 1.6
+- Motor puro: `src/modules/matching/domain/recommend.ts`; tipos en `matching.types.ts` y configuración provisional en `matching.config.ts` (pesos 35/20/15/15/10/5, horizonte 14 días, N=3, reliability neutral 0,5).
+- Servicio fino: `RecommendationsService` carga el perfil de la mentee, las candidatas aprobadas/activas, sus ofertas activas, reglas de disponibilidad e intervalos ocupados; calcula slots con la oferta activa de menor duración y llama a `recommend`.
+- API: `GET /v1/me/recommendations?limit=` (solo `mentee`); `GET /v1/mentors` y `GET /v1/mentors/:id` son públicos. El catálogo compone perfiles y ofertas en el módulo `catalog`; no obliga a `profiles` a depender de `scheduling`.
+- Filtros duros implementados: `approved` + cuenta `active`, idioma común, área común (incluye raíz/hija en ambos sentidos), al menos un slot en 14 días, `onlyFree`/`maxPriceMinor` si existieran y bloqueo. Onboarding v1 no pregunta presupuesto ni "solo gratuitas": ambos quedan `null` y el motor aplica el valor neutral documentado.
+- Razón: se construyen plantillas desde los dos componentes con más puntos y solo si `points > 0`; la prueba unitaria verifica el texto y que los componentes sin puntos no aparezcan.
+- Evaluación: `pnpm eval:matching` con `scripts/fixtures/matching-eval.ts` (20 mentees, 30 mentoras, top-3 esperado escrito a mano). Resultado actual: precision@3 = 1,000 (meta 0,6). Es una línea base sintética; la comparación con 10 pares reales sigue pendiente.
 
 ## Mejoras posteriores (no ahora)
 1. Persistir cada recomendación mostrada y su resultado (reservó, descartó) para evaluar y ajustar.

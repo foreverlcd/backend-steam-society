@@ -1,13 +1,13 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-30 · **Modo ACELERADO y política git autónoma activos.** `main` (`7d9cda7`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas. `feat/1.5-bookings` quedó fusionada con `--no-ff` y publicada. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes; la UI de 1.5 aún no empieza. Siguiente: 1.6 catálogo/recomendaciones.
+Última actualización: 2026-10-31 · **Modo ACELERADO y política git autónoma activos.** `main` (`b04fd2e`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas. La etapa 1.6 (catálogo/recomendaciones) está implementada en `feat/1.6-catalog-matching` (228 unitarios y 55 e2e), publicada en `origin` hasta `e4779e7` y con docs locales pendientes de push; pendiente de revisión y merge. Web: la UI de 1.3 a 1.6 está en `feat/1.6-catalog-client` (merge local de 1.3/1.4 + 6 commits, HEAD `e210dac`), con 65 tests, build y lint verdes; pendiente de revisión/merge. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
 - Docker Compose: Postgres 18.6-alpine en `127.0.0.1:5433` y Mailpit `v1.27` (SMTP `1025`, bandeja `8025`).
 - Prisma 7.10.1: `prisma.config.ts`, `PrismaService` (PrismaPg) y `PrismaModule` NO global en `src/shared/prisma/`.
 - Modelo `Area`: `id` uuid v7 por defecto de base (`uuidv7()`), `name` único, `parent_id` opcional con FK `ON DELETE RESTRICT`, `active` default `true`, `created_at` `timestamptz(3)`, `@@map("area")`.
-- Migraciones aplicadas en desarrollo y en `steam_society_test`: `20261024173759_add_area`, `20261024212009_fix_area_columns_and_uuidv7`, `20261024214215_add_identity`, `20261024215500_add_user_birth_date_check`, `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage`, `20261024224933_use_jsonb_for_json_columns`, `20261026161007_add_offerings_and_availability`, `20261026162005_use_time_for_availability`, `20261030234248_add_sessions_and_bookings` (10).
+- Migraciones aplicadas en desarrollo y en `steam_society_test`: `20261024173759_add_area`, `20261024212009_fix_area_columns_and_uuidv7`, `20261024214215_add_identity`, `20261024215500_add_user_birth_date_check`, `20261024222451_add_profiles_and_audit`, `20261024224250_add_career_stage`, `20261024224933_use_jsonb_for_json_columns`, `20261026161007_add_offerings_and_availability`, `20261026162005_use_time_for_availability`, `20261030234248_add_sessions_and_bookings` y `20261031002413_add_catalog_search` (11).
 - `GET /health` (sin prefijo): 200 `{status:'ok',db:'up'}` / 503 `{status:'error',db:'down'}`. El fallo se registra con `Logger` usando solo el nombre del error y su código de Prisma (nunca el mensaje ni la cadena de conexión).
 - CORS: `WEB_ORIGIN` separada por comas; `parseWebOrigins()` normaliza. Sin variable, CORS desactivado. Con orígenes, `credentials: true`.
 - `X-Powered-By` eliminada con `app.useSecurityHeaders()` (NestJS 12.1+); `configureApp()` centraliza seguridad, CORS, CSRF, sesión, prefijo `/v1` y el pipe de validación.
@@ -21,6 +21,7 @@
   - Seed de admin con `ADMIN_EMAIL`/`ADMIN_PASSWORD`; nunca por registro público. Probado en `steam_society_test`: `admin|active|$argon2id`.
   - Validación con Zod 4 + `StandardSchemaValidationPipe`; `ConfigModule` valida el entorno al arrancar y falla rápido si falta `SESSION_SECRET` o es corto.
 - Tests: `feat/1.4-offerings-availability` reporta 115 unitarios (15 archivos) y 36 e2e el 2026-10-26. Tras el merge de 1.4 en `main` (2026-10-30): `pnpm build`, `pnpm lint` y 115 unitarios verdes; 38 e2e (4 archivos) verdes contra `steam_society_test` en `127.0.0.1:5433`, con las 9 migraciones aplicadas.
+- Tests 2026-10-31 (1.6): `pnpm build`, `pnpm lint`, 228 unitarios (18 archivos) y 55 e2e (6 archivos) verdes contra `steam_society_test` con las 11 migraciones; `pnpm eval:matching` reporta precision@3 = 1,000.
 - README reescrito: puesta en marcha, variables, API, sesiones/CSRF/CORS, Mailpit, seed y base de tests.
 - `feat/1.2-identity` fusionada en `main` con merge commit `64e8559` (`--no-ff`) y subida a `origin/main`; las ramas `feat/1.1a-prisma-postgres`, `chore/hardening-basics` y `feat/1.2-identity` también tienen upstream.
 - Commits de la sesión anterior en `main`: `fd884b7` (area + migración inicial), `5c9102d` (health contrato), `e8f2333` (CORS), `69f6598` (README).
@@ -83,7 +84,33 @@
 - [ ] Revisión del diff por el desarrollador y revisión senior de la zona roja.
 - [ ] UI del frontend de reservas y prueba de contrato real.
 
+## Etapa 1.6: catálogo y recomendaciones
+- [x] Migración `20261031002413_add_catalog_search` con `pg_trgm`, `search_vector` generada (headline A, bio B, city C) e índices GIN/trigramas; aplicada en `steam_society` y `steam_society_test`.
+- [x] `GET /v1/mentors` público con `q`, `areaId`, `language`, `country`, `isFree`, `maxPriceMinor`, `currency`, `limit` y cursor opaco `{ rank, userId }` en base64url; solo mentoras `approved` con cuenta `active`.
+- [x] `GET /v1/mentors/:id` público con detalle y ofertas activas; `404 MENTOR_NOT_FOUND` para no aprobadas o inexistentes.
+- [x] `GET /v1/me/recommendations?limit=` para `mentee` con perfil; filtros duros, puntaje ponderado, desglose y razón; máximo 10, default 3.
+- [x] Motor puro `recommend()` con configuración provisional 35/20/15/15/10/5, horizonte 14 días, reliability neutral 0,5 y disponibilidad calculada con la oferta activa de menor duración.
+- [x] Módulos de composición `catalog` (profiles + scheduling) y `matching` (profiles + scheduling + dominio puro), sin crear dependencia `profiles → scheduling`.
+- [x] Tests: 9 unitarios nuevos de `recommend` (filtros, orden, pesos, razón, áreas raíz/hija, rango 0–100) y 5 e2e de catálogo/cursor/detalle/recomendaciones; total 228 unitarios (18 archivos) y 55 e2e (6 archivos).
+- [x] Script `pnpm eval:matching` con fixture de 20 mentees y 30 mentoras; precision@3 = 1,000 (meta 0,6).
+- [x] README, `docs/02`, `docs/03`, `docs/05` y `docs/08` actualizados.
+- [x] UI de catálogo/recomendaciones en el frontend: `/mentors` con filtros y paginación, `/mentors/[id]` con ofertas, slots y solicitud de reserva, y recomendaciones en el dashboard de mentorada.
+- [x] UI de ofertas, disponibilidad, reservas y perfil: `/dashboard/offerings`, `/dashboard/availability`, `/dashboard/bookings` y `/dashboard/profile`, con navegación por rol.
+- [x] Datos demo en desarrollo: `demo.mentora@steam.test` (aprobada, 2 ofertas y 3 franjas) y `demo.mentee@steam.test` (onboarding/perfil y 1 reserva `requested`); contraseña `DemoSteam2026!`. Verificado por API: catálogo 1 mentora con 2 ofertas, recomendaciones score 90, 27 slots y reserva creada.
+- [ ] Revisión del diff por el desarrollador y revisión senior de la zona roja.
+- [ ] Evaluación humana con 10 pares reales y ajuste de pesos si hace falta.
+- [ ] Prueba manual en navegador del flujo catálogo → detalle → reserva → aceptación (requiere API en `localhost:3000` y web en `localhost:3001`).
+
 ## Decisiones tomadas (acumuladas)
+### 1.6 (2026-10-31)
+- `catalog` es un módulo de composición que importa `profiles` y `scheduling`; `matching` importa ambos y mantiene el motor en dominio puro. Así `profiles` no depende de `scheduling`.
+- Búsqueda: `search_vector` generada en PostgreSQL con `to_tsvector('spanish', ...)` y `pg_trgm` como respaldo; el cursor es opaco (`base64url` de `{ rank, userId }`) y ordena por `rank DESC, userId ASC`.
+- Matching: pesos provisionales 35/20/15/15/10/5, horizonte 14 días, N=3 y reliability neutral 0,5; la razón usa solo los dos componentes con más puntos y `points > 0`.
+- Disponibilidad: se calcula con la oferta activa de menor duración como proxy de "tiene un slot reservable"; el hard filter exige al menos un slot en 14 días.
+- Áreas: coincidencia exacta vale 1; raíz/hija en cualquier dirección vale 0,5, tanto en el filtro duro como en el puntaje.
+- Onboarding v1 no pregunta presupuesto ni "solo gratuitas": `onlyFree` y `maxPriceMinor` quedan `null`; `price_fit` da 10 si hay oferta gratuita y 5 neutral si solo hay pago.
+- La evaluación sintética es una línea base; no reemplaza el juicio humano ni justifica cambiar pesos sin evidencia.
+
 ### 1.5 (2026-10-30)
 - `@nestjs/schedule@12.0.2` (compatible con NestJS 12; usa `cron@4.4.0`) y `ScheduleModule.forRoot()` en `AppModule`.
 - `BOOKING_REQUEST_TTL_HOURS` validado en entorno, entero positivo, 48 h por defecto (ADR-021).
@@ -129,21 +156,23 @@
 - P-10 parcial (ADR-021): plazo de respuesta de solicitudes de 48 h, configurable con `BOOKING_REQUEST_TTL_HOURS` (entero positivo; ejemplo en `.env.example` y README). La comisión queda para el Hito 2.
 - P-11 (ADR-022): en el Hito 1 no hay bus de eventos ni outbox; el caso de uso llama a `NotificationsPort` después de confirmar la transacción y un fallo de correo se registra sin revertir la reserva. El outbox se decide en el Hito 2.
 - P-12 (ADR-023): vencimiento evaluado al consultar + tarea periódica en proceso con `@nestjs/schedule`; actualización idempotente. Verificado con el registro npm: `@nestjs/schedule@12.0.2` declara peers `@nestjs/core` y `@nestjs/common` `^11.0.0 || ^12.0.0`; es compatible con NestJS 12. El intervalo se define en 1.5.
-- Auditoría e2e: `pnpm test:e2e` reportó PostgreSQL `steam_society_test` en `127.0.0.1:5433`, 7 migraciones y 28/28 tests verdes. La base de desarrollo es `steam_society` (misma instancia, base distinta); `docker compose port postgres 5432` confirma `127.0.0.1:5433`.
+- Auditoría e2e: `pnpm test:e2e` reportó PostgreSQL `steam_society_test` en `127.0.0.1:5433`, 11 migraciones y 55/55 tests verdes. La base de desarrollo es `steam_society` (misma instancia, base distinta); `docker compose port postgres 5432` confirma `127.0.0.1:5433`.
 - No se tomaron decisiones PENDIENTES fuera de las aprobadas en el mensaje del desarrollador.
 
-## Etapa 1.5: en rama (pendiente de revisión y merge)
-- `feat/1.5-bookings` (creada desde `main` `2366d55`): reservas, migración, adaptador de sesiones, tarea de vencimiento, tests y contrato. Publicada en `origin/feat/1.5-bookings`; el merge a `main` queda para la revisión por etapa.
-- `main` (`2366d55`, publicado) ya contiene accelerated-mode, 1.3 admin detail y 1.4 ofertas/disponibilidad.
-- Web: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` siguen pendientes de revisión/merge; la UI de 1.5 no ha empezado.
+## Etapa 1.6: en rama (publicada, pendiente de revisión y merge)
+- `feat/1.6-catalog-matching` (creada desde `main` `b04fd2e`, publicada en `origin`): catálogo público, búsqueda, recomendaciones, migración de búsqueda, tests y script de evaluación.
+- `main` (`b04fd2e`, publicado) ya contiene accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas.
+- Web: `feat/1.6-catalog-client` (creada desde `feat/1.3-admin-panel`, merge local de `feat/1.4-scheduling-client` en `2cd66dc`) tiene la UI completa: catálogo, detalle con reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil. Commits `cdb0687` (clientes API), `e7632d0` (catálogo público), `a13b282` (dashboard), `c915f53` (docs), `999f9a2` (ajustes de disponibilidad y cancelación) y `e210dac` (perfil de mentora sin onboarding). Gates: build, lint, `tsc --noEmit` y 65 tests (15 archivos) verdes. Sin push; pendiente de revisión/merge.
 
-## Mapa de ramas (2026-10-30)
+## Mapa de ramas (2026-10-31)
 | Repo | Rama | Estado |
 |---|---|---|
-| Backend | `main` | `7d9cda7` publicado en `origin`; incluye 1.5 (219 unitarios y 50 e2e) |
+| Backend | `main` | `b04fd2e` publicado en `origin`; incluye 1.5 (219 unitarios y 50 e2e) |
 | Backend | `feat/1.5-bookings` | Fusionada en `main` con `--no-ff`; revisión senior pendiente |
-| Web | `feat/1.3-admin-panel` | Pendiente de revisión/merge; 40 tests |
-| Web | `feat/1.4-scheduling-client` | Pendiente de revisión/merge; 36 tests, sin UI |
+| Backend | `feat/1.6-catalog-matching` | Publicada en `origin` hasta `e4779e7`; docs locales pendientes de push; pendiente de revisión/merge; 228 unitarios y 55 e2e |
+| Web | `feat/1.3-admin-panel` | Integrada localmente en `feat/1.6-catalog-client` (merge `2cd66dc`); pendiente de merge a `main` |
+| Web | `feat/1.4-scheduling-client` | Integrada localmente en `feat/1.6-catalog-client` (merge `2cd66dc`); pendiente de merge a `main` |
+| Web | `feat/1.6-catalog-client` | HEAD `e210dac`; UI 1.3–1.6, 65 tests, build y lint verdes; pendiente de revisión/merge; sin push |
 
 ## Skills
 
@@ -160,13 +189,25 @@
 - 1.5: la tarea `@Interval(60_000)` corre en cada instancia; el `UPDATE` es idempotente, pero no hay leader election. Aceptable con una instancia.
 - 1.5: una reserva gratuita confirmada solo se cancela antes de `starts_at`; la cancelación de una reserva de pago queda pendiente de DA-05.
 - 1.5: `cancel_reason` guarda también el motivo de rechazo; si producto quiere distinguirlos, requiere una columna nueva.
-- 1.4: el frontend ya tiene cliente, tipos y pruebas en `feat/1.4-scheduling-client` (36 tests verdes), pero no tiene UI de ofertas/disponibilidad/slots. Siguiente slice: pantallas de mentora y selector público.
-- 1.4: el cliente frontend está probado con `fetch` mock, no contra la API real; la prueba e2e de contrato y la UI quedan pendientes.
-- 1.4: `pnpm format:check` del frontend falla solo por archivos preexistentes de `.agents/skills/*`; no se tocaron. `pnpm build`, `pnpm lint` y `pnpm test` del frontend están verdes (36 tests).
+- 1.6: la relevancia del catálogo depende del diccionario español de PostgreSQL y de umbrales trigrama (0,2); revisar con búsquedas reales y considerar `unaccent`/sinónimos si aparecen falsos negativos.
+- 1.6: el cursor usa `rank` flotante + `userId`; si dos mentoras empatan exactamente y una cambia de ranking entre páginas, puede haber saltos. Revisar con datos reales y, si molesta, congelar el ranking por consulta.
+- 1.6: los pesos y umbrales son provisionales y el fixture sintético da precision@3 = 1,000 por clusters; no es evidencia de calidad real. La evaluación humana de 10 pares sigue pendiente.
+- 1.6: el onboarding v1 no pregunta presupuesto ni "solo gratuitas"; `price_fit` usa un valor neutral cuando solo hay ofertas de pago. Si producto añade esas preguntas, hay que versionar el onboarding.
+- 1.6: la disponibilidad para matching usa la oferta activa de menor duración como proxy; una mentora con una oferta corta pero sin slots de la oferta que la mentee quiere puede aparecer. Revisar con el flujo de reserva real.
+- 1.6: el cálculo de solape recorre minuto a minuto; con muchas reglas/slots puede crecer. Medir antes de aumentar el horizonte o el número de candidatas.
+- 1.6: `GET /v1/mentors` es público y no tiene rate limit propio; el throttler actual cubre auth. Revisar si el catálogo necesita límite por IP antes del piloto.
+- 1.4: el frontend ya tiene UI de ofertas, disponibilidad y slots en `feat/1.6-catalog-client` (65 tests verdes), pero la prueba de contrato en navegador contra la API real sigue pendiente.
+- 1.4: el cliente frontend está probado con `fetch` mock; la prueba manual del flujo completo (catálogo → detalle → reserva → aceptación) queda para la revisión del desarrollador.
+- 1.4: `pnpm format:check` del frontend falla solo por archivos preexistentes de `.agents/skills/*`; los archivos nuevos y modificados se formatearon con Prettier. `pnpm build`, `pnpm lint` y `pnpm test` del frontend están verdes (65 tests).
+- 1.6 web: una reserva de pago aceptada queda en `awaiting_payment`; no hay pasarela ni endpoint para confirmar el pago (Hito 2).
+- 1.6 web: las ofertas grupales se muestran en el catálogo, pero la reserva grupal no está disponible porque el backend solo crea reservas 1:1.
+- 1.6 web: los datos demo (`demo.mentora@steam.test`, `demo.mentee@steam.test`) son solo para desarrollo y no deben usarse en producción; no se usaron datos reales.
+- 1.6 web: la UI se probó con `fetch` mock y por API con datos demo; falta la prueba manual en navegador antes del merge.
+- 1.6 web: los filtros de área e idioma del catálogo dependen de `GET /me/onboarding` y solo se muestran con sesión; si producto quiere filtrado público completo, hace falta un endpoint público de áreas/idiomas.
 - 1.4: `PUT /v1/me/availability` reemplaza todas las reglas; no hay edición individual ni validación de solapes entre reglas (el generador deduplica slots).
 - 1.4: `start_time`/`end_time` son `TIME(0)`; el frontend debe enviar `HH:mm` sin segundos. `validFrom`/`validTo` son fechas `YYYY-MM-DD`.
 - 1.4: el rango máximo de slots es 90 días; si el frontend necesita más, consultar por semanas o paginar.
-- 1.4: no hay catálogo público de ofertas; `GET /v1/mentors/:id/slots` exige `offeringId` y una mentora aprobada. El catálogo llega en 1.6.
+- 1.4: el catálogo público ya existe en 1.6 (`GET /v1/mentors`); `GET /v1/mentors/:id/slots` sigue exigiendo `offeringId` y una mentora aprobada.
 - 1.4: `MentorSettingsPort` se apoya en `ProfilesService`; revisar que no aparezca un ciclo si `profiles` necesita `scheduling` más adelante.
 - El `.env` local ya permite arrancar la API, ejecutar el seed y usar Mailpit; sigue sin versionarse (no se leyó ni editó desde el agente).
 - Verificación de correo: hoy el registro queda `status = active` y `email_verified_at = null`; no se implementó el flujo de verificación. Decidir si entra en 1.2 o se pospone.
@@ -180,15 +221,15 @@
 - 1.3: el perfil `approved` sigue editable por decisión de producto; las ediciones post-aprobación no se auditan. Si se quiere re-revisión al cambiar campos sensibles, es una regla nueva.
 - 1.3: `onboarding_response` puede conservar filas antiguas de `age`; `GET /v1/me/onboarding` filtra a los códigos vigentes. Decidir si se hace una limpieza de datos en una migración posterior.
 - 1.3: el detalle admin ya muestra todas las respuestas del onboarding, pero la UI no muestra el historial de `audit_log` ni quién revisó antes; si se necesita trazabilidad visible, es una tarea nueva.
-- 1.3: la UI admin está en `feat/1.3-admin-panel` (pendiente de merge) y se probó con `fetch` y componentes mockeados, no contra la API real; falta una prueba de contrato frontend-API antes del piloto.
+- 1.3: la UI admin está integrada en `feat/1.6-catalog-client` y se probó con `fetch` y componentes mockeados, no contra la API real; falta una prueba de contrato frontend-API antes del piloto.
 - 1.3: los seeds de áreas e idiomas son provisionales; el equipo de producto debe entregar las listas definitivas.
-- 1.3: no hay ruta pública de catálogo todavía; la regla "solo `approved` visible" se implementará al crear esa ruta en 1.6.
+- 1.3: la ruta pública de catálogo ya existe en 1.6 y aplica "solo `approved` visible" (`GET /v1/mentors` y `GET /v1/mentors/:id`).
 - Skills: `prisma-cli` no se instaló; decidir si se acepta una versión adaptada sin `prisma init`/`npx` o si se deja fuera.
 
 ## Siguiente
-1. Revisar el diff de `feat/1.5-bookings` y la zona roja (reservas); si pasa, tag `backup/pre-merge-feat/1.5-bookings`, merge `--no-ff` a `main` y gates completos.
-2. Web: UI de 1.4 sobre `feat/1.4-scheduling-client` y UI de reservas de 1.5 leyendo el contrato publicado en README/PROGRESS del backend.
-3. Etapa 1.6 (catálogo/recomendaciones) y 1.7 (demo).
+1. Revisar el diff de `feat/1.6-catalog-matching` (catálogo/matching); si pasa, tag `backup/pre-merge-feat/1.6-catalog-matching`, merge `--no-ff` a `main` y gates completos.
+2. Revisar `feat/1.6-catalog-client`: prueba manual con API en `localhost:3000` y web en `localhost:3001` (catálogo → detalle → reserva → aceptación con las cuentas demo); luego merge a `main`.
+3. Etapa 1.7 (demo) y evaluación humana de matching con 10 pares reales.
 4. Revisión senior de autenticación y de las zonas rojas antes de producción.
 
 ## Registro de sesiones
@@ -211,3 +252,5 @@
 | 2026-10-30 | Merges locales `chore/git-policy` (`d9d9b1e`), 1.3 (`69f8f2a`) y 1.4 (`275f3cd`); gates: 115 unitarios y 38 e2e verdes; 9 migraciones al día. Push bloqueado por el `deny` final `git push *` de `opencode.json` | Agente (instrucción del desarrollador) |
 | 2026-10-30 | 1.5 Reservas (zona roja): migración con exclusión/CHECKs, máquina de estados, API, locks, vencimiento, notificaciones, adaptador de sesiones, tests y contrato; gates 219 unitarios, 50 e2e, build/lint verdes; rama publicada en `origin` | Agente (pendiente de revisión) |
 | 2026-10-30 | Merge `--no-ff` de 1.5 en `main` (`7d9cda7`); gates 219 unitarios y 50 e2e verdes; `main` publicado en `origin` | Agente (instrucción del desarrollador) |
+| 2026-10-31 | 1.6 Catálogo/recomendaciones: migración de búsqueda, endpoints públicos, motor puro, módulos `catalog`/`matching`, tests y script de evaluación; gates 228 unitarios y 55 e2e verdes; `main` en `b04fd2e`; rama publicada en `origin` (`62154e6`) | Agente (pendiente de revisión) |
+| 2026-10-31 | Web 1.3–1.6: merge local de 1.3/1.4 en `feat/1.6-catalog-client` (`2cd66dc`) y commits `cdb0687`, `e7632d0`, `a13b282`, `c915f53`, `999f9a2`, `e210dac`; catálogo público, detalle con slots/reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil; 65 tests, build, lint y `tsc --noEmit` verdes; datos demo verificados por API | Agente (pendiente de revisión) |

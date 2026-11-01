@@ -22,7 +22,8 @@ flowchart LR
 | Contexto | Responsabilidad | Estilo | Hito |
 |---|---|---|---|
 | `identity` | Cuentas, autenticación, sesiones, roles, recuperación de contraseña | Capas (zona roja) | 1.2 |
-| `profiles` | Perfiles de mentora y mentee, onboarding, áreas, idiomas, aprobación; lectura del catálogo | Capas | 1.3 y 1.6 |
+| `profiles` | Perfiles de mentora y mentee, onboarding, áreas, idiomas, aprobación; señales tipadas para catálogo y matching | Capas | 1.3 y 1.6 |
+| `catalog` | Catálogo público de mentoras: búsqueda, filtros, detalle y ofertas | Capas (composición) | 1.6 |
 | `scheduling` | Disponibilidad, ofertas, sesiones, reservas, cálculo de slots | **Hexagonal** (zona roja) | 1.4 y 1.5 |
 | `matching` | Recomendaciones explicables | Función pura + módulo fino | 1.6 |
 | `notifications` | Correos y avisos | Servicio simple; puerto cuando haya 2.º proveedor | 1.2 en adelante |
@@ -35,6 +36,8 @@ flowchart LR
 `health` es un módulo técnico (no de negocio) y vive en `src/health/`.
 
 1.5 separa el caso de uso de reservas en `src/modules/bookings/` (mismo contexto de `scheduling`, módulo Nest propio) para aislar la máquina de estados y las transacciones de reserva del cálculo de slots. `bookings` depende de `scheduling` (repositorio y puertos exportados) y de `profiles` (perfil de mentee), sin leer sus tablas.
+
+1.6 añade dos módulos: `catalog` compone la búsqueda de `profiles` con las ofertas activas de `scheduling` para la vista pública, y `matching` compone las señales de ambos con una función pura de recomendación. Ninguno obliga a `profiles` a depender de `scheduling`; la composición vive en los módulos de lectura.
 
 ## Estructura de carpetas
 ```text
@@ -64,6 +67,15 @@ src/
       infrastructure/        repositorio Prisma, correo y tarea de vencimiento
       presentation/          controllers y esquemas Zod
       bookings.module.ts
+    catalog/                 (capas, 1.6)
+      application/           composición de perfiles + ofertas
+      presentation/          controller y esquema público
+      catalog.module.ts
+    matching/                (función pura + módulo fino, 1.6)
+      domain/                recommend(), tipos y configuración
+      application/           carga de señales y recomendaciones
+      presentation/          controller y esquema
+      matching.module.ts
 prisma/
   schema.prisma · migrations/
 docs/
@@ -73,7 +85,7 @@ En módulos hexagonales el dominio NUNCA importa Prisma ni Nest: se traduce en l
 ## Reglas entre módulos
 1. Cada módulo es dueño de sus tablas. Otro módulo no las lee ni las escribe: usa el servicio exportado del módulo dueño o escucha sus eventos de dominio.
 2. Excepción: claves foráneas hacia `user` (integridad referencial).
-3. Dependencias permitidas (flecha = "puede depender de"): `scheduling → profiles`, `bookings → scheduling, profiles`, `matching → profiles, scheduling`, `payments → scheduling` (por evento), `notifications ← eventos de todos`. Nadie depende de `admin`. Evita ciclos; si aparece uno, se detiene y se pregunta.
+3. Dependencias permitidas (flecha = "puede depender de"): `scheduling → profiles`, `bookings → scheduling, profiles`, `catalog → profiles, scheduling`, `matching → profiles, scheduling`, `payments → scheduling` (por evento), `notifications ← eventos de todos`. Nadie depende de `admin`. Evita ciclos; si aparece uno, se detiene y se pregunta.
 4. Efectos laterales entre módulos: en el Hito 1 no hay bus de eventos; el caso de uso confirma la transacción y después llama a `NotificationsPort` (ADR-022). El outbox se decide en el Hito 2.
 5. `PrismaModule` NO es global: cada módulo que accede a datos lo importa.
 6. Se vigila con una regla de lint o dependency-cruiser cuando haya 3 o más módulos [a confirmar herramienta].
