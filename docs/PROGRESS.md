@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-31 · **Modo ACELERADO y política git autónoma activos.** `main` (`b04fd2e`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas. La etapa 1.6 (catálogo/recomendaciones) está implementada en `feat/1.6-catalog-matching` (228 unitarios y 55 e2e), publicada en `origin` hasta `e4779e7` y con docs locales pendientes de push; pendiente de revisión y merge. Web: la UI de 1.3 a 1.6 está en `feat/1.6-catalog-client` (merge local de 1.3/1.4 + 6 commits, HEAD `e210dac`), con 65 tests, build y lint verdes; pendiente de revisión/merge. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
+Última actualización: 2026-10-31 · **Modo ACELERADO y política git autónoma activos.** `main` del backend (`2cfb03b`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad, 1.5 reservas y 1.6 catálogo/recomendaciones (228 unitarios y 55 e2e). Web: `main` (`f834ce8`, publicado) incluye la UI de 1.3 a 1.6 (65 tests, build y lint verdes). Ambas ramas de feature quedaron fusionadas con `--no-ff` y publicadas; la revisión del desarrollador, la revisión senior de zonas rojas y la prueba manual en navegador siguen pendientes. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -159,20 +159,21 @@
 - Auditoría e2e: `pnpm test:e2e` reportó PostgreSQL `steam_society_test` en `127.0.0.1:5433`, 11 migraciones y 55/55 tests verdes. La base de desarrollo es `steam_society` (misma instancia, base distinta); `docker compose port postgres 5432` confirma `127.0.0.1:5433`.
 - No se tomaron decisiones PENDIENTES fuera de las aprobadas en el mensaje del desarrollador.
 
-## Etapa 1.6: en rama (publicada, pendiente de revisión y merge)
-- `feat/1.6-catalog-matching` (creada desde `main` `b04fd2e`, publicada en `origin`): catálogo público, búsqueda, recomendaciones, migración de búsqueda, tests y script de evaluación.
-- `main` (`b04fd2e`, publicado) ya contiene accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas.
-- Web: `feat/1.6-catalog-client` (creada desde `feat/1.3-admin-panel`, merge local de `feat/1.4-scheduling-client` en `2cd66dc`) tiene la UI completa: catálogo, detalle con reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil. Commits `cdb0687` (clientes API), `e7632d0` (catálogo público), `a13b282` (dashboard), `c915f53` (docs), `999f9a2` (ajustes de disponibilidad y cancelación) y `e210dac` (perfil de mentora sin onboarding). Gates: build, lint, `tsc --noEmit` y 65 tests (15 archivos) verdes. Sin push; pendiente de revisión/merge.
+## Etapa 1.6: fusionada en `main` (revisión pendiente)
+- `feat/1.6-catalog-matching` (creada desde `main` `b04fd2e`, publicada en `origin` hasta `f4fa857`): catálogo público, búsqueda, recomendaciones, migración de búsqueda, tests y script de evaluación. Fusionada en `main` con `--no-ff` en `2cfb03b`; tag local `backup/pre-merge-feat/1.6-catalog-matching`.
+- `main` del backend (`2cfb03b`, publicado en `origin`) contiene accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad, 1.5 reservas y 1.6 catálogo/recomendaciones.
+- Web: `feat/1.6-catalog-client` (creada desde `feat/1.3-admin-panel`, merge local de `feat/1.4-scheduling-client` en `2cd66dc`) tiene la UI completa: catálogo, detalle con reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil. Commits `cdb0687` (clientes API), `e7632d0` (catálogo público), `a13b282` (dashboard), `c915f53` (docs), `999f9a2` (ajustes de disponibilidad y cancelación) y `e210dac` (perfil de mentora sin onboarding). Fusionada en `main` web con `--no-ff` en `f834ce8` y publicada; gates: build, lint, `tsc --noEmit` y 65 tests (15 archivos) verdes.
 
 ## Mapa de ramas (2026-10-31)
 | Repo | Rama | Estado |
 |---|---|---|
-| Backend | `main` | `b04fd2e` publicado en `origin`; incluye 1.5 (219 unitarios y 50 e2e) |
+| Backend | `main` | `2cfb03b` publicado en `origin`; incluye 1.5 y 1.6 (228 unitarios y 55 e2e) |
 | Backend | `feat/1.5-bookings` | Fusionada en `main` con `--no-ff`; revisión senior pendiente |
-| Backend | `feat/1.6-catalog-matching` | Publicada en `origin` hasta `e4779e7`; docs locales pendientes de push; pendiente de revisión/merge; 228 unitarios y 55 e2e |
-| Web | `feat/1.3-admin-panel` | Integrada localmente en `feat/1.6-catalog-client` (merge `2cd66dc`); pendiente de merge a `main` |
-| Web | `feat/1.4-scheduling-client` | Integrada localmente en `feat/1.6-catalog-client` (merge `2cd66dc`); pendiente de merge a `main` |
-| Web | `feat/1.6-catalog-client` | HEAD `e210dac`; UI 1.3–1.6, 65 tests, build y lint verdes; pendiente de revisión/merge; sin push |
+| Backend | `feat/1.6-catalog-matching` | `f4fa857` publicada en `origin`; fusionada en `main` con `--no-ff` (`2cfb03b`); revisión pendiente |
+| Web | `main` | `f834ce8` publicado en `origin`; incluye la UI 1.3–1.6 (65 tests) |
+| Web | `feat/1.3-admin-panel` | `7733765` publicada en `origin`; fusionada en `main` web |
+| Web | `feat/1.4-scheduling-client` | `d627a37` publicada en `origin`; fusionada en `main` web |
+| Web | `feat/1.6-catalog-client` | `e210dac` publicada en `origin`; fusionada en `main` web (`f834ce8`); revisión pendiente |
 
 ## Skills
 
@@ -196,13 +197,13 @@
 - 1.6: la disponibilidad para matching usa la oferta activa de menor duración como proxy; una mentora con una oferta corta pero sin slots de la oferta que la mentee quiere puede aparecer. Revisar con el flujo de reserva real.
 - 1.6: el cálculo de solape recorre minuto a minuto; con muchas reglas/slots puede crecer. Medir antes de aumentar el horizonte o el número de candidatas.
 - 1.6: `GET /v1/mentors` es público y no tiene rate limit propio; el throttler actual cubre auth. Revisar si el catálogo necesita límite por IP antes del piloto.
-- 1.4: el frontend ya tiene UI de ofertas, disponibilidad y slots en `feat/1.6-catalog-client` (65 tests verdes), pero la prueba de contrato en navegador contra la API real sigue pendiente.
+- 1.4: el frontend ya tiene UI de ofertas, disponibilidad y slots en `main` web (65 tests verdes), pero la prueba de contrato en navegador contra la API real sigue pendiente.
 - 1.4: el cliente frontend está probado con `fetch` mock; la prueba manual del flujo completo (catálogo → detalle → reserva → aceptación) queda para la revisión del desarrollador.
 - 1.4: `pnpm format:check` del frontend falla solo por archivos preexistentes de `.agents/skills/*`; los archivos nuevos y modificados se formatearon con Prettier. `pnpm build`, `pnpm lint` y `pnpm test` del frontend están verdes (65 tests).
 - 1.6 web: una reserva de pago aceptada queda en `awaiting_payment`; no hay pasarela ni endpoint para confirmar el pago (Hito 2).
 - 1.6 web: las ofertas grupales se muestran en el catálogo, pero la reserva grupal no está disponible porque el backend solo crea reservas 1:1.
 - 1.6 web: los datos demo (`demo.mentora@steam.test`, `demo.mentee@steam.test`) son solo para desarrollo y no deben usarse en producción; no se usaron datos reales.
-- 1.6 web: la UI se probó con `fetch` mock y por API con datos demo; falta la prueba manual en navegador antes del merge.
+- 1.6 web: la UI se probó con `fetch` mock y por API con datos demo; falta la prueba manual en navegador (el merge ya se hizo).
 - 1.6 web: los filtros de área e idioma del catálogo dependen de `GET /me/onboarding` y solo se muestran con sesión; si producto quiere filtrado público completo, hace falta un endpoint público de áreas/idiomas.
 - 1.4: `PUT /v1/me/availability` reemplaza todas las reglas; no hay edición individual ni validación de solapes entre reglas (el generador deduplica slots).
 - 1.4: `start_time`/`end_time` son `TIME(0)`; el frontend debe enviar `HH:mm` sin segundos. `validFrom`/`validTo` son fechas `YYYY-MM-DD`.
@@ -221,14 +222,14 @@
 - 1.3: el perfil `approved` sigue editable por decisión de producto; las ediciones post-aprobación no se auditan. Si se quiere re-revisión al cambiar campos sensibles, es una regla nueva.
 - 1.3: `onboarding_response` puede conservar filas antiguas de `age`; `GET /v1/me/onboarding` filtra a los códigos vigentes. Decidir si se hace una limpieza de datos en una migración posterior.
 - 1.3: el detalle admin ya muestra todas las respuestas del onboarding, pero la UI no muestra el historial de `audit_log` ni quién revisó antes; si se necesita trazabilidad visible, es una tarea nueva.
-- 1.3: la UI admin está integrada en `feat/1.6-catalog-client` y se probó con `fetch` y componentes mockeados, no contra la API real; falta una prueba de contrato frontend-API antes del piloto.
+- 1.3: la UI admin está integrada en `main` web y se probó con `fetch` y componentes mockeados, no contra la API real; falta una prueba de contrato frontend-API antes del piloto.
 - 1.3: los seeds de áreas e idiomas son provisionales; el equipo de producto debe entregar las listas definitivas.
 - 1.3: la ruta pública de catálogo ya existe en 1.6 y aplica "solo `approved` visible" (`GET /v1/mentors` y `GET /v1/mentors/:id`).
 - Skills: `prisma-cli` no se instaló; decidir si se acepta una versión adaptada sin `prisma init`/`npx` o si se deja fuera.
 
 ## Siguiente
-1. Revisar el diff de `feat/1.6-catalog-matching` (catálogo/matching); si pasa, tag `backup/pre-merge-feat/1.6-catalog-matching`, merge `--no-ff` a `main` y gates completos.
-2. Revisar `feat/1.6-catalog-client`: prueba manual con API en `localhost:3000` y web en `localhost:3001` (catálogo → detalle → reserva → aceptación con las cuentas demo); luego merge a `main`.
+1. Revisar el diff ya fusionado de 1.6 (catálogo/matching) y la UI web; la revisión senior de zonas rojas sigue pendiente.
+2. Prueba manual con API en `localhost:3000` y web en `localhost:3001` (catálogo → detalle → reserva → aceptación con las cuentas demo), y prueba de contrato frontend-API.
 3. Etapa 1.7 (demo) y evaluación humana de matching con 10 pares reales.
 4. Revisión senior de autenticación y de las zonas rojas antes de producción.
 
@@ -254,3 +255,4 @@
 | 2026-10-30 | Merge `--no-ff` de 1.5 en `main` (`7d9cda7`); gates 219 unitarios y 50 e2e verdes; `main` publicado en `origin` | Agente (instrucción del desarrollador) |
 | 2026-10-31 | 1.6 Catálogo/recomendaciones: migración de búsqueda, endpoints públicos, motor puro, módulos `catalog`/`matching`, tests y script de evaluación; gates 228 unitarios y 55 e2e verdes; `main` en `b04fd2e`; rama publicada en `origin` (`62154e6`) | Agente (pendiente de revisión) |
 | 2026-10-31 | Web 1.3–1.6: merge local de 1.3/1.4 en `feat/1.6-catalog-client` (`2cd66dc`) y commits `cdb0687`, `e7632d0`, `a13b282`, `c915f53`, `999f9a2`, `e210dac`; catálogo público, detalle con slots/reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil; 65 tests, build, lint y `tsc --noEmit` verdes; datos demo verificados por API | Agente (pendiente de revisión) |
+| 2026-10-31 | Merges `--no-ff` de 1.6 en `main` backend (`2cfb03b`) y web (`f834ce8`); gates backend 228 unitarios + 55 e2e y web 65 tests/build/lint verdes; `main` y todas las ramas locales publicadas en `origin`; tags locales `backup/pre-merge-feat/1.6-catalog-matching` y `backup/pre-merge-feat/1.6-catalog-client` | Agente (instrucción del desarrollador) |
