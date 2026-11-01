@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-31 · **Modo ACELERADO y política git autónoma activos.** `main` (`b04fd2e`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas. La etapa 1.6 (catálogo/recomendaciones) está implementada en `feat/1.6-catalog-matching` (228 unitarios y 55 e2e), pendiente de revisión y merge. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes; la UI de 1.5 y 1.6 aún no empieza.
+Última actualización: 2026-10-31 · **Modo ACELERADO y política git autónoma activos.** `main` (`b04fd2e`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas. La etapa 1.6 (catálogo/recomendaciones) está implementada en `feat/1.6-catalog-matching` (228 unitarios y 55 e2e), publicada en `origin` y pendiente de revisión y merge. `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` (frontend) siguen pendientes; la UI de 1.5 y 1.6 aún no empieza.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -156,8 +156,8 @@
 - Auditoría e2e: `pnpm test:e2e` reportó PostgreSQL `steam_society_test` en `127.0.0.1:5433`, 11 migraciones y 55/55 tests verdes. La base de desarrollo es `steam_society` (misma instancia, base distinta); `docker compose port postgres 5432` confirma `127.0.0.1:5433`.
 - No se tomaron decisiones PENDIENTES fuera de las aprobadas en el mensaje del desarrollador.
 
-## Etapa 1.6: en rama (pendiente de revisión y merge)
-- `feat/1.6-catalog-matching` (creada desde `main` `b04fd2e`): catálogo público, búsqueda, recomendaciones, migración de búsqueda, tests y script de evaluación.
+## Etapa 1.6: en rama (publicada, pendiente de revisión y merge)
+- `feat/1.6-catalog-matching` (creada desde `main` `b04fd2e`, publicada en `origin`): catálogo público, búsqueda, recomendaciones, migración de búsqueda, tests y script de evaluación.
 - `main` (`b04fd2e`, publicado) ya contiene accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas.
 - Web: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` siguen pendientes de revisión/merge; la UI de 1.5 y 1.6 no ha empezado.
 
@@ -166,7 +166,7 @@
 |---|---|---|
 | Backend | `main` | `b04fd2e` publicado en `origin`; incluye 1.5 (219 unitarios y 50 e2e) |
 | Backend | `feat/1.5-bookings` | Fusionada en `main` con `--no-ff`; revisión senior pendiente |
-| Backend | `feat/1.6-catalog-matching` | En rama, pendiente de push/revisión; 228 unitarios y 55 e2e |
+| Backend | `feat/1.6-catalog-matching` | Publicada en `origin`; pendiente de revisión/merge; 228 unitarios y 55 e2e |
 | Web | `feat/1.3-admin-panel` | Pendiente de revisión/merge; 40 tests |
 | Web | `feat/1.4-scheduling-client` | Pendiente de revisión/merge; 36 tests, sin UI |
 
@@ -243,4 +243,4 @@
 | 2026-10-30 | Merges locales `chore/git-policy` (`d9d9b1e`), 1.3 (`69f8f2a`) y 1.4 (`275f3cd`); gates: 115 unitarios y 38 e2e verdes; 9 migraciones al día. Push bloqueado por el `deny` final `git push *` de `opencode.json` | Agente (instrucción del desarrollador) |
 | 2026-10-30 | 1.5 Reservas (zona roja): migración con exclusión/CHECKs, máquina de estados, API, locks, vencimiento, notificaciones, adaptador de sesiones, tests y contrato; gates 219 unitarios, 50 e2e, build/lint verdes; rama publicada en `origin` | Agente (pendiente de revisión) |
 | 2026-10-30 | Merge `--no-ff` de 1.5 en `main` (`7d9cda7`); gates 219 unitarios y 50 e2e verdes; `main` publicado en `origin` | Agente (instrucción del desarrollador) |
-| 2026-10-31 | 1.6 Catálogo/recomendaciones: migración de búsqueda, endpoints públicos, motor puro, módulos `catalog`/`matching`, tests y script de evaluación; gates 228 unitarios y 55 e2e verdes; `main` en `b04fd2e` | Agente (pendiente de revisión) |
+| 2026-10-31 | 1.6 Catálogo/recomendaciones: migración de búsqueda, endpoints públicos, motor puro, módulos `catalog`/`matching`, tests y script de evaluación; gates 228 unitarios y 55 e2e verdes; `main` en `b04fd2e`; rama publicada en `origin` (`62154e6`) | Agente (pendiente de revisión) |
