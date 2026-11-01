@@ -203,6 +203,7 @@
 - 1.6 web: las ofertas grupales se muestran en el catálogo, pero la reserva grupal no está disponible porque el backend solo crea reservas 1:1.
 - 1.6 web: los datos demo (`demo.mentora@steam.test`, `demo.mentee@steam.test`) son solo para desarrollo y no deben usarse en producción; no se usaron datos reales.
 - 1.6 web: la UI se probó con `fetch` mock y por API con datos demo; falta la prueba manual en navegador antes del merge.
+- 1.6 web: los filtros de área e idioma del catálogo dependen de `GET /me/onboarding` y solo se muestran con sesión; si producto quiere filtrado público completo, hace falta un endpoint público de áreas/idiomas.
 - 1.4: `PUT /v1/me/availability` reemplaza todas las reglas; no hay edición individual ni validación de solapes entre reglas (el generador deduplica slots).
 - 1.4: `start_time`/`end_time` son `TIME(0)`; el frontend debe enviar `HH:mm` sin segundos. `validFrom`/`validTo` son fechas `YYYY-MM-DD`.
 - 1.4: el rango máximo de slots es 90 días; si el frontend necesita más, consultar por semanas o paginar.
