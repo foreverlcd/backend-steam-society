@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-11-01 · **Modo ACELERADO y política git autónoma activos.** El paquete de descubrimiento `docs/discovery/00-08` está publicado en `origin/docs/discovery` y `origin/develop` (`76fa3da`) y pendiente de aprobación; no se tocó código fuente. `main` del backend (`2cfb03b`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad, 1.5 reservas y 1.6 catálogo/recomendaciones (228 unitarios y 55 e2e). Web: `main` (`f834ce8`, publicado) incluye la UI de 1.3 a 1.6 (65 tests, build y lint verdes). Ambas ramas de feature quedaron fusionadas con `--no-ff` y publicadas; la revisión del desarrollador, la revisión senior de zonas rojas y la prueba manual en navegador siguen pendientes. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
+Última actualización: 2026-11-01 · **Modo ACELERADO y política git autónoma activos.** El paquete de descubrimiento `docs/discovery/00-08` está publicado en `origin/docs/discovery` y `origin/develop` y pendiente de aprobación; no se tocó código fuente. `main` del backend (`2cfb03b`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad, 1.5 reservas y 1.6 catálogo/recomendaciones (228 unitarios y 55 e2e). Web: `main` (`f834ce8`, publicado) incluye la UI de 1.3 a 1.6 (65 tests, build y lint verdes). Ambas ramas de feature quedaron fusionadas con `--no-ff` y publicadas; la revisión del desarrollador, la revisión senior de zonas rojas y la prueba manual en navegador siguen pendientes. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -235,7 +235,7 @@
 5. Revisión senior de autenticación y de las zonas rojas antes de producción.
 
 ## Descubrimiento y diseño para producción (2026-11-01)
-- **Rama:** `docs/discovery` desde `develop` (`40de1ef`), publicada junto con `develop` en `76fa3da`. Solo lectura y documentos: no se modificó `src`, `test`, `prisma` ni la web.
+- **Rama:** `docs/discovery` desde `develop` (`40de1ef`), publicada junto con `develop`. Solo lectura y documentos: no se modificó `src`, `test`, `prisma` ni la web.
 - **Entregables:** `docs/discovery/00-README.md` + `01-HARDCODES.md`, `02-CONFIG-ROLES.md`, `03-PRODUCTION-READINESS.md`, `04-ENVIRONMENTS-RELEASE.md`, `05-FREE-INFRASTRUCTURE.md`, `06-NFR-CAPACITY.md`, `07-ADMIN-V2.md`, `08-ROADMAP-V3.md`.
 - **Hallazgos clave:** 90 filas de hardcodes (~70 valores ajustables, 10 listas de referencia); no existe capa de configuración de negocio; roles solo `mentee|mentor|admin`; sin 2FA ni verificación de correo; sin CI, Dockerfile de producción ni OpenAPI; sin backups, logs estructurados, métricas ni alertas; admin actual solo con bandeja de mentoras.
 - **Infraestructura propuesta:** Oracle A1 Always Free (2 OCPU/12 GB/200 GB) + Neon Free PostgreSQL 18 São Paulo; alternativa B: PostgreSQL 18 autoalojado en la misma VM. Brevo/Mailtrap, Cloudflare Free, GitHub Actions Free, Sentry/UptimeRobot/Grafana Free.
