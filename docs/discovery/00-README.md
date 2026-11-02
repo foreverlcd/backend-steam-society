@@ -33,7 +33,7 @@ Los límites de terceros cambian. Toda cifra de un proveedor debe revalidarse el
 - Backend: `foreverlcd/backend-steam-society` (privado), `main` = `40de1ef`, 11 migraciones, 228 tests unitarios y 55 e2e verdes al cierre de 1.6. `[verificado con comando]`
 - Web: `foreverlcd/frontend-steam-society` (privado), `main` = `f834ce8`, 65 tests, build y lint verdes. `[verificado con comando]`
 - No hay nada desplegado, ni CI, ni Dockerfile de producción, ni OpenAPI generado. `[leído en el código]`
-- `develop` y `docs/discovery` existen en el backend y apuntan a `40de1ef`. El repo web aún no tiene `develop`. `[verificado con comando]`
+- `develop` y `docs/discovery` se crearon desde `40de1ef`; el paquete quedó publicado en `76fa3da`. El repo web aún no tiene `develop`. `[verificado con comando]`
 
 ## Regla de lectura
 
