@@ -14,6 +14,7 @@ Steam Society: plataforma de mentorías STEAM para mujeres. Este repo es el back
 | `06-CONVENTIONS.md` | Estilo, nombres, API REST, errores, tests, git, seguridad | Escribes o revisas código |
 | `07-DECISIONS.md` | ADRs aceptados y decisiones PENDIENTES (no las tomes tú) | Te topas con una elección técnica |
 | `08-MATCHING.md` | Especificación del recomendador explicable | Etapa 1.6 |
+| `discovery/00-README.md` | Paquete de descubrimiento y diseño para producción (01–08): hardcodes, configuración/roles, readiness, release, infraestructura gratuita, NFR, admin v2 y roadmap v3 | Planificas el paso a producción real; no reemplaza los documentos 01–08 |
 
 ## Convenciones de los documentos
 - Marcas de confianza: **[verificado]** (visto en documentación oficial), **[inferido]** (razonado, sin verificar), **[a confirmar]** (requiere comprobación o experto).
