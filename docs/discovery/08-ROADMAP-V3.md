@@ -150,6 +150,8 @@ Cada pregunta tiene una **recomendación por defecto**; si no hay respuesta, se 
 | 11 | ¿Canal y SLA de soporte? | **Correo + enlace a WhatsApp Business; respuesta <24 h hábiles; sin teléfono**; libro de reclamaciones visible | Una persona no puede sostener más | F5 |
 | 12 | ¿Techo de gasto tras el plan gratuito? | **$0 hasta 100 usuarias activas; luego máximo $50/mes**; revisar mensualmente | Evita que un pico rompa la economía | F6/F7 |
 
+**Decisión de infraestructura no numerada:** F1 exige aceptar la tarjeta de verificación de identidad de Oracle (no genera cobro) o renunciar a una VM siempre encendida gratuita. Si el requisito "sin tarjeta" es absoluto, la alternativa es Render Free con spin-down, que rompe la tarea `@Interval` y los webhooks; no se recomienda.
+
 **Preguntas que NO se hacen aquí porque ya están decididas o documentadas:** rol único por cuenta (ADR-013), UUIDv7 y PostgreSQL 18 (ADR-015), sesiones de servidor (ADR-016), TTL de reserva configurable (ADR-021), correo best-effort en MVP (ADR-022). Las decisiones pendientes de `docs/07-DECISIONS.md` siguen sin tomarse por cuenta del agente.
 
 ## 4. Qué haría primero si solo hubiera 4 semanas

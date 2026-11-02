@@ -10,7 +10,7 @@ Este paquete traduce el estado real de los repositorios backend (NestJS 12 + Pri
 |---|---|---|
 | `01-HARDCODES.md` | Inventario de valores embebidos, frontera estructura/valores y migración por etapas | Aprobar qué se gobierna desde admin y qué permanece en código |
 | `02-CONFIG-ROLES.md` | Registro de ajustes, roles privilegiados, salvaguardas y matching versionado | Aprobar el modelo de configuración y permisos |
-| `03-PRODUCTION-READINESS.md` | Checklist de producción con severidad y evidencia; auditoría backend | Aprobar bloqueantes y orden de cierre |
+| `03-PRODUCTION-READINESS.md` | Checklist de producción con severidad y evidencia; auditoría backend y web | Aprobar bloqueantes y orden de cierre |
 | `04-ENVIRONMENTS-RELEASE.md` | Ramas, CI/CD, migraciones, secretos, rollback y política del agente | Configurar GitHub y el pipeline |
 | `05-FREE-INFRASTRUCTURE.md` | Proveedores gratuitos verificados y dos arquitecturas de costo cero | Elegir arquitectura y plan de salida |
 | `06-NFR-CAPACITY.md` | Objetivos numéricos, capacidad, puntos calientes y pruebas de carga | Aprobar SLO y límites del piloto |
