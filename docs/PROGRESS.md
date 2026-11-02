@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-10-31 · **Modo ACELERADO y política git autónoma activos.** `main` del backend (`2cfb03b`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad, 1.5 reservas y 1.6 catálogo/recomendaciones (228 unitarios y 55 e2e). Web: `main` (`f834ce8`, publicado) incluye la UI de 1.3 a 1.6 (65 tests, build y lint verdes). Ambas ramas de feature quedaron fusionadas con `--no-ff` y publicadas; la revisión del desarrollador, la revisión senior de zonas rojas y la prueba manual en navegador siguen pendientes. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
+Última actualización: 2026-11-01 · **Modo ACELERADO y política git autónoma activos.** El paquete de descubrimiento `docs/discovery/00-08` está redactado en la rama `docs/discovery` y pendiente de aprobación; no se tocó código fuente. `main` del backend (`2cfb03b`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad, 1.5 reservas y 1.6 catálogo/recomendaciones (228 unitarios y 55 e2e). Web: `main` (`f834ce8`, publicado) incluye la UI de 1.3 a 1.6 (65 tests, build y lint verdes). Ambas ramas de feature quedaron fusionadas con `--no-ff` y publicadas; la revisión del desarrollador, la revisión senior de zonas rojas y la prueba manual en navegador siguen pendientes. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -228,10 +228,21 @@
 - Skills: `prisma-cli` no se instaló; decidir si se acepta una versión adaptada sin `prisma init`/`npx` o si se deja fuera.
 
 ## Siguiente
-1. Revisar el diff ya fusionado de 1.6 (catálogo/matching) y la UI web; la revisión senior de zonas rojas sigue pendiente.
-2. Prueba manual con API en `localhost:3000` y web en `localhost:3001` (catálogo → detalle → reserva → aceptación con las cuentas demo), y prueba de contrato frontend-API.
-3. Etapa 1.7 (demo) y evaluación humana de matching con 10 pares reales.
-4. Revisión senior de autenticación y de las zonas rojas antes de producción.
+1. Aprobar el paquete `docs/discovery/00-08` y responder las 12 preguntas de `08-ROADMAP-V3.md`; **no iniciar desarrollo hasta entonces**.
+2. Revisar el diff ya fusionado de 1.6 (catálogo/matching) y la UI web; la revisión senior de zonas rojas sigue pendiente.
+3. Prueba manual con API en `localhost:3000` y web en `localhost:3001` (catálogo → detalle → reserva → aceptación con las cuentas demo), y prueba de contrato frontend-API.
+4. Etapa 1.7 (demo) y evaluación humana de matching con 10 pares reales.
+5. Revisión senior de autenticación y de las zonas rojas antes de producción.
+
+## Descubrimiento y diseño para producción (2026-11-01)
+- **Rama:** `docs/discovery` desde `develop` (`40de1ef`). Solo lectura y documentos: no se modificó `src`, `test`, `prisma` ni la web.
+- **Entregables:** `docs/discovery/00-README.md` + `01-HARDCODES.md`, `02-CONFIG-ROLES.md`, `03-PRODUCTION-READINESS.md`, `04-ENVIRONMENTS-RELEASE.md`, `05-FREE-INFRASTRUCTURE.md`, `06-NFR-CAPACITY.md`, `07-ADMIN-V2.md`, `08-ROADMAP-V3.md`.
+- **Hallazgos clave:** 90 filas de hardcodes (~70 valores ajustables, 10 listas de referencia); no existe capa de configuración de negocio; roles solo `mentee|mentor|admin`; sin 2FA ni verificación de correo; sin CI, Dockerfile de producción ni OpenAPI; sin backups, logs estructurados, métricas ni alertas; admin actual solo con bandeja de mentoras.
+- **Infraestructura propuesta:** Oracle A1 Always Free (2 OCPU/12 GB/200 GB) + Neon Free PostgreSQL 18 São Paulo; alternativa B: PostgreSQL 18 autoalojado en la misma VM. Brevo/Mailtrap, Cloudflare Free, GitHub Actions Free, Sentry/UptimeRobot/Grafana Free.
+- **Límites que se rompen a 12 meses:** Neon (100 CU-h y 1 GB), Brevo (300/día), CPU de la VM con recomendaciones/slots concurrentes y GitHub Actions si se superan ~100 PR/mes.
+- **Verificación externa:** límites de proveedores consultados con `webfetch` oficial el 2026-11-01; citas ≤15 palabras. Los límites gratuitos cambian y deben revalidarse antes de contratar.
+- **Gates:** no se ejecutaron build/lint/test de código porque no hubo cambios de código; los últimos gates siguen siendo backend 228 unitarios + 55 e2e y web 65 tests/build/lint.
+- **Pendiente:** aprobación del paquete, decisión de replicarlo en el repo web, aprobación de ADR-024 (cuentas privilegiadas separadas) y respuestas de `08-ROADMAP-V3.md`. Las decisiones pendientes de `docs/07-DECISIONS.md` no se tomaron.
 
 ## Registro de sesiones
 | Fecha | Qué se hizo | Quién |
@@ -256,3 +267,4 @@
 | 2026-10-31 | 1.6 Catálogo/recomendaciones: migración de búsqueda, endpoints públicos, motor puro, módulos `catalog`/`matching`, tests y script de evaluación; gates 228 unitarios y 55 e2e verdes; `main` en `b04fd2e`; rama publicada en `origin` (`62154e6`) | Agente (pendiente de revisión) |
 | 2026-10-31 | Web 1.3–1.6: merge local de 1.3/1.4 en `feat/1.6-catalog-client` (`2cd66dc`) y commits `cdb0687`, `e7632d0`, `a13b282`, `c915f53`, `999f9a2`, `e210dac`; catálogo público, detalle con slots/reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil; 65 tests, build, lint y `tsc --noEmit` verdes; datos demo verificados por API | Agente (pendiente de revisión) |
 | 2026-10-31 | Merges `--no-ff` de 1.6 en `main` backend (`2cfb03b`) y web (`f834ce8`); gates backend 228 unitarios + 55 e2e y web 65 tests/build/lint verdes; `main` y todas las ramas locales publicadas en `origin`; tags locales `backup/pre-merge-feat/1.6-catalog-matching` y `backup/pre-merge-feat/1.6-catalog-client` | Agente (instrucción del desarrollador) |
+| 2026-11-01 | Descubrimiento y diseño: `docs/discovery/00-08` (hardcodes, configuración/roles, readiness, release, infraestructura gratuita, NFR/capacidad, admin v2, roadmap v3); sin tocar código; pendiente de aprobación | Agente |
