@@ -28,7 +28,7 @@ flowchart LR
 | `matching` | Recomendaciones explicables | Función pura + módulo fino | 1.6 |
 | `notifications` | Correos y avisos | Servicio simple; puerto cuando haya 2.º proveedor | 1.2 en adelante |
 | `admin` | Endpoints de backoffice protegidos por rol, dentro de los módulos dueños | Capas | 1.3 |
-| `payments` | Cobros, comisión, pagos, ledger, webhooks | **Hexagonal** (zona roja) | 2 |
+| `payments` | Cobros, comisión, pagos, ledger, webhooks | **Hexagonal** (zona roja) | Esqueleto desacoplado 2026-11-16 (ADR-025); proveedor real, ledger y reembolsos en el Hito 2 |
 | `messaging` | Chat en tiempo real | Capas + gateway WebSocket | 3 |
 | `media` | Archivos y fotos | Servicio simple | 3 |
 | `trust` | Reseñas, reportes, bloqueos | Capas | 3 |
@@ -85,7 +85,7 @@ En módulos hexagonales el dominio NUNCA importa Prisma ni Nest: se traduce en l
 ## Reglas entre módulos
 1. Cada módulo es dueño de sus tablas. Otro módulo no las lee ni las escribe: usa el servicio exportado del módulo dueño o escucha sus eventos de dominio.
 2. Excepción: claves foráneas hacia `user` (integridad referencial).
-3. Dependencias permitidas (flecha = "puede depender de"): `scheduling → profiles`, `bookings → scheduling, profiles`, `catalog → profiles, scheduling`, `matching → profiles, scheduling`, `payments → scheduling` (por evento), `notifications ← eventos de todos`. Nadie depende de `admin`. Evita ciclos; si aparece uno, se detiene y se pregunta.
+3. Dependencias permitidas (flecha = "puede depender de"): `scheduling → profiles`, `bookings → scheduling, profiles`, `catalog → profiles, scheduling`, `matching → profiles, scheduling`, `payments → bookings` (solo por `BookingPaymentPort`; bookings no conoce payments), `notifications ← eventos de todos`. Nadie depende de `admin`. Evita ciclos; si aparece uno, se detiene y se pregunta.
 4. Efectos laterales entre módulos: en el Hito 1 no hay bus de eventos; el caso de uso confirma la transacción y después llama a `NotificationsPort` (ADR-022). El outbox se decide en el Hito 2.
 5. `PrismaModule` NO es global: cada módulo que accede a datos lo importa.
 6. Se vigila con una regla de lint o dependency-cruiser cuando haya 3 o más módulos [a confirmar herramienta].

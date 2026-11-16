@@ -216,9 +216,7 @@ describe('BookingsService', () => {
           offeringId: 'missing',
           startsAt: STARTS_AT.toISOString(),
         }),
-      ).rejects.toSatisfy(
-        (error) => errorCode(error) === 'OFFERING_NOT_FOUND',
-      );
+      ).rejects.toSatisfy((error) => errorCode(error) === 'OFFERING_NOT_FOUND');
     });
 
     it('rejects an archived offering', async () => {
@@ -233,9 +231,7 @@ describe('BookingsService', () => {
           offeringId: offering.id,
           startsAt: STARTS_AT.toISOString(),
         }),
-      ).rejects.toSatisfy(
-        (error) => errorCode(error) === 'OFFERING_ARCHIVED',
-      );
+      ).rejects.toSatisfy((error) => errorCode(error) === 'OFFERING_ARCHIVED');
     });
 
     it('rejects a mentor that is not approved', async () => {
@@ -285,7 +281,8 @@ describe('BookingsService', () => {
         startsAt: STARTS_AT,
         endsAt: ENDS_AT,
         requestedAt: NOW,
-        expiresAt: EXPIRES_AT,
+        // TTL (48 h) would end after the session, so it is capped at startsAt.
+        expiresAt: STARTS_AT,
         paymentRequired: false,
         priceMinor: 0,
         currency: 'PEN',
@@ -335,9 +332,7 @@ describe('BookingsService', () => {
           offeringId: offering.id,
           startsAt: STARTS_AT.toISOString(),
         }),
-      ).rejects.toSatisfy(
-        (error) => errorCode(error) === 'BOOKING_SLOT_TAKEN',
-      );
+      ).rejects.toSatisfy((error) => errorCode(error) === 'BOOKING_SLOT_TAKEN');
     });
 
     it('maps a mentee overlap conflict', async () => {
@@ -384,7 +379,10 @@ describe('BookingsService', () => {
           status: 'confirmed',
           confirmedAt: NOW,
           respondedAt: NOW,
-          session: { ...booking.session, meetingUrl: 'https://meet.example.com/a' },
+          session: {
+            ...booking.session,
+            meetingUrl: 'https://meet.example.com/a',
+          },
         }),
       );
 
@@ -400,6 +398,7 @@ describe('BookingsService', () => {
           confirmedAt: NOW,
           meetingUrl: 'https://meet.example.com/a',
         }),
+        NOW,
       );
       expect(result.status).toBe('confirmed');
       expect(notifications.send).toHaveBeenCalledWith(
@@ -425,8 +424,131 @@ describe('BookingsService', () => {
         'booking-1',
         'requested',
         expect.objectContaining({ status: 'awaiting_payment' }),
+        NOW,
       );
       expect(result.status).toBe('awaiting_payment');
+    });
+  });
+
+  describe('review fixes', () => {
+    it('keeps the TTL when it ends before the session starts', async () => {
+      const farStart = new Date('2026-11-10T15:00:00.000Z');
+      repository.create.mockResolvedValue(makeBooking());
+
+      await service.create(mentee, {
+        offeringId: offering.id,
+        startsAt: farStart.toISOString(),
+      });
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expiresAt: new Date(NOW.getTime() + 48 * 60 * 60 * 1000),
+        }),
+      );
+    });
+
+    it('does not let a suspended mentor accept a pending request', async () => {
+      repository.findById.mockResolvedValue(makeBooking());
+      mentorSettings.findMentorSettings.mockResolvedValue({
+        status: 'suspended',
+        userStatus: 'active',
+        minNoticeHours: 0,
+        maxAdvanceDays: 60,
+        timezone: 'America/Lima',
+      });
+
+      await expect(
+        service.accept(mentor, 'booking-1', {
+          meetingUrl: 'https://meet.example.com/a',
+        }),
+      ).rejects.toSatisfy(
+        (error) => errorCode(error) === 'MENTOR_NOT_APPROVED',
+      );
+      expect(repository.applyTransition).not.toHaveBeenCalled();
+    });
+
+    it('records the mentee as absent when the mentor reports a no-show', async () => {
+      repository.findById.mockResolvedValue(
+        makeBooking({
+          status: 'confirmed',
+          session: {
+            ...makeBooking().session,
+            startsAt: new Date('2026-11-02T11:00:00.000Z'),
+            endsAt: new Date('2026-11-02T12:00:00.000Z'),
+          },
+        }),
+      );
+      repository.applyTransition.mockResolvedValue(
+        makeBooking({ status: 'no_show', noShowParty: 'mentee' }),
+      );
+
+      await service.noShow(mentor, 'booking-1');
+
+      expect(repository.applyTransition).toHaveBeenCalledWith(
+        'booking-1',
+        'confirmed',
+        expect.objectContaining({ noShowParty: 'mentee' }),
+        NOW,
+      );
+    });
+  });
+
+  describe('payments bridge', () => {
+    it('returns the payable data of a booking awaiting payment', async () => {
+      repository.findById.mockResolvedValue(
+        makeBooking({
+          status: 'awaiting_payment',
+          paymentRequired: true,
+          priceMinor: 5000,
+        }),
+      );
+
+      await expect(
+        service.getPayable(mentee, 'booking-1'),
+      ).resolves.toMatchObject({
+        id: 'booking-1',
+        priceMinor: 5000,
+        currency: 'PEN',
+      });
+    });
+
+    it('rejects paying a booking that is not awaiting payment', async () => {
+      repository.findById.mockResolvedValue(makeBooking());
+
+      await expect(service.getPayable(mentee, 'booking-1')).rejects.toSatisfy(
+        (error) => errorCode(error) === 'BOOKING_NOT_AWAITING_PAYMENT',
+      );
+    });
+
+    it('does not let a mentor pay a booking', async () => {
+      await expect(service.getPayable(mentor, 'booking-1')).rejects.toSatisfy(
+        (error) => errorCode(error) === 'BOOKING_ROLE_NOT_ALLOWED',
+      );
+    });
+
+    it('confirms a paid booking and notifies the mentee', async () => {
+      const booking = makeBooking({
+        status: 'awaiting_payment',
+        paymentRequired: true,
+        priceMinor: 5000,
+      });
+      repository.findById.mockResolvedValue(booking);
+      repository.applyTransition.mockResolvedValue(
+        makeBooking({ ...booking, status: 'confirmed', confirmedAt: NOW }),
+      );
+
+      const result = await service.confirmPayment('booking-1');
+
+      expect(repository.applyTransition).toHaveBeenCalledWith(
+        'booking-1',
+        'awaiting_payment',
+        expect.objectContaining({ status: 'confirmed', confirmedAt: NOW }),
+        NOW,
+      );
+      expect(result.status).toBe('confirmed');
+      expect(notifications.send).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'accepted' }),
+      );
     });
   });
 
@@ -449,6 +571,7 @@ describe('BookingsService', () => {
           sessionStatus: 'cancelled',
           cancelReason: 'Sin espacio',
         }),
+        NOW,
       );
       expect(result.status).toBe('declined');
     });
@@ -473,6 +596,7 @@ describe('BookingsService', () => {
           cancelledBy: 'mentee',
           sessionStatus: 'cancelled',
         }),
+        NOW,
       );
       expect(result.status).toBe('cancelled');
     });
@@ -480,9 +604,7 @@ describe('BookingsService', () => {
     it('does not let a mentor cancel a pending request', async () => {
       repository.findById.mockResolvedValue(makeBooking());
 
-      await expect(
-        service.cancel(mentor, 'booking-1', {}),
-      ).rejects.toSatisfy(
+      await expect(service.cancel(mentor, 'booking-1', {})).rejects.toSatisfy(
         (error) => errorCode(error) === 'INVALID_BOOKING_TRANSITION',
       );
     });
@@ -511,11 +633,12 @@ describe('BookingsService', () => {
           completedAt: NOW,
           sessionStatus: 'completed',
         }),
+        NOW,
       );
       expect(result.status).toBe('completed');
     });
 
-    it('registers the no-show party after the session starts', async () => {
+    it('records the OTHER participant as absent when reporting a no-show', async () => {
       repository.findById.mockResolvedValue(
         makeBooking({
           status: 'confirmed',
@@ -527,7 +650,7 @@ describe('BookingsService', () => {
         }),
       );
       repository.applyTransition.mockResolvedValue(
-        makeBooking({ status: 'no_show', noShowParty: 'mentee' }),
+        makeBooking({ status: 'no_show', noShowParty: 'mentor' }),
       );
 
       const result = await service.noShow(mentee, 'booking-1');
@@ -537,9 +660,10 @@ describe('BookingsService', () => {
         'confirmed',
         expect.objectContaining({
           status: 'no_show',
-          noShowParty: 'mentee',
+          noShowParty: 'mentor',
           sessionStatus: 'completed',
         }),
+        NOW,
       );
       expect(result.status).toBe('no_show');
     });
@@ -550,9 +674,7 @@ describe('BookingsService', () => {
         new BookingStatusConflictError(),
       );
 
-      await expect(
-        service.decline(mentor, 'booking-1', {}),
-      ).rejects.toSatisfy(
+      await expect(service.decline(mentor, 'booking-1', {})).rejects.toSatisfy(
         (error) => errorCode(error) === 'BOOKING_STATUS_CONFLICT',
       );
     });
@@ -578,9 +700,9 @@ describe('BookingsService', () => {
         makeBooking({ status: 'expired' }),
       );
 
-      await expect(
-        service.decline(mentor, 'booking-1', {}),
-      ).rejects.toSatisfy((error) => errorCode(error) === 'BOOKING_EXPIRED');
+      await expect(service.decline(mentor, 'booking-1', {})).rejects.toSatisfy(
+        (error) => errorCode(error) === 'BOOKING_EXPIRED',
+      );
     });
 
     it('expires due bookings idempotently', async () => {

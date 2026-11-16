@@ -72,6 +72,8 @@ export interface BookingRepositoryPort {
     id: string,
     from: BookingStatus,
     data: BookingTransitionData,
+    /** Pending states (`requested`, `awaiting_payment`) must not be past `expires_at`. */
+    now: Date,
   ): Promise<Booking>;
   expireById(id: string, now: Date): Promise<Booking | null>;
   expireDue(now: Date, scope?: BookingScope): Promise<Booking[]>;

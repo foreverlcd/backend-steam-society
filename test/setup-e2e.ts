@@ -7,3 +7,4 @@ process.env.SESSION_COOKIE_SECURE ??= 'false';
 process.env.WEB_ORIGIN ??= 'http://localhost:3001';
 process.env.APP_URL ??= 'http://localhost:3001';
 process.env.SMTP_FROM ??= 'Steam Society <no-reply@steamsociety.local>';
+process.env.PAYMENTS_PROVIDER ??= 'fake';

@@ -5,6 +5,7 @@ Steam Society: plataforma de mentorías STEAM para mujeres. Este repo es el back
 | Documento | Qué contiene | Léelo cuando… |
 |---|---|---|
 | `PROGRESS.md` | Estado vivo: etapa actual, hecho, pendiente, decisiones recientes | SIEMPRE, al empezar y al terminar |
+| `DEMO.md` | Guion de demo de 5 minutos y cuentas ficticias | Al preparar o ejecutar una demo |
 | `SKILLS.md` | Registro y política de skills: fuente, hash, fecha, banderas y permiso | Revisas o actualizas una skill |
 | `01-PRODUCT.md` | Roles, reglas de negocio R-xx, flujos, alcance por hito, glosario | Implementas cualquier funcionalidad |
 | `02-ARCHITECTURE.md` | Monolito modular, contextos, hexagonal selectiva, carpetas, reglas entre módulos | Creas un módulo o dudas dónde va el código |
@@ -14,6 +15,7 @@ Steam Society: plataforma de mentorías STEAM para mujeres. Este repo es el back
 | `06-CONVENTIONS.md` | Estilo, nombres, API REST, errores, tests, git, seguridad | Escribes o revisas código |
 | `07-DECISIONS.md` | ADRs aceptados y decisiones PENDIENTES (no las tomes tú) | Te topas con una elección técnica |
 | `08-MATCHING.md` | Especificación del recomendador explicable | Etapa 1.6 |
+| `discovery/00-README.md` | Paquete de descubrimiento y diseño para producción (01–08): hardcodes, configuración/roles, readiness, release, infraestructura gratuita, NFR, admin v2 y roadmap v3 | Planificas el paso a producción real; no reemplaza los documentos 01–08 |
 
 ## Convenciones de los documentos
 - Marcas de confianza: **[verificado]** (visto en documentación oficial), **[inferido]** (razonado, sin verificar), **[a confirmar]** (requiere comprobación o experto).

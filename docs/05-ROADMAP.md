@@ -2,7 +2,7 @@
 
 Estimaciones [inferidas], para un solo desarrollador; se recalibran con el ritmo real. En modo acelerado se sigue la etapa completa sin pedir confirmación del plan; solo se para en las condiciones de 'Detente y pregunta' o al cerrar la etapa.
 
-**Estado 2026-10-31:** modo acelerado y política git autónoma activos. `main` (`b04fd2e`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad y 1.5 reservas (219 unitarios y 50 e2e). La etapa 1.6 (catálogo/recomendaciones) está implementada en `feat/1.6-catalog-matching`, pendiente de revisión y merge. Frontend: `feat/1.3-admin-panel` y `feat/1.4-scheduling-client` pendientes; la UI de 1.5 y 1.6 aún no empieza.
+**Estado 2026-11-16:** Hito 1 cerrado en código. 1.5 y 1.6 revisadas (10 hallazgos de zona roja corregidos), módulo de pagos desacoplado (ADR-025) y 1.7 implementada (datos demo, guion `docs/DEMO.md`, k6 y límites de peticiones). Pendiente humano: que tres personas completen la demo sin ayuda y la evaluación de matching con 10 pares reales.
 
 ## Hito 1: flujo de punta a punta con mentoría gratuita (~2,5 a 3,5 meses)
 
@@ -67,6 +67,13 @@ Implementado en `feat/1.6-catalog-matching` (pendiente de revisión y merge):
 ### 1.7: Demo y endurecimiento
 Datos de demostración (seed) · guion de demo de 5 minutos · README de extremo a extremo · prueba de carga simple con k6 sobre catálogo y slots [meta a definir] · escaneo básico con OWASP ZAP [a confirmar].
 **Aceptación:** tres personas del equipo completan la demo sin ayuda.
+
+Implementado 2026-11-16:
+- `pnpm db:seed:demo` (`scripts/seed-demo.ts`): 3 mentoras y 2 mentoradas ficticias creadas por la API real; idempotente; bloqueado en producción.
+- `docs/DEMO.md`: guion de 5 minutos (catálogo → recomendaciones → reserva gratuita → aceptación → reserva de pago con checkout simulado → admin).
+- `load/k6-read.js` con los umbrales de `discovery/06`; baseline local de 20 VUs y 5 min: 4.813 peticiones, 0 % de errores, p95 de catálogo 8 ms, detalle 7 ms, slots 10 ms y recomendaciones 40 ms. Solo hay 4 mentoras, así que no es representativo: hay que repetirlo en staging con 300 (F5).
+- Límites de peticiones: `POST /bookings` 10/min, catálogo y slots 120/min, recomendaciones 30/min; con sesión se cuenta por cuenta y sin sesión por IP. `THROTTLE_DISABLED=true` solo fuera de producción, para k6.
+- OWASP ZAP no se ejecutó; queda para F5 con staging.
 
 ## Hito 2: dinero en sandbox
 **Prerrequisitos (decisiones del desarrollador, no del agente):** proveedor (P-03), moneda y forma jurídica (DA-03), política de cancelación y reembolso (DA-05), comisión.

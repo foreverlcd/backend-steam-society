@@ -106,19 +106,27 @@ describe('transitionBooking', () => {
 
   it('rejects expiring before the deadline', () => {
     expect(() =>
-      transitionBooking('requested', { type: 'expire' }, {
-        ...context,
-        now: new Date('2026-10-31T09:59:59.999Z'),
-      }),
+      transitionBooking(
+        'requested',
+        { type: 'expire' },
+        {
+          ...context,
+          now: new Date('2026-10-31T09:59:59.999Z'),
+        },
+      ),
     ).toThrow(InvalidBookingTransitionError);
   });
 
   it('rejects completing before the session ends', () => {
     expect(() =>
-      transitionBooking('confirmed', { type: 'complete' }, {
-        ...context,
-        now: new Date('2026-11-01T09:59:59.999Z'),
-      }),
+      transitionBooking(
+        'confirmed',
+        { type: 'complete' },
+        {
+          ...context,
+          now: new Date('2026-11-01T09:59:59.999Z'),
+        },
+      ),
     ).toThrow(InvalidBookingTransitionError);
   });
 
@@ -149,6 +157,20 @@ describe('transitionBooking', () => {
     ).toThrow(InvalidBookingTransitionError);
   });
 
+  it('rejects cancelling a paid confirmed booking after it ends (DA-05 pending)', () => {
+    expect(() =>
+      transitionBooking(
+        'confirmed',
+        { type: 'cancel', actor: 'mentee' },
+        {
+          ...context,
+          now: context.endsAt,
+          paymentRequired: true,
+        },
+      ),
+    ).toThrow(InvalidBookingTransitionError);
+  });
+
   it('allows cancelling a paid confirmed booking after it starts until DA-05', () => {
     expect(
       transitionBooking(
@@ -165,10 +187,14 @@ describe('transitionBooking', () => {
 
   it('rejects confirming payment on a free booking', () => {
     expect(() =>
-      transitionBooking('awaiting_payment', { type: 'confirm_payment' }, {
-        ...context,
-        paymentRequired: false,
-      }),
+      transitionBooking(
+        'awaiting_payment',
+        { type: 'confirm_payment' },
+        {
+          ...context,
+          paymentRequired: false,
+        },
+      ),
     ).toThrow(InvalidBookingTransitionError);
   });
 });

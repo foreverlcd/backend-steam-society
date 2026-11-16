@@ -1,3 +1,4 @@
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -7,6 +8,7 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { Roles } from '../../../shared/http/roles.decorator.js';
 import type { AuthUser } from '../../auth/auth.types.js';
@@ -29,6 +31,8 @@ import {
 export class BookingsController {
   constructor(private readonly bookings: BookingsService) {}
 
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post()
   @Roles('mentee')
   create(

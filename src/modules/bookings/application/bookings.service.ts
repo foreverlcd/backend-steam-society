@@ -26,6 +26,7 @@ import {
   bookingExpired,
   bookingForbidden,
   bookingMenteeOverlap,
+  bookingNotAwaitingPayment,
   bookingNotFound,
   bookingRoleNotAllowed,
   bookingSlotTaken,
@@ -96,6 +97,16 @@ export interface BookingResponse {
   mentee: ParticipantResponse;
   createdAt: string;
   updatedAt: string;
+}
+
+/** What the payments module needs to charge a booking; nothing else leaks. */
+export interface PayableBooking {
+  id: string;
+  menteeId: string;
+  priceMinor: number;
+  currency: string;
+  offeringTitle: string;
+  expiresAt: Date;
 }
 
 export interface ParticipantResponse {
@@ -181,7 +192,11 @@ export class BookingsService {
       settings.maxAdvanceDays,
     );
 
-    const expiresAt = new Date(now.getTime() + this.ttlHours * HOUR_MS);
+    // A request can never outlive its session: otherwise a mentor could accept
+    // (and complete) a session that already happened.
+    const expiresAt = new Date(
+      Math.min(now.getTime() + this.ttlHours * HOUR_MS, startsAt.getTime()),
+    );
 
     let booking: Booking;
 
@@ -256,6 +271,16 @@ export class BookingsService {
     const booking = await this.loadForParticipant(user, id);
     await this.assertNotExpired(booking);
 
+    const settings = await this.mentorSettings.findMentorSettings(user.id);
+
+    if (
+      !settings ||
+      settings.status !== 'approved' ||
+      settings.userStatus !== 'active'
+    ) {
+      throw mentorNotApproved();
+    }
+
     const now = this.clock.now();
     const next = this.transition(
       booking,
@@ -312,11 +337,7 @@ export class BookingsService {
     await this.assertNotExpired(booking);
 
     const now = this.clock.now();
-    const next = this.transition(
-      booking,
-      { type: 'cancel', actor },
-      now,
-    );
+    const next = this.transition(booking, { type: 'cancel', actor }, now);
     const updated = await this.apply(booking, next, {
       cancelledAt: now,
       cancelledBy: actor,
@@ -350,15 +371,66 @@ export class BookingsService {
     await this.assertNotExpired(booking);
 
     const now = this.clock.now();
+    // The reporter flags the OTHER participant as absent (04-STATE-MACHINES).
+    const absent: BookingActor = actor === 'mentee' ? 'mentor' : 'mentee';
     const next = this.transition(
       booking,
-      { type: 'no_show', party: actor },
+      { type: 'no_show', party: absent },
       now,
     );
     const updated = await this.apply(booking, next, {
-      noShowParty: actor,
+      noShowParty: absent,
       sessionStatus: 'completed',
     });
+
+    return toBookingResponse(updated);
+  }
+
+  /**
+   * Used by the payments module before opening a checkout. Only the mentee
+   * who owns the booking can pay it, and only while it awaits payment.
+   */
+  async getPayable(user: AuthUser, id: string): Promise<PayableBooking> {
+    this.assertRole(user, 'mentee', 'pay');
+    const booking = await this.loadForParticipant(user, id);
+    await this.assertNotExpired(booking);
+
+    if (
+      booking.status !== 'awaiting_payment' ||
+      !booking.paymentRequired ||
+      booking.priceMinor <= 0
+    ) {
+      throw bookingNotAwaitingPayment();
+    }
+
+    return {
+      id: booking.id,
+      menteeId: booking.menteeId,
+      priceMinor: booking.priceMinor,
+      currency: booking.currency,
+      offeringTitle: booking.offering.title,
+      expiresAt: booking.expiresAt,
+    };
+  }
+
+  /**
+   * System transition `awaiting_payment -> confirmed`, triggered by the
+   * payments module after the provider reports the charge as paid.
+   */
+  async confirmPayment(id: string): Promise<BookingResponse> {
+    const booking = await this.repository.findById(id);
+
+    if (!booking) {
+      throw bookingNotFound();
+    }
+
+    await this.assertNotExpired(booking);
+
+    const now = this.clock.now();
+    const next = this.transition(booking, { type: 'confirm_payment' }, now);
+    const updated = await this.apply(booking, next, { confirmedAt: now });
+
+    await this.notifyAccepted(updated);
 
     return toBookingResponse(updated);
   }
@@ -392,7 +464,9 @@ export class BookingsService {
         maxAdvanceDays,
       });
 
-      if (!slots.some((slot) => slot.startsAt.getTime() === startsAt.getTime())) {
+      if (
+        !slots.some((slot) => slot.startsAt.getTime() === startsAt.getTime())
+      ) {
         throw bookingSlotUnavailable();
       }
     } catch (error) {
@@ -438,7 +512,10 @@ export class BookingsService {
   }
 
   private async expireIfDue(booking: Booking): Promise<Booking | null> {
-    if (booking.status !== 'requested' && booking.status !== 'awaiting_payment') {
+    if (
+      booking.status !== 'requested' &&
+      booking.status !== 'awaiting_payment'
+    ) {
       return null;
     }
 
@@ -482,10 +559,12 @@ export class BookingsService {
     data: Omit<BookingTransitionData, 'status'>,
   ): Promise<Booking> {
     try {
-      return await this.repository.applyTransition(booking.id, booking.status, {
-        ...data,
-        status: next,
-      });
+      return await this.repository.applyTransition(
+        booking.id,
+        booking.status,
+        { ...data, status: next },
+        this.clock.now(),
+      );
     } catch (error) {
       if (error instanceof BookingStatusConflictError) {
         throw bookingStatusConflict();
