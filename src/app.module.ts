@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { BookingsModule } from './modules/bookings/bookings.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
 import { MatchingModule } from './modules/matching/matching.module.js';
+import { PaymentsModule } from './modules/payments/payments.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { SchedulingModule } from './modules/scheduling/scheduling.module.js';
 import { PrismaModule } from './shared/prisma/prisma.module.js';
@@ -25,6 +26,7 @@ import { PrismaModule } from './shared/prisma/prisma.module.js';
     BookingsModule,
     CatalogModule,
     MatchingModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -59,7 +59,8 @@ function sessionCookie(setCookie: string | string[] | undefined): string {
 }
 
 function limaDate(offsetDays: number): string {
-  const millis = Date.now() + offsetDays * 24 * 60 * 60 * 1000 - 5 * 60 * 60 * 1000;
+  const millis =
+    Date.now() + offsetDays * 24 * 60 * 60 * 1000 - 5 * 60 * 60 * 1000;
   return new Date(millis).toISOString().slice(0, 10);
 }
 
@@ -100,7 +101,7 @@ describe('Bookings (e2e)', () => {
 
   beforeEach(async () => {
     await prisma.$executeRawUnsafe(
-      'TRUNCATE TABLE "booking", "session", "availability_rule", "offering", "audit_log", "onboarding_response", "mentee_language", "mentor_language", "mentee_interest", "mentor_area", "mentee_profile", "mentor_profile", "password_reset_token", "auth_session", "user" CASCADE',
+      'TRUNCATE TABLE "webhook_event", "payment", "booking", "session", "availability_rule", "offering", "audit_log", "onboarding_response", "mentee_language", "mentor_language", "mentee_interest", "mentor_area", "mentee_profile", "mentor_profile", "password_reset_token", "auth_session", "user" CASCADE',
     );
     targetDate = limaDate(2);
   });
@@ -699,9 +700,264 @@ describe('Bookings (e2e)', () => {
       .set('Cookie', mentee.cookie)
       .expect(200);
 
+    // The mentee reports that the mentor did not show up.
     expect(noShow.body).toMatchObject({
       status: 'no_show',
-      noShowParty: 'mentee',
+      noShowParty: 'mentor',
+    });
+  });
+
+  it('rejects non-https meeting URLs', async () => {
+    const { mentor, offering } = await prepareMentorWithOffering();
+    const mentee = await createMentee();
+    const booking = await book(
+      mentee.cookie,
+      offering.id,
+      limaInstant(targetDate, 9),
+    );
+
+    for (const meetingUrl of [
+      'javascript:alert(1)',
+      'http://meet.example.com/a',
+      'data:text/html,hi',
+    ]) {
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/accept`)
+        .set('Cookie', mentor.cookie)
+        .send({ meetingUrl })
+        .expect(400);
+    }
+  });
+
+  it('never lets a request expire after its session starts', async () => {
+    const { offering } = await prepareMentorWithOffering();
+    const mentee = await createMentee();
+    const startsAt = limaInstant(targetDate, 9);
+    const booking = await book(mentee.cookie, offering.id, startsAt);
+
+    expect(new Date(booking.expiresAt).getTime()).toBeLessThanOrEqual(
+      new Date(startsAt).getTime(),
+    );
+  });
+
+  describe('payments (fake provider)', () => {
+    async function awaitingPayment(): Promise<{
+      mentor: UserSession;
+      mentee: UserSession;
+      booking: BookingBody;
+    }> {
+      const { mentor, offering } = await prepareMentorWithOffering({
+        isFree: false,
+        priceMinor: 5000,
+        currency: 'PEN',
+      });
+      const mentee = await createMentee();
+      const booking = await book(
+        mentee.cookie,
+        offering.id,
+        limaInstant(targetDate, 9),
+      );
+
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/accept`)
+        .set('Cookie', mentor.cookie)
+        .send({ meetingUrl: 'https://meet.example.com/paid' })
+        .expect(200);
+
+      return { mentor, mentee, booking };
+    }
+
+    async function webhook(body: Record<string, unknown>, status = 200) {
+      return request(app.getHttpServer())
+        .post('/v1/payments/webhooks/fake')
+        .send(body)
+        .expect(status);
+    }
+
+    it('exposes whether payments are enabled', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/v1/payments/config')
+        .expect(200);
+
+      expect(response.body).toEqual({ enabled: true, provider: 'fake' });
+    });
+
+    it('charges, confirms the booking and ignores duplicate webhooks', async () => {
+      const { mentee, booking } = await awaitingPayment();
+
+      const checkout = await request(app.getHttpServer())
+        .post('/v1/payments/checkout')
+        .set('Cookie', mentee.cookie)
+        .send({ bookingId: booking.id })
+        .expect(200);
+
+      expect(checkout.body).toMatchObject({
+        bookingId: booking.id,
+        status: 'pending',
+        provider: 'fake',
+        amountMinor: 5000,
+        currency: 'PEN',
+      });
+      expect(checkout.body.checkoutUrl).toContain('/payments/fake-checkout');
+
+      // A double click reuses the same open checkout.
+      const again = await request(app.getHttpServer())
+        .post('/v1/payments/checkout')
+        .set('Cookie', mentee.cookie)
+        .send({ bookingId: booking.id })
+        .expect(200);
+      expect(again.body.checkoutUrl).toBe(checkout.body.checkoutUrl);
+
+      const ref = new URL(checkout.body.checkoutUrl).searchParams.get('ref')!;
+      const event = {
+        eventId: `evt-${randomUUID()}`,
+        providerRef: ref,
+        outcome: 'paid',
+      };
+
+      expect((await webhook(event)).body).toEqual({
+        received: true,
+        duplicate: false,
+      });
+      expect((await webhook(event)).body).toEqual({
+        received: true,
+        duplicate: true,
+      });
+
+      const payment = await prisma.payment.findUniqueOrThrow({
+        where: { bookingId: booking.id },
+      });
+      expect(payment).toMatchObject({
+        status: 'paid',
+        amountMinor: 5000,
+        feeBps: 1500,
+        feeMinor: 750,
+        netMinor: 4250,
+      });
+
+      const confirmed = await request(app.getHttpServer())
+        .get(`/v1/bookings/${booking.id}`)
+        .set('Cookie', mentee.cookie)
+        .expect(200);
+      expect(confirmed.body).toMatchObject({
+        status: 'confirmed',
+        session: { meetingUrl: 'https://meet.example.com/paid' },
+      });
+
+      await request(app.getHttpServer())
+        .post('/v1/payments/checkout')
+        .set('Cookie', mentee.cookie)
+        .send({ bookingId: booking.id })
+        .expect(409);
+    });
+
+    it('keeps the booking waiting after a failed charge and allows a retry', async () => {
+      const { mentee, booking } = await awaitingPayment();
+      const first = await request(app.getHttpServer())
+        .post('/v1/payments/checkout')
+        .set('Cookie', mentee.cookie)
+        .send({ bookingId: booking.id })
+        .expect(200);
+      const firstRef = new URL(first.body.checkoutUrl).searchParams.get('ref')!;
+
+      await webhook({
+        eventId: `evt-${randomUUID()}`,
+        providerRef: firstRef,
+        outcome: 'failed',
+      });
+
+      const stillWaiting = await request(app.getHttpServer())
+        .get(`/v1/bookings/${booking.id}`)
+        .set('Cookie', mentee.cookie)
+        .expect(200);
+      expect(stillWaiting.body.status).toBe('awaiting_payment');
+
+      const retry = await request(app.getHttpServer())
+        .post('/v1/payments/checkout')
+        .set('Cookie', mentee.cookie)
+        .send({ bookingId: booking.id })
+        .expect(200);
+      const retryRef = new URL(retry.body.checkoutUrl).searchParams.get('ref')!;
+      expect(retryRef).not.toBe(firstRef);
+
+      // A late result for the old attempt cannot settle the new one.
+      await webhook({
+        eventId: `evt-${randomUUID()}`,
+        providerRef: firstRef,
+        outcome: 'paid',
+      });
+      const payment = await prisma.payment.findUniqueOrThrow({
+        where: { bookingId: booking.id },
+      });
+      expect(payment.status).toBe('pending');
+    });
+
+    it('only lets the owning mentee pay a booking awaiting payment', async () => {
+      const { mentor, booking } = await awaitingPayment();
+      const stranger = await createMentee();
+
+      await request(app.getHttpServer())
+        .post('/v1/payments/checkout')
+        .set('Cookie', mentor.cookie)
+        .send({ bookingId: booking.id })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .post('/v1/payments/checkout')
+        .set('Cookie', stranger.cookie)
+        .send({ bookingId: booking.id })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .post('/v1/payments/checkout')
+        .send({ bookingId: booking.id })
+        .expect(401);
+    });
+
+    it('never charges a free booking (R-07)', async () => {
+      const { offering } = await prepareMentorWithOffering();
+      const mentee = await createMentee();
+      const booking = await book(
+        mentee.cookie,
+        offering.id,
+        limaInstant(targetDate, 9),
+      );
+
+      const response = await request(app.getHttpServer())
+        .post('/v1/payments/checkout')
+        .set('Cookie', mentee.cookie)
+        .send({ bookingId: booking.id })
+        .expect(409);
+
+      expect(response.body.code).toBe('BOOKING_NOT_AWAITING_PAYMENT');
+      expect(await prisma.payment.count()).toBe(0);
+    });
+
+    it('rejects malformed webhooks and unknown providers', async () => {
+      await webhook({ providerRef: 'nope' }, 400);
+      await request(app.getHttpServer())
+        .post('/v1/payments/webhooks/stripe')
+        .send({})
+        .expect(404);
+    });
+
+    it('enforces the fee split CHECK in PostgreSQL', async () => {
+      const { booking } = await awaitingPayment();
+
+      await expect(
+        prisma.payment.create({
+          data: {
+            bookingId: booking.id,
+            provider: 'fake',
+            amountMinor: 1000,
+            currency: 'PEN',
+            feeBps: 1500,
+            feeMinor: 150,
+            netMinor: 900,
+            idempotencyKey: `booking:${booking.id}`,
+          },
+        }),
+      ).rejects.toThrow();
     });
   });
 });

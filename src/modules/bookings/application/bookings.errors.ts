@@ -116,3 +116,11 @@ export function meetingUrlRequired(): BadRequestException {
     message: 'A meeting URL is required to confirm a free booking',
   });
 }
+
+export function bookingNotAwaitingPayment(): ConflictException {
+  return new ConflictException({
+    statusCode: 409,
+    code: 'BOOKING_NOT_AWAITING_PAYMENT',
+    message: 'The booking is not waiting for a payment',
+  });
+}

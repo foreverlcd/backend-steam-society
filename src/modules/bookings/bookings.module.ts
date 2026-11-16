@@ -26,5 +26,6 @@ import { BookingsController } from './presentation/bookings.controller.js';
     { provide: NOTIFICATIONS_PORT, useClass: MailNotificationsAdapter },
     { provide: CLOCK, useClass: SystemClock },
   ],
+  exports: [BookingsService],
 })
 export class BookingsModule {}

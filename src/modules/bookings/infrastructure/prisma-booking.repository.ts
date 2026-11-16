@@ -47,7 +47,9 @@ const bookingInclude = {
   },
 } satisfies Prisma.BookingInclude;
 
-type BookingRecord = Prisma.BookingGetPayload<{ include: typeof bookingInclude }>;
+type BookingRecord = Prisma.BookingGetPayload<{
+  include: typeof bookingInclude;
+}>;
 
 @Injectable()
 export class PrismaBookingRepository implements BookingRepositoryPort {
@@ -160,6 +162,7 @@ export class PrismaBookingRepository implements BookingRepositoryPort {
     id: string,
     from: BookingStatus,
     data: BookingTransitionData,
+    now: Date,
   ): Promise<Booking> {
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.booking.findUnique({
@@ -171,8 +174,13 @@ export class PrismaBookingRepository implements BookingRepositoryPort {
         throw new BookingStatusConflictError();
       }
 
+      const pending = from === 'requested' || from === 'awaiting_payment';
       const result = await tx.booking.updateMany({
-        where: { id, status: from },
+        where: {
+          id,
+          status: from,
+          ...(pending ? { expiresAt: { gt: now } } : {}),
+        },
         data: toBookingUpdate(data),
       });
 
@@ -257,9 +265,7 @@ export class PrismaBookingRepository implements BookingRepositoryPort {
           status: { in: ['requested', 'awaiting_payment'] },
           expiresAt: { lte: now },
           ...(scope?.menteeId ? { menteeId: scope.menteeId } : {}),
-          ...(scope?.mentorId
-            ? { session: { mentorId: scope.mentorId } }
-            : {}),
+          ...(scope?.mentorId ? { session: { mentorId: scope.mentorId } } : {}),
         },
         select: { id: true, sessionId: true },
         orderBy: { expiresAt: 'asc' },
@@ -393,11 +399,19 @@ function isExclusionViolation(error: unknown): boolean {
   }
 
   const meta = error.meta as
-    | { code?: string; message?: string }
+    | {
+        code?: string;
+        message?: string;
+        driverAdapterError?: {
+          cause?: { originalCode?: string; constraint?: unknown };
+        };
+      }
     | undefined;
+  const cause = meta?.driverAdapterError?.cause;
 
   return (
     meta?.code === '23P01' ||
+    cause?.originalCode === '23P01' ||
     meta?.message?.includes('session_no_overlap') === true
   );
 }
