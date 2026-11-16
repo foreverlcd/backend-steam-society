@@ -19,6 +19,9 @@ import { UserRepository } from './user.repository.js';
       {
         ttl: 60_000,
         limit: 100,
+        // Load tests from one machine would only measure the limiter. Env
+        // validation refuses THROTTLE_DISABLED=true in production.
+        skipIf: () => process.env.THROTTLE_DISABLED === 'true',
         getTracker: (request: Record<string, unknown>) => {
           // Signed-in requests are limited per account, so people sharing an
           // IP (a school, a NAT) do not exhaust each other's quota.

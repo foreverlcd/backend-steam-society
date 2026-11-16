@@ -21,6 +21,8 @@ const envSchema = z
     PAYMENTS_PROVIDER: z.enum(['disabled', 'fake']).default('disabled'),
     // Platform fee in basis points; 1500 = 15 % (F0 provisional default).
     PAYMENTS_FEE_BPS: z.coerce.number().int().min(0).max(10_000).default(1500),
+    // Only for local load tests (k6 from a single IP); refused in production.
+    THROTTLE_DISABLED: z.enum(['true', 'false']).default('false'),
   })
   .refine(
     (env) =>
@@ -28,6 +30,14 @@ const envSchema = z
     {
       path: ['PAYMENTS_PROVIDER'],
       message: 'the fake payment provider is not allowed in production',
+    },
+  )
+  .refine(
+    (env) =>
+      !(env.NODE_ENV === 'production' && env.THROTTLE_DISABLED === 'true'),
+    {
+      path: ['THROTTLE_DISABLED'],
+      message: 'rate limiting cannot be disabled in production',
     },
   );
 

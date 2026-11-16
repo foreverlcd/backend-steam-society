@@ -45,4 +45,14 @@ describe('validateEnv', () => {
       validateEnv({ ...validEnv, PAYMENTS_PROVIDER: 'stripe' }),
     ).toThrow(/PAYMENTS_PROVIDER/);
   });
+
+  it('refuses to disable rate limiting in production', () => {
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        NODE_ENV: 'production',
+        THROTTLE_DISABLED: 'true',
+      }),
+    ).toThrow(/rate limiting/);
+  });
 });
