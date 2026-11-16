@@ -198,7 +198,7 @@
 - Reservas: el timeout de las transacciones interactivas es el valor por defecto de Prisma (5 s); con mucha contención sobre la misma mentora P2028 daría 500. Medir en F5.
 - No-show: no hay ventana superior para reportarlo y cualquiera de las dos partes puede adelantarse a `complete` una vez iniciada la sesión. Revisarlo con reputación (Hito 3).
 - k6: `THROTTLE_DISABLED` lee `process.env` en tiempo de petición; la validación de entorno impide activarlo en producción.
-- Seguridad de dependencias (`pnpm audit --prod`, 2026-11-16): `next` 16.4.3 tiene un aviso moderado (GHSA-mfr8-8qww-v76h, corregido en ≥16.4.5) y `multer` <2.5.0, vía `@nestjs/platform-express`, uno alto (GHSA-q7qp-rjg7-q26m; no usamos subida de archivos). Actualizar requiere aprobación del desarrollador. `next build` además se corta de forma intermitente con `SecurityFatalError` hasta actualizar; reintentar compila.
+- Seguridad de dependencias (2026-11-16, resuelto): `next` 16.4.3 → 16.4.6 en el web y overrides de pnpm `multer` 2.5.0 y `body-parser` 2.4.0 en el backend (`pnpm-workspace.yaml`). `pnpm audit --prod` quedó limpio en ambos repos. Quitar los overrides cuando `@nestjs/platform-express` traiga esas versiones. Quedan avisos solo en dependencias de desarrollo (backend 24, web 1), sin revisar.
 - Edad mínima 18+ (ADR-026) aún no aplicada en el registro.
 - 1.5 (zona roja): revisar la transacción de creación (`pg_advisory_xact_lock` mentee→mentora + exclusión SQL), la guarda `WHERE status = <leído>` de cada transición, el vencimiento idempotente y la cancelación de la sesión en la misma transacción.
 - 1.5: `meetingUrl` lo aporta la mentora; la API no genera enlaces. Al confirmar una reserva de pago (Hito 2) habrá que exigirlo también.
@@ -243,7 +243,7 @@
 
 ## Siguiente
 1. Que tres personas del equipo completen `docs/DEMO.md` sin ayuda (aceptación de 1.7) y la evaluación de matching con 10 pares reales.
-2. Decidir los parches de `next` (≥16.4.5) y `multer` (≥2.5.0).
+2. Revisar los avisos de dependencias de desarrollo (`pnpm audit`).
 3. F1 (fundación de producción) según `docs/discovery/08-ROADMAP-V3.md`, con las respuestas provisionales de ADR-026.
 4. F2: aplicar 18+ en el registro, verificación de correo, 2FA y roles separados (ADR-024).
 
