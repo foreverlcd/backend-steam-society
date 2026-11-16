@@ -1,4 +1,12 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { Public } from '../../../shared/http/public.decorator.js';
 import {
   publicMentorQuerySchema,
@@ -6,6 +14,8 @@ import {
 } from '../../profiles/profiles.schemas.js';
 import { CatalogService } from '../application/catalog.service.js';
 
+@UseGuards(ThrottlerGuard)
+@Throttle({ default: { limit: 120, ttl: 60_000 } })
 @Controller('mentors')
 @Public()
 export class CatalogController {

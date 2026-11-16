@@ -63,10 +63,25 @@ export function transitionBooking(
         assertStatus(current, event.type, ['confirmed']);
       }
 
-      // Free sessions can be cancelled until they start. Paid cancellations
-      // are pending DA-05, so no time guard is applied yet.
+      // Free sessions can be cancelled until they start. The paid policy is
+      // pending DA-05; meanwhile a session that already ended cannot be
+      // cancelled (it must be completed or reported as no-show).
       if (current === 'confirmed' && !context.paymentRequired) {
-        assertBefore(current, context.now, context.startsAt, event.type, 'startsAt');
+        assertBefore(
+          current,
+          context.now,
+          context.startsAt,
+          event.type,
+          'startsAt',
+        );
+      } else if (current === 'confirmed') {
+        assertBefore(
+          current,
+          context.now,
+          context.endsAt,
+          event.type,
+          'endsAt',
+        );
       }
 
       return 'cancelled';
@@ -139,11 +154,7 @@ function assertAfter(
   boundaryName: string,
 ): void {
   if (now.getTime() <= boundary.getTime()) {
-    throw invalid(
-      event,
-      current,
-      `The booking has not passed ${boundaryName}`,
-    );
+    throw invalid(event, current, `The booking has not passed ${boundaryName}`);
   }
 }
 

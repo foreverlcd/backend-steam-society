@@ -7,7 +7,12 @@ export function encodeCatalogCursor(cursor: CatalogCursor): string {
   return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
 }
 
-export function decodeCatalogCursor(value: string | undefined): CatalogCursor | null {
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function decodeCatalogCursor(
+  value: string | undefined,
+): CatalogCursor | null {
   if (!value) {
     return null;
   }
@@ -24,7 +29,8 @@ export function decodeCatalogCursor(value: string | undefined): CatalogCursor | 
       'userId' in parsed &&
       typeof parsed.rank === 'number' &&
       Number.isFinite(parsed.rank) &&
-      typeof parsed.userId === 'string'
+      typeof parsed.userId === 'string' &&
+      UUID_PATTERN.test(parsed.userId)
     ) {
       return { rank: parsed.rank, userId: parsed.userId };
     }

@@ -36,7 +36,10 @@ export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>;
 
 export const acceptBookingSchema = z
   .object({
-    meetingUrl: z.url().max(2048).optional(),
+    meetingUrl: z
+      .url({ protocol: /^https$/ })
+      .max(2048)
+      .optional(),
   })
   .strict();
 

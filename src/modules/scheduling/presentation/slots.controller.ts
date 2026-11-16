@@ -1,8 +1,18 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { Public } from '../../../shared/http/public.decorator.js';
 import { SlotsService } from '../application/slots.service.js';
 import { slotsQuerySchema, type SlotsQuery } from './scheduling.schemas.js';
 
+@UseGuards(ThrottlerGuard)
+@Throttle({ default: { limit: 120, ttl: 60_000 } })
 @Controller('mentors')
 export class SlotsController {
   constructor(private readonly slots: SlotsService) {}

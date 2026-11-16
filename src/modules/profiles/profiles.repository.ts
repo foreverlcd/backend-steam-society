@@ -439,6 +439,7 @@ export class ProfilesRepository {
         WHERE o."mentor_id" = mp."user_id"
           AND o."active" = true
           AND o."archived_at" IS NULL
+          AND o."type" = 'one_to_one'
           AND o."is_free" = true
       )`);
     }
@@ -449,6 +450,7 @@ export class ProfilesRepository {
         WHERE o."mentor_id" = mp."user_id"
           AND o."active" = true
           AND o."archived_at" IS NULL
+          AND o."type" = 'one_to_one'
           AND o."price_minor" <= ${data.maxPriceMinor}
           AND o."currency" = ${data.currency}
       )`);
@@ -494,9 +496,7 @@ export class ProfilesRepository {
     return {
       records: ordered,
       nextCursor:
-        hasMore && last
-          ? { rank: last.rank, userId: last.userId }
-          : null,
+        hasMore && last ? { rank: last.rank, userId: last.userId } : null,
     };
   }
 

@@ -77,18 +77,15 @@ export class RecommendationsService {
 
     const candidates = await this.profiles.listMatchingMentorCandidates();
     const now = this.clock.now();
-    const to = new Date(
-      now.getTime() + this.config.horizonDays * DAY_MS,
-    );
+    const to = new Date(now.getTime() + this.config.horizonDays * DAY_MS);
     const mentorIds = candidates.map((candidate) => candidate.userId);
     const [offerings, rules, busyIntervals] = await Promise.all([
-      this.scheduling.listActiveOfferingsForMentors(mentorIds),
+      // Only 1:1 offerings are bookable today (group booking is not built).
+      this.scheduling
+        .listActiveOfferingsForMentors(mentorIds)
+        .then((items) => items.filter((item) => item.type === 'one_to_one')),
       this.scheduling.listAvailabilityRulesForUsers(mentorIds),
-      this.sessionConflict.findBusyIntervalsForMentors(
-        mentorIds,
-        now,
-        to,
-      ),
+      this.sessionConflict.findBusyIntervalsForMentors(mentorIds, now, to),
     ]);
     const offeringsByMentor = groupBy(
       offerings,
@@ -233,10 +230,7 @@ function toMentorOffering(offering: Offering): MentorOffering {
   };
 }
 
-function groupBy<T>(
-  items: T[],
-  key: (item: T) => string,
-): Map<string, T[]> {
+function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
   const groups = new Map<string, T[]>();
 
   for (const item of items) {
