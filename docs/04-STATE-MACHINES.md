@@ -42,7 +42,9 @@ Implementación 1.5:
 - Cada transición se ejecuta con `UPDATE booking SET ... WHERE id = ? AND status = <estado leído>` dentro de una transacción; si el estado cambió, responde `409 BOOKING_STATUS_CONFLICT`. La `session` asociada se actualiza en la misma transacción (`cancelled` o `completed`).
 - La creación de la solicitud valida disponibilidad y antelación con el generador de slots de 1.4 y crea `session` + `booking` en una transacción con locks de asesoría por mentee y mentora. La exclusión `session_no_overlap` y el índice único parcial de asiento son la red de seguridad.
 - Aceptar una reserva gratuita exige `meetingUrl` (la API no genera enlaces); una de pago pasa a `awaiting_payment` sin crear pago. El plazo de pago queda pendiente del Hito 2: por ahora `expires_at` conserva el TTL de la solicitud.
-- `decline` guarda el motivo en `cancel_reason`; `cancel` guarda `cancelled_by`, `cancelled_at` y el motivo. Una reserva gratuita confirmada solo se puede cancelar antes de `starts_at`; la política de cancelación de reservas de pago queda pendiente (DA-05). `complete` y `no-show` marcan la sesión como `completed`.
+- `decline` guarda el motivo en `cancel_reason`; `cancel` guarda `cancelled_by`, `cancelled_at` y el motivo. Una reserva gratuita confirmada solo se puede cancelar antes de `starts_at`; una de pago, como mínimo antes de `ends_at` (la política completa sigue pendiente, DA-05). `complete` y `no-show` marcan la sesión como `completed`.
+- Revisión 2026-11-16: `expires_at = min(requested_at + TTL, starts_at)`, de modo que una solicitud nunca se acepta ni se completa después de su sesión; las transiciones desde `requested`/`awaiting_payment` exigen además `expires_at > now` en el `UPDATE`; `accept` revalida que la mentora siga `approved` y activa; `no_show_party` guarda a la persona **ausente** (la contraparte de quien reporta).
+- `awaiting_payment → confirmed` la dispara el módulo de pagos (`BookingsService.confirmPayment`) después de que el webhook marca el pago `paid` (ADR-025).
 - El vencimiento se evalúa en cada lectura/acción (`expireById`) y por una tarea `@Interval(60_000)` (`expireDue`); ambas actualizaciones son idempotentes y liberan la sesión. Una reserva vencida responde `409 BOOKING_EXPIRED` al intentar actuar sobre ella.
 - Las notificaciones se envían después de la transacción; si fallan, solo se registra el nombre del error y la reserva sigue siendo válida.
 
@@ -68,7 +70,10 @@ Implementación 1.3:
 - También se audita el envío de la mentora (`mentor_profile.submitted`), no solo las acciones del admin.
 - Decisión de producto: el perfil es editable en cualquier estado; editar no cambia `status`. Un perfil `approved` puede seguir editándose y el admin conserva `suspend` como control.
 
-## Pago (`payment`), Hito 2 (borrador, afinar en el spike de dinero)
+## Pago (`payment`)
+Implementado en 2026-11-16 (ADR-025) con los estados `created → pending → (paid | failed)`; `failed → pending` al reintentar el checkout con un `provider_ref` nuevo. Un resultado tardío del intento anterior no liquida el nuevo. Reembolsos y disputas siguen en el borrador del Hito 2:
+
+### Borrador Hito 2 (afinar en el spike de dinero)
 `created → pending → paid → (refunded_partial | refunded | disputed)`, y `failed` desde `created` o `pending`. Reglas: idempotencia por `idempotency_key`; los webhooks se registran antes de procesarse y solo una vez por `(provider, event_id)`; cada cambio de estado que mueva dinero escribe su transacción en el ledger. La conciliación contra el proveedor es diaria [a confirmar].
 
 ## Tests exigidos

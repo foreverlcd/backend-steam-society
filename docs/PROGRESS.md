@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-11-01 · **Modo ACELERADO y política git autónoma activos.** El paquete de descubrimiento `docs/discovery/00-08` está publicado en `origin/docs/discovery` y `origin/develop` y pendiente de aprobación; no se tocó código fuente. `main` del backend (`2cfb03b`, publicado) incluye accelerated-mode, 1.3 admin detail, 1.4 ofertas/disponibilidad, 1.5 reservas y 1.6 catálogo/recomendaciones (228 unitarios y 55 e2e). Web: `main` (`f834ce8`, publicado) incluye la UI de 1.3 a 1.6 (65 tests, build y lint verdes). Ambas ramas de feature quedaron fusionadas con `--no-ff` y publicadas; la revisión del desarrollador, la revisión senior de zonas rojas y la prueba manual en navegador siguen pendientes. La base de desarrollo tiene datos demo (mentora y mentorada) para probar el flujo completo.
+Última actualización: 2026-11-16 · **Hito 1 cerrado en código** en las ramas `feat/close-milestone-1` (backend y web). Hay una revisión senior de 1.5/1.6 con 10 hallazgos corregidos, un módulo de pagos desacoplado (ADR-025, `disabled` por defecto y `fake` en desarrollo), y la etapa 1.7 tiene datos demo, guion, k6 y límites de peticiones. Las recomendaciones de F0 se aceptaron como provisionales (ADR-026). Gates: backend 267 unitarios + 64 e2e, build y lint; web 69 tests, build, lint y format. Pendiente humano: demo con 3 personas, evaluación de matching con 10 pares reales y decisión sobre los parches de seguridad de `next` y `multer`.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -182,9 +182,25 @@
 - No instalada: `prisma-cli` (prisma/skills, `ba3f9d7`): `prisma init` auto-instala skills y las referencias usan `npx`/`bunx`; queda pendiente de decisión del desarrollador.
 - `opencode.json`: `skill * ask`, deny de `find-skills`, `caveman*`, `shadcn` y `migrate-radix-to-base`; allow exacto de `prisma-client-api`. El ID real de Postgres es `supabase-postgres-best-practices`; la regla explícita `postgres-best-practices` se conserva como alias y la regla general `skill * ask` cubre el ID real.
 
+## Cierre del Hito 1 (2026-11-16)
+- **Revisión senior de 1.5/1.6** (agente revisor independiente, solo lectura). Corregidos: (1) `no_show_party` guardaba a quien reportaba y ahora guarda a la persona ausente; (2) una solicitud podía aceptarse y completarse después de su sesión, y ahora `expires_at = min(TTL, starts_at)`; (3) `meetingUrl` aceptaba `javascript:`/`data:`, y ahora solo `https`; (4) no había límites en reservas ni en rutas públicas; (5) la violación de exclusión no se mapeaba con el adaptador `pg` (`driverAdapterError.cause.originalCode`); (6) un cursor con `userId` que no es UUID daba 500; (7) se podía cancelar una reserva de pago ya terminada; (8) carrera al vencer, que ahora tiene la guarda `expires_at > now` en el `UPDATE`; (9) las ofertas grupales contaban como gratis o con disponibilidad; (10) `accept` no revalidaba a la mentora.
+- **Pagos (ADR-025):** `payment` + `webhook_event`, migración `20261116213734_add_payments`, `POST /v1/payments/checkout`, `POST /v1/payments/webhooks/:provider`, `GET /v1/payments/config`. Web: botón Pagar y `/payments/fake-checkout`.
+- **1.7:** `pnpm db:seed:demo`, `docs/DEMO.md` y `load/k6-read.js` (baseline local en verde; detalle en `05-ROADMAP.md`).
+- **Web:** la mentee puede reportar que la mentora no asistió; el estado muestra quién faltó; validación `https` del enlace.
+- **Permisos del agente (`opencode.json`, ambos repos):** se bloquean force, delete, mirror, all y tags en cualquier posición del `git push`; solo se permite `git push origin <rama>`.
+- **Entorno local:** el puerto 5433 lo usa también `qhali-pg` (otro proyecto). Para trabajar, el desarrollador autorizó detenerlo temporalmente.
+
 ## Pendiente / riesgos para revisión con lupa
+- Pagos: el webhook `fake` no lleva firma (solo desarrollo; la API no arranca con `fake` en producción). Un proveedor real **debe** verificar la firma en `parseWebhook`.
+- Pagos: si el pago se acredita cuando la reserva ya venció, el pago queda `paid` sin confirmar la reserva (se registra un error). Hace falta un reembolso (Hito 2, DA-05).
+- Pagos: el plazo de pago reutiliza el `expires_at` de la solicitud (como máximo hasta `starts_at`); se decidirá un plazo propio en el Hito 2.
+- Reservas: no hay tope de solicitudes `requested` por par mentee–mentora. El límite de 10/min mitiga, pero una mentee aún puede ocupar varios horarios durante el TTL. Es una regla de producto (propuesta: máximo 2 pendientes por mentora).
+- Reservas: el timeout de las transacciones interactivas es el valor por defecto de Prisma (5 s); con mucha contención sobre la misma mentora P2028 daría 500. Medir en F5.
+- No-show: no hay ventana superior para reportarlo y cualquiera de las dos partes puede adelantarse a `complete` una vez iniciada la sesión. Revisarlo con reputación (Hito 3).
+- k6: `THROTTLE_DISABLED` lee `process.env` en tiempo de petición; la validación de entorno impide activarlo en producción.
+- Seguridad de dependencias (`pnpm audit --prod`, 2026-11-16): `next` 16.4.3 tiene un aviso moderado (GHSA-mfr8-8qww-v76h, corregido en ≥16.4.5) y `multer` <2.5.0, vía `@nestjs/platform-express`, uno alto (GHSA-q7qp-rjg7-q26m; no usamos subida de archivos). Actualizar requiere aprobación del desarrollador. `next build` además se corta de forma intermitente con `SecurityFatalError` hasta actualizar; reintentar compila.
+- Edad mínima 18+ (ADR-026) aún no aplicada en el registro.
 - 1.5 (zona roja): revisar la transacción de creación (`pg_advisory_xact_lock` mentee→mentora + exclusión SQL), la guarda `WHERE status = <leído>` de cada transición, el vencimiento idempotente y la cancelación de la sesión en la misma transacción.
-- 1.5: aceptar una reserva de pago deja `expires_at` con el TTL de la solicitud; el plazo de pago real y la transición `awaiting_payment → confirmed` llegan con payments (Hito 2). Hasta entonces no hay endpoint que confirme el pago.
 - 1.5: `meetingUrl` lo aporta la mentora; la API no genera enlaces. Al confirmar una reserva de pago (Hito 2) habrá que exigirlo también.
 - 1.5: las notificaciones son best-effort y sin outbox; si el proceso cae después del commit, el correo se pierde. Reintentos/outbox se deciden en el Hito 2 (ADR-022).
 - 1.5: la tarea `@Interval(60_000)` corre en cada instancia; el `UPDATE` es idempotente, pero no hay leader election. Aceptable con una instancia.
@@ -196,11 +212,9 @@
 - 1.6: el onboarding v1 no pregunta presupuesto ni "solo gratuitas"; `price_fit` usa un valor neutral cuando solo hay ofertas de pago. Si producto añade esas preguntas, hay que versionar el onboarding.
 - 1.6: la disponibilidad para matching usa la oferta activa de menor duración como proxy; una mentora con una oferta corta pero sin slots de la oferta que la mentee quiere puede aparecer. Revisar con el flujo de reserva real.
 - 1.6: el cálculo de solape recorre minuto a minuto; con muchas reglas/slots puede crecer. Medir antes de aumentar el horizonte o el número de candidatas.
-- 1.6: `GET /v1/mentors` es público y no tiene rate limit propio; el throttler actual cubre auth. Revisar si el catálogo necesita límite por IP antes del piloto.
 - 1.4: el frontend ya tiene UI de ofertas, disponibilidad y slots en `main` web (65 tests verdes), pero la prueba de contrato en navegador contra la API real sigue pendiente.
 - 1.4: el cliente frontend está probado con `fetch` mock; la prueba manual del flujo completo (catálogo → detalle → reserva → aceptación) queda para la revisión del desarrollador.
 - 1.4: `pnpm format:check` del frontend falla solo por archivos preexistentes de `.agents/skills/*`; los archivos nuevos y modificados se formatearon con Prettier. `pnpm build`, `pnpm lint` y `pnpm test` del frontend están verdes (65 tests).
-- 1.6 web: una reserva de pago aceptada queda en `awaiting_payment`; no hay pasarela ni endpoint para confirmar el pago (Hito 2).
 - 1.6 web: las ofertas grupales se muestran en el catálogo, pero la reserva grupal no está disponible porque el backend solo crea reservas 1:1.
 - 1.6 web: los datos demo (`demo.mentora@steam.test`, `demo.mentee@steam.test`) son solo para desarrollo y no deben usarse en producción; no se usaron datos reales.
 - 1.6 web: la UI se probó con `fetch` mock y por API con datos demo; falta la prueba manual en navegador (el merge ya se hizo).
@@ -228,11 +242,10 @@
 - Skills: `prisma-cli` no se instaló; decidir si se acepta una versión adaptada sin `prisma init`/`npx` o si se deja fuera.
 
 ## Siguiente
-1. Aprobar el paquete `docs/discovery/00-08` y responder las 12 preguntas de `08-ROADMAP-V3.md`; **no iniciar desarrollo hasta entonces**.
-2. Revisar el diff ya fusionado de 1.6 (catálogo/matching) y la UI web; la revisión senior de zonas rojas sigue pendiente.
-3. Prueba manual con API en `localhost:3000` y web en `localhost:3001` (catálogo → detalle → reserva → aceptación con las cuentas demo), y prueba de contrato frontend-API.
-4. Etapa 1.7 (demo) y evaluación humana de matching con 10 pares reales.
-5. Revisión senior de autenticación y de las zonas rojas antes de producción.
+1. Que tres personas del equipo completen `docs/DEMO.md` sin ayuda (aceptación de 1.7) y la evaluación de matching con 10 pares reales.
+2. Decidir los parches de `next` (≥16.4.5) y `multer` (≥2.5.0).
+3. F1 (fundación de producción) según `docs/discovery/08-ROADMAP-V3.md`, con las respuestas provisionales de ADR-026.
+4. F2: aplicar 18+ en el registro, verificación de correo, 2FA y roles separados (ADR-024).
 
 ## Descubrimiento y diseño para producción (2026-11-01)
 - **Rama:** `docs/discovery` desde `develop` (`40de1ef`), publicada junto con `develop`. Solo lectura y documentos: no se modificó `src`, `test`, `prisma` ni la web.
@@ -268,3 +281,4 @@
 | 2026-10-31 | Web 1.3–1.6: merge local de 1.3/1.4 en `feat/1.6-catalog-client` (`2cd66dc`) y commits `cdb0687`, `e7632d0`, `a13b282`, `c915f53`, `999f9a2`, `e210dac`; catálogo público, detalle con slots/reserva, recomendaciones, ofertas, disponibilidad, reservas y perfil; 65 tests, build, lint y `tsc --noEmit` verdes; datos demo verificados por API | Agente (pendiente de revisión) |
 | 2026-10-31 | Merges `--no-ff` de 1.6 en `main` backend (`2cfb03b`) y web (`f834ce8`); gates backend 228 unitarios + 55 e2e y web 65 tests/build/lint verdes; `main` y todas las ramas locales publicadas en `origin`; tags locales `backup/pre-merge-feat/1.6-catalog-matching` y `backup/pre-merge-feat/1.6-catalog-client` | Agente (instrucción del desarrollador) |
 | 2026-11-01 | Descubrimiento y diseño: `docs/discovery/00-08` (hardcodes, configuración/roles, readiness, release, infraestructura gratuita, NFR/capacidad, admin v2, roadmap v3); sin tocar código; pendiente de aprobación | Agente |
+| 2026-11-16 | Cierre del Hito 1: revisión de zonas rojas 1.5/1.6 con 10 correcciones, módulo de pagos desacoplado (ADR-025), F0 provisional (ADR-026), 1.7 (seed demo, guion, k6, rate limits), web con botón Pagar y checkout simulado; reglas de push del agente endurecidas | Agente (pendiente de revisión) |

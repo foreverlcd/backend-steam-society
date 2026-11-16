@@ -212,29 +212,64 @@ usuaria. En local, abre `http://127.0.0.1:8025` para ver el correo de Mailpit.
   un ISO UTC que debe coincidir con un slot generado por la disponibilidad. La
   mentee debe tener perfil completo y la mentora debe estar `approved`.
 - La reserva nace en `requested` y fija `expiresAt` con
-  `BOOKING_REQUEST_TTL_HOURS` (48 h por defecto). Se crea la `session` 1:1 y la
+  `BOOKING_REQUEST_TTL_HOURS` (48 h por defecto), pero nunca después de
+  `startsAt`: una solicitud no puede sobrevivir a su sesión. Se crea la `session` 1:1 y la
   `booking` en una sola transacción; la exclusión SQL impide solapes de la
   mentora (R-15) y la comprobación transaccional impide solapes de la mentee
   (R-12).
-- Aceptar una reserva gratuita exige `{ meetingUrl }` y pasa a `confirmed`.
-  Aceptar una de pago pasa a `awaiting_payment` sin crear ningún pago (el
-  módulo de pagos es del Hito 2). `decline` y `cancel` aceptan `{ reason? }`.
+- Aceptar una reserva gratuita exige `{ meetingUrl }` (solo `https://`) y pasa
+  a `confirmed`. Aceptar una de pago pasa a `awaiting_payment` (el enlace es
+  opcional) y se confirma cuando el módulo de pagos acredita el cobro. Aceptar
+  revalida que la mentora siga `approved`. `decline` y `cancel` aceptan
+  `{ reason? }`.
 - `complete` exige que la sesión haya terminado; `no-show` exige que haya
-  empezado. La persona que llama queda registrada en `noShowParty`.
+  empezado. `noShowParty` registra a la persona **ausente**: si reporta la
+  mentora, la ausente es la mentee, y viceversa.
 - Una reserva gratuita confirmada solo se puede cancelar antes de `startsAt`;
-  la política de cancelación de reservas de pago queda pendiente (DA-05).
+  una de pago, como mínimo antes de `endsAt` (la política completa sigue
+  pendiente en DA-05).
+- `POST /v1/bookings` tiene un límite de 10 solicitudes por minuto por cuenta.
 - El vencimiento se evalúa al leer o actuar sobre la reserva y con una tarea
   periódica cada 60 s; la actualización es idempotente. Una reserva vencida
   libera su `session`.
 - Las notificaciones se envían después del commit y son best-effort: un fallo de
   correo no revierte la reserva (ADR-022).
 - R-07: una reserva gratuita siempre tiene `paymentRequired = false` y
-  `priceMinor = 0`; no existe ninguna tabla de pagos en el Hito 1.
+  `priceMinor = 0`; el módulo de pagos rechaza cobrarla
+  (`BOOKING_NOT_AWAITING_PAYMENT`).
 - Errores estables: `BOOKING_NOT_FOUND`, `BOOKING_FORBIDDEN`,
   `BOOKING_ROLE_NOT_ALLOWED`, `MENTEE_PROFILE_REQUIRED`,
   `BOOKING_SLOT_UNAVAILABLE`, `BOOKING_SLOT_TAKEN`,
   `BOOKING_MENTEE_OVERLAP`, `BOOKING_STATUS_CONFLICT`, `BOOKING_EXPIRED`,
   `INVALID_BOOKING_TRANSITION`, `MEETING_URL_REQUIRED`.
+
+### Pagos (módulo desacoplado)
+
+Los pagos viven en `src/modules/payments/` detrás del puerto `PaymentGateway`
+(ADR-010, ADR-025). Reservas no sabe que existen: pagos usa dos métodos
+exportados de `BookingsService` (`getPayable`, `confirmPayment`). Para quitar el
+módulo basta con sacarlo de `AppModule`; para conectar un proveedor real se
+escribe un adaptador nuevo y se mapea en `payments.module.ts`.
+
+| Variable | Valores | Uso |
+|---|---|---|
+| `PAYMENTS_PROVIDER` | `disabled` (por defecto), `fake` | `disabled` en el piloto (solo gratuitas). `fake` simula la pasarela en desarrollo; la API **no arranca** con `fake` y `NODE_ENV=production`. |
+| `PAYMENTS_FEE_BPS` | 0–10000 (1500 por defecto) | Comisión en puntos básicos, provisional (F0). `fee + net = amount` lo garantiza un CHECK. |
+
+- `GET /v1/payments/config` (público): `{ enabled, provider }`.
+- `POST /v1/payments/checkout` (mentee dueña): `{ bookingId }` →
+  `{ paymentId, status, checkoutUrl, amountMinor, currency }`. Reutiliza el
+  checkout abierto (doble clic seguro) y permite reintentar tras un fallo.
+- `POST /v1/payments/webhooks/:provider` (público, 60/min): registra el evento
+  una sola vez por `(provider, eventId)`, liquida el pago solo desde
+  `created|pending` y confirma la reserva después del commit.
+- Errores: `PAYMENTS_DISABLED` (503), `PAYMENT_ALREADY_PAID`,
+  `PAYMENT_STATUS_CONFLICT`, `PAYMENT_PROVIDER_NOT_FOUND`, `INVALID_WEBHOOK`.
+- Con `fake`, el checkout redirige a `/payments/fake-checkout` del web, donde
+  se simula "aprobado" o "rechazado". No mueve dinero.
+- Fuera de alcance hasta el Hito 2: reembolsos, ledger, payouts y conciliación.
+  Si un pago llega cuando la reserva ya venció, el pago queda `paid`, la
+  reserva no se confirma y se registra un error para seguimiento manual.
 
 ### Perfiles, onboarding y aprobación
 
@@ -270,6 +305,38 @@ pnpm db:studio     # Abrir Prisma Studio
 `src/generated/prisma/` no se versiona: se recrea con `pnpm db:generate`.
 Ejecuta ese comando después de un `git clone` o de cambiar
 `prisma/schema.prisma`, antes de compilar o arrancar la API.
+
+## Datos demo y guion de demostración
+
+Con la API corriendo y `pnpm db:seed` hecho, crea 3 mentoras aprobadas (con
+ofertas gratuitas y una de pago) y 2 mentoradas ficticias a través de la API:
+
+```bash
+DEMO_PASSWORD='una-contraseña-de-12+' pnpm db:seed:demo
+```
+
+Es idempotente y se niega a correr con `NODE_ENV=production`. Las cuentas usan
+`@demo.steamsociety.local`. El guion de 5 minutos está en
+[`docs/DEMO.md`](docs/DEMO.md).
+
+## Prueba de carga (k6)
+
+`load/k6-read.js` cubre catálogo, detalle, slots y recomendaciones con los
+umbrales de `docs/discovery/06-NFR-CAPACITY.md`. Se ejecuta con la imagen de
+Docker de k6 (no se instala nada en el proyecto). Desde una sola máquina el
+limitador devolvería 429, así que la API se levanta con `THROTTLE_DISABLED=true`
+(prohibido en producción):
+
+```bash
+PAYMENTS_PROVIDER=fake THROTTLE_DISABLED=true node dist/main
+docker run --rm --network host -e SCENARIO=baseline \
+  -e MENTEE_EMAIL=camila.huaman@demo.steamsociety.local \
+  -e MENTEE_PASSWORD="$DEMO_PASSWORD" \
+  -v "$PWD/load:/load:ro" grafana/k6:1.0.0 run /load/k6-read.js
+```
+
+Escenarios: `smoke` (1 VU, 1 min), `baseline` (20 VUs, 5 min) y `spike`
+(0→100 VUs). Nunca contra producción.
 
 ## Tests
 

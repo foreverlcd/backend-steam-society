@@ -201,6 +201,11 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - Los CHECK de país (`^[A-Z]{2}$`), experiencia no negativa, antelación y versión de onboarding viven en la migración `20261024222451_add_profiles_and_audit`; `career_stage` se añadió en `20261024224250_add_career_stage` con backfill desde `onboarding_response`; `answer` y `metadata` se convirtieron a `jsonb` en `20261024224933_use_jsonb_for_json_columns`.
 - Los seeds de áreas son provisionales: Ciencia, Tecnología, Ingeniería y Matemáticas con sus subáreas; el equipo de producto entregará la lista definitiva.
 
+## Pagos implementados (2026-11-16, ADR-025)
+- `payment`: `id`, `booking_id` UK (FK `RESTRICT`), `provider`, `provider_ref` UK (nulo hasta abrir el checkout), `status` (`payment_status`: `created|pending|paid|failed`), `amount_minor`, `currency`, `fee_bps`, `fee_minor`, `net_minor`, `idempotency_key` UK (`booking:<id>`), `checkout_url`, `paid_at`, `failed_at`, `created_at`, `updated_at`. CHECKs: `amount_minor > 0`, moneda `^[A-Z]{3}$`, `fee_bps` entre 0 y 10000, `fee_minor`/`net_minor` ≥ 0, `fee_minor + net_minor = amount_minor`, `(status = 'paid') = (paid_at IS NOT NULL)`. Migración `20261116213734_add_payments`.
+- `webhook_event`: `id`, `provider`, `event_id`, `payload` (jsonb), `received_at`, `processed_at`; UK `(provider, event_id)`.
+- Aún no existen `refund`, `payout` ni el ledger.
+
 ## Hitos 2 y 3: esqueleto (referencia, no implementar aún)
 - **payments**: `payment` (`booking_id` UK, `provider`, `provider_ref` UK, `status`, `amount_minor`, `currency`, `fee_bps` y `fee_minor` copiados al cobrar, `net_minor`, `idempotency_key` UK), `refund`, `payout`, `webhook_event` (`provider`, `event_id`, UK `(provider, event_id)`, `payload`, `processed_at`).
 - **ledger**: `ledger_account` (`code` UK, ej. `provider_clearing`, `platform_revenue`, `mentor_payable:<id>`), `ledger_transaction` (`kind`, `ref_type`, `ref_id`, `idempotency_key` UK), `ledger_line` (`transaction_id`, `account_id`, `direction` debit|credit, `amount_minor > 0`, `currency`). Ejemplo: cobro de 100 con 10 % de comisión → débito `provider_clearing` 100; crédito `mentor_payable` 90; crédito `platform_revenue` 10. La comisión del proveedor y los impuestos [a confirmar con un contador].
