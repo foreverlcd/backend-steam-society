@@ -3,3 +3,10 @@ allowBuilds:
   '@prisma/engines': true
   prisma: true
   esbuild: true
+
+# Security patches for transitive deps of @nestjs/platform-express:
+# multer <2.5.0 (GHSA-q7qp-rjg7-q26m), body-parser <2.4.0 (GHSA-27r3-jxmh-p828).
+# Drop them once @nestjs/platform-express ships these versions.
+overrides:
+  multer: 2.5.0
+  body-parser: 2.4.0
