@@ -10,6 +10,9 @@
  * All people and emails are fictional (@demo.steamsociety.local).
  */
 import 'dotenv/config';
+import { hash } from '@node-rs/argon2';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../src/generated/prisma/client.js';
 
 const API = (process.env.DEMO_API_URL ?? 'http://localhost:3000/v1').replace(
   /\/+$/,
@@ -348,6 +351,45 @@ async function seedMentee(seed: MenteeSeed): Promise<void> {
 
   console.log(`  mentorada ${seed.email}`);
 }
+
+/**
+ * Demo accounts are fictional and local: re-running the seed with a new
+ * DEMO_PASSWORD resets their password, so a lost password never locks the
+ * demo. Only touches the demo domain and never runs in production.
+ */
+async function resetDemoPasswords(): Promise<void> {
+  const databaseUrl = process.env.DATABASE_URL;
+
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL is required');
+  }
+
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: databaseUrl }),
+  });
+
+  try {
+    const passwordHash = await hash(PASSWORD!, {
+      memoryCost: 19456,
+      timeCost: 2,
+      parallelism: 1,
+    });
+    const { count } = await prisma.user.updateMany({
+      where: { email: { endsWith: DEMO_DOMAIN }, role: { not: 'admin' } },
+      data: { passwordHash },
+    });
+
+    if (count > 0) {
+      console.log(`  ${count} cuentas demo con la contraseña actualizada`);
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+const DEMO_DOMAIN = '@demo.steamsociety.local';
+
+await resetDemoPasswords();
 
 const admin = new Session();
 await admin.login(ADMIN_EMAIL, ADMIN_PASSWORD);

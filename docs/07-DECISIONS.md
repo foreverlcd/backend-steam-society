@@ -65,7 +65,20 @@ Por qué: despensa estricta y buen soporte. Descartado: npm; Bun como runtime (r
 
 **ADR-025 · Módulo de pagos desacoplado con proveedor `disabled`/`fake` antes del Hito 2.** (2026-11-16; pedido del desarrollador) Por qué: el desarrollador pidió no integrar pagos todavía, pero dejar un módulo fácil de reemplazar. Decisión: `src/modules/payments/` hexagonal con el puerto `PaymentGateway` y dos adaptadores: `DisabledPaymentGateway` (por defecto, el piloto solo tiene gratuitas) y `FakePaymentGateway` (desarrollo; checkout en el web y webhook sin firma, prohibido con `NODE_ENV=production`). Tablas `payment` y `webhook_event` según el esqueleto de `03-DATA-MODEL.md`, con CHECKs de monto, moneda, comisión (`fee + net = amount`) y `paid_at`. Pagos depende de reservas mediante `BookingPaymentPort`; reservas no conoce pagos. Descartado: confirmar el pago desde el controlador de reservas (acopla), tabla de intentos por pago (más modelo del necesario; el reintento reutiliza la fila con un `provider_ref` nuevo). Consecuencia: el ledger, los reembolsos, los payouts y la conciliación siguen en el Hito 2; un pago acreditado sobre una reserva ya vencida queda registrado para seguimiento manual.
 
-**ADR-026 · Respuestas provisionales de F0.** (2026-11-16) El desarrollador aceptó como provisionales las 12 recomendaciones por defecto de `docs/discovery/08-ROADMAP-V3.md` §3: piloto cerrado de 6 semanas con 30 mentoradas y 10 mentoras, solo 1:1 gratuitas; 18+; spike de Mercado Pago, Culqi e Izipay; comisión del 15 %; política de cancelación propuesta; formalización antes de cobrar; Neon São Paulo; ADR-024 con 2FA; gobierno del matching; español primero; soporte por correo y WhatsApp; techo de gasto. Consecuencia en código ahora: `PAYMENTS_PROVIDER=disabled` por defecto y `PAYMENTS_FEE_BPS=1500`. La edad mínima (18+) todavía **no** se aplica en el registro: requiere cambiar la validación y se deja como tarea de F2. Pueden cambiar sin migración.
+**ADR-026 · Decisiones de F0 del desarrollador.** (2026-11-16, revisado 2026-11-17) Reemplaza la aceptación provisional en bloque del 2026-11-16. Respuestas a `docs/discovery/08-ROADMAP-V3.md` §3:
+1. **Piloto:** sin fecha ni tamaño definidos; se mantiene abierto.
+2. **Edad mínima:** ninguna para registrarse. El código ya cumple: el registro solo exige una fecha de nacimiento que no sea futura. Riesgo abierto: menores en sesiones 1:1 con adultas; la protección de datos de menores y el consentimiento quedan en DA-01 y DA-04.
+3. **Pasarela:** en espera. Se mantiene el módulo desacoplado (ADR-025) y su documentación debe permitir conectar un proveedor rápido (`docs/PAYMENTS.md`).
+4. **Comisión y payout:** 15 % como valor inicial, **editable desde el admin** (hoy `PAYMENTS_FEE_BPS`; pasa a configuración en F3/F4).
+5. **Cancelación y reembolso:** se acepta la política propuesta (gratis ≥24 h, 50 % con <24 h, sin reembolso por no-show, reembolso total si cancela la mentora), **configurable desde el admin** (F3/F4).
+6. **Entidad legal e impuestos:** pospuesto.
+7. **Base de datos:** un PostgreSQL gratuito y temporal, proveedor aún sin definir (probablemente no Oracle). Costo $0.
+8. **Cuentas privilegiadas y 2FA:** sí (ADR-024), usando servicios de correo **gratuitos**.
+9. **Matching:** mantener el motor explicable e instrumentarlo para recolectar datos; no entrenar ML todavía (ver la investigación en `08-MATCHING.md`).
+10. **Idiomas:** español al lanzar, con la arquitectura preparada para agregar otros (i18n).
+11. **Soporte:** correo + enlace a un WhatsApp **personal** (no Business), configurable.
+12. **Gasto:** todo gratis; ningún servicio de pago.
+Consecuencia en código hoy: `PAYMENTS_PROVIDER=disabled` y `PAYMENTS_FEE_BPS=1500` por defecto; nada más cambia hasta F3/F4.
 
 ## PENDIENTES
 | ID | Decisión | Cuándo | Notas |

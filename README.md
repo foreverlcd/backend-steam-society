@@ -258,16 +258,19 @@ escribe un adaptador nuevo y se mapea en `payments.module.ts`.
 
 - `GET /v1/payments/config` (público): `{ enabled, provider }`.
 - `POST /v1/payments/checkout` (mentee dueña): `{ bookingId }` →
-  `{ paymentId, status, checkoutUrl, amountMinor, currency }`. Reutiliza el
+  `{ paymentId, bookingId, provider, status, checkoutUrl, amountMinor, currency }`. Reutiliza el
   checkout abierto (doble clic seguro) y permite reintentar tras un fallo.
 - `POST /v1/payments/webhooks/:provider` (público, 60/min): registra el evento
   una sola vez por `(provider, eventId)`, liquida el pago solo desde
-  `created|pending` y confirma la reserva después del commit.
+  `created|pending` y luego confirma la reserva (pasos secuenciales, sin
+  transacción única; ver `docs/PAYMENTS.md`).
 - Errores: `PAYMENTS_DISABLED` (503), `PAYMENT_ALREADY_PAID`,
   `PAYMENT_STATUS_CONFLICT`, `PAYMENT_PROVIDER_NOT_FOUND`, `INVALID_WEBHOOK`.
 - Con `fake`, el checkout redirige a `/payments/fake-checkout` del web, donde
   se simula "aprobado" o "rechazado". No mueve dinero.
 - Fuera de alcance hasta el Hito 2: reembolsos, ledger, payouts y conciliación.
+- Guía completa (diagramas, invariantes, cómo conectar un proveedor real o
+  quitar el módulo): [`docs/PAYMENTS.md`](docs/PAYMENTS.md).
   Si un pago llega cuando la reserva ya venció, el pago queda `paid`, la
   reserva no se confirma y se registra un error para seguimiento manual.
 
@@ -315,7 +318,9 @@ ofertas gratuitas y una de pago) y 2 mentoradas ficticias a través de la API:
 DEMO_PASSWORD='una-contraseña-de-12+' pnpm db:seed:demo
 ```
 
-Es idempotente y se niega a correr con `NODE_ENV=production`. Las cuentas usan
+Es idempotente, restablece la contraseña de las cuentas demo al
+`DEMO_PASSWORD` indicado (útil si la olvidaste; puedes guardarla en tu `.env`)
+y se niega a correr con `NODE_ENV=production`. Las cuentas usan
 `@demo.steamsociety.local`. El guion de 5 minutos está en
 [`docs/DEMO.md`](docs/DEMO.md).
 
