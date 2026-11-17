@@ -66,13 +66,14 @@ export class PrismaBookingRepository implements BookingRepositoryPort {
         // Account deletion takes the same locks, so this sees its result: a
         // deleted mentee or an archived offering cannot get a new booking.
         const [available] = await tx.$queryRaw<
-          Array<{ mentee: boolean; offering: boolean }>
+          Array<{ mentee: boolean; mentor: boolean; offering: boolean }>
         >`
           SELECT
             EXISTS (SELECT 1 FROM "user" WHERE id = ${data.menteeId}::uuid AND status = 'active' AND deleted_at IS NULL) AS mentee,
+            EXISTS (SELECT 1 FROM "user" WHERE id = ${data.mentorId}::uuid AND status = 'active' AND deleted_at IS NULL) AS mentor,
             EXISTS (SELECT 1 FROM offering WHERE id = ${data.offeringId}::uuid AND active) AS offering
         `;
-        if (!available?.mentee || !available.offering) {
+        if (!available?.mentee || !available.mentor || !available.offering) {
           throw new BookingPartyUnavailableError();
         }
 

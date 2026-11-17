@@ -8,6 +8,11 @@ import { seedTaxonomies } from '../prisma/seed-data.js';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { BookingsService } from '../src/modules/bookings/application/bookings.service.js';
+import {
+  BOOKING_REPOSITORY,
+  BookingPartyUnavailableError,
+  type BookingRepositoryPort,
+} from '../src/modules/bookings/application/ports/booking.repository.js';
 import { BookingsPersonalData } from '../src/modules/bookings/infrastructure/bookings-personal-data.js';
 import type { AuthUser } from '../src/modules/auth/auth.types.js';
 import { PrismaService } from '../src/shared/prisma/prisma.service.js';
@@ -524,5 +529,35 @@ describe('Account data rights (e2e)', () => {
         'TRUNCATE TABLE "booking", "session", "availability_rule", "offering", "audit_log", "onboarding_response", "mentee_language", "mentor_language", "mentee_interest", "mentor_area", "mentee_profile", "mentor_profile", "auth_session", "user" CASCADE',
       );
     }
+  });
+
+  it('does not book with a mentor deleted while the request was in flight', async () => {
+    const { mentor, offering } = await prepareMentorWithOffering();
+    const mentee = await createMentee();
+    // Only the user row: the offering stays active, so the check inside the
+    // booking transaction is what refuses (the service checks ran before).
+    await prisma.user.update({
+      where: { id: mentor.userId },
+      data: { status: 'deleted', deletedAt: new Date() },
+    });
+    const startsAt = new Date(limaInstant(targetDate, 9));
+    const repository = app.get<BookingRepositoryPort>(BOOKING_REPOSITORY);
+
+    await expect(
+      repository.create({
+        offeringId: offering.id,
+        mentorId: mentor.userId,
+        menteeId: mentee.userId,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 60 * 60 * 1000),
+        requestedAt: new Date(),
+        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+        paymentRequired: false,
+        priceMinor: 0,
+        currency: 'PEN',
+        message: null,
+      }),
+    ).rejects.toBeInstanceOf(BookingPartyUnavailableError);
+    expect(await prisma.booking.count()).toBe(0);
   });
 });
