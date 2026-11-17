@@ -13,6 +13,7 @@ import { MatchingModule } from './modules/matching/matching.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { SchedulingModule } from './modules/scheduling/scheduling.module.js';
+import { MailModule } from './shared/mail/mail.module.js';
 import { PersonalDataModule } from './shared/personal-data/personal-data.registry.js';
 import { PrismaModule } from './shared/prisma/prisma.module.js';
 
@@ -22,6 +23,7 @@ import { PrismaModule } from './shared/prisma/prisma.module.js';
     ScheduleModule.forRoot(),
     PrismaModule,
     PersonalDataModule,
+    MailModule,
     HealthModule,
     AuthModule,
     ProfilesModule,

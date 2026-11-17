@@ -8,3 +8,5 @@ process.env.WEB_ORIGIN ??= 'http://localhost:3001';
 process.env.APP_URL ??= 'http://localhost:3001';
 process.env.SMTP_FROM ??= 'Steam Society <no-reply@steamsociety.local>';
 process.env.PAYMENTS_PROVIDER ??= 'fake';
+// The outbox sender is driven by the tests themselves (test/email-outbox).
+process.env.EMAIL_DISPATCH_INTERVAL_MS = '0';

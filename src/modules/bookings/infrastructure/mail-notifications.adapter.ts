@@ -14,70 +14,75 @@ export class MailNotificationsAdapter implements NotificationsPort {
 
     switch (notification.type) {
       case 'requested':
-        await this.mailer.send(
-          notification.recipientEmail,
-          'Nueva solicitud de mentoría en Steam Society',
-          [
+        await this.mailer.send({
+          kind: 'booking.requested',
+          to: notification.recipientEmail,
+          subject: 'Nueva solicitud de mentoría en Steam Society',
+          text: [
             `Hola ${notification.recipientName}:`,
             `${notification.counterpartName} solicitó una mentoría "${notification.offeringTitle}" para el ${when}.`,
             `Responde antes del ${formatInstant(notification.expiresAt, notification.timezone)}.`,
             'Entra a Steam Society para aceptar o rechazar la solicitud.',
           ].join('\n\n'),
-        );
+        });
         return;
 
       case 'accepted':
-        await this.mailer.send(
-          notification.recipientEmail,
-          'Tu mentoría fue aceptada en Steam Society',
-          [
+        await this.mailer.send({
+          kind: 'booking.accepted',
+          to: notification.recipientEmail,
+          subject: 'Tu mentoría fue aceptada en Steam Society',
+          text: [
             `Hola ${notification.recipientName}:`,
             `${notification.counterpartName} aceptó tu solicitud de mentoría "${notification.offeringTitle}" para el ${when}.`,
             notification.meetingUrl
               ? `Enlace de la sesión: ${notification.meetingUrl}`
               : 'La mentora compartirá el enlace de la sesión.',
           ].join('\n\n'),
-        );
+        });
         return;
 
       case 'declined':
-        await this.mailer.send(
-          notification.recipientEmail,
-          'Tu solicitud de mentoría fue rechazada',
-          [
+        await this.mailer.send({
+          kind: 'booking.declined',
+          to: notification.recipientEmail,
+          subject: 'Tu solicitud de mentoría fue rechazada',
+          text: [
             `Hola ${notification.recipientName}:`,
             `${notification.counterpartName} no pudo aceptar tu solicitud de mentoría "${notification.offeringTitle}" para el ${when}.`,
             notification.reason
               ? `Motivo: ${notification.reason}`
               : 'Puedes buscar otro horario disponible.',
           ].join('\n\n'),
-        );
+        });
         return;
 
       case 'cancelled':
-        await this.mailer.send(
-          notification.recipientEmail,
-          'Una reserva fue cancelada en Steam Society',
-          [
+        await this.mailer.send({
+          kind: 'booking.cancelled',
+          to: notification.recipientEmail,
+          subject: 'Una reserva fue cancelada en Steam Society',
+          text: [
             `Hola ${notification.recipientName}:`,
             `${notification.counterpartName} canceló la mentoría "${notification.offeringTitle}" del ${when}.`,
             notification.reason
               ? `Motivo: ${notification.reason}`
               : 'Entra a Steam Society para ver tus próximas sesiones.',
           ].join('\n\n'),
-        );
+        });
         return;
 
       case 'expired':
-        await this.mailer.send(
-          notification.recipientEmail,
-          'Tu solicitud de mentoría venció',
-          [
+        await this.mailer.send({
+          kind: 'booking.expired',
+          to: notification.recipientEmail,
+          subject: 'Tu solicitud de mentoría venció',
+          text: [
             `Hola ${notification.recipientName}:`,
             `La solicitud de mentoría "${notification.offeringTitle}" para el ${when} venció sin respuesta.`,
             'Puedes solicitar otro horario disponible.',
           ].join('\n\n'),
-        );
+        });
         return;
     }
   }

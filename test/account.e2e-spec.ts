@@ -101,7 +101,7 @@ describe('Account data rights (e2e)', () => {
 
   beforeEach(async () => {
     await prisma.$executeRawUnsafe(
-      'TRUNCATE TABLE "webhook_event", "payment", "booking", "session", "availability_rule", "offering", "audit_log", "onboarding_response", "mentee_language", "mentor_language", "mentee_interest", "mentor_area", "mentee_profile", "mentor_profile", "password_reset_token", "auth_session", "user" CASCADE',
+      'TRUNCATE TABLE "email_outbox", "webhook_event", "payment", "booking", "session", "availability_rule", "offering", "audit_log", "onboarding_response", "mentee_language", "mentor_language", "mentee_interest", "mentor_area", "mentee_profile", "mentor_profile", "password_reset_token", "auth_session", "user" CASCADE',
     );
     targetDate = limaDate(2);
   });
@@ -388,6 +388,13 @@ describe('Account data rights (e2e)', () => {
         where: { action: 'user.deleted', entityId: mentor.userId },
       }),
     ).toBe(1);
+    // The booking notices queued for the mentor went with the account.
+    expect(
+      await prisma.emailOutbox.count({ where: { toAddress: mentor.email } }),
+    ).toBe(0);
+    expect(
+      await prisma.emailOutbox.count({ where: { toAddress: mentee.email } }),
+    ).toBeGreaterThan(0);
 
     for (const cookie of [mentor.cookie, otherCookie]) {
       await request(app.getHttpServer())

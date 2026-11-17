@@ -227,6 +227,12 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - Los CHECK de país (`^[A-Z]{2}$`), experiencia no negativa, antelación y versión de onboarding viven en la migración `20261024222451_add_profiles_and_audit`; `career_stage` se añadió en `20261024224250_add_career_stage` con backfill desde `onboarding_response`; `answer` y `metadata` se convirtieron a `jsonb` en `20261024224933_use_jsonb_for_json_columns`.
 - Los seeds de áreas son provisionales: Ciencia, Tecnología, Ingeniería y Matemáticas con sus subáreas; el equipo de producto entregará la lista definitiva.
 
+## Cola de correo (`email_outbox`)
+
+- `email_outbox`: `id` (uuid v7), `kind` (plantilla, p. ej. `auth.password_reset`), `to_address` (índice), `subject`, `body` (null salvo en `pending`), `status` (`email_status`: `pending`, `sent`, `failed`, `expired`), `attempts`, `next_attempt_at`, `locked_until`, `expires_at` (los enlaces que caducan no se envían tarde), `last_error` (solo código SMTP o clase de error, sin texto ni direcciones), `created_at`, `sent_at`. Índice `(status, next_attempt_at)`.
+- CHECKs: `attempts >= 0`; solo `pending` tiene `body` y todo `pending` lo tiene; `sent_at` existe si y solo si `status = 'sent'`.
+- Retención: las filas terminadas se borran a los 30 días. Al eliminar una cuenta se borran sus filas (correo actual y correo nuevo pendiente).
+
 ## Pagos implementados (2026-11-16, ADR-025)
 - `payment`: `id`, `booking_id` UK (FK `RESTRICT`), `provider`, `provider_ref` UK (nulo hasta abrir el checkout), `status` (`payment_status`: `created|pending|paid|failed`), `amount_minor`, `currency`, `fee_bps`, `fee_minor`, `net_minor`, `idempotency_key` UK (`booking:<id>`), `checkout_url`, `paid_at`, `failed_at`, `created_at`, `updated_at`. CHECKs: `amount_minor > 0`, moneda `^[A-Z]{3}$`, `fee_bps` entre 0 y 10000, `fee_minor`/`net_minor` ≥ 0, `fee_minor + net_minor = amount_minor`, `(status = 'paid') = (paid_at IS NOT NULL)`. Migración `20261116213734_add_payments`.
 - `webhook_event`: `id`, `provider`, `event_id`, `payload` (jsonb), `received_at`, `processed_at`; UK `(provider, event_id)`.
@@ -279,6 +285,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 | 1.6 | `search_vector` y extensiones de búsqueda (`20261031002413_add_catalog_search`) |
 | F2 | `email_verification_token`, `user_totp`, `mfa_recovery_code` + CHECKs y backfill a mano (`20261117150930_add_email_verification_and_mfa`; ADR-024) |
 | F2 | `email_verification_token.new_email` + CHECK de normalización (`20261117155718_add_email_change`) |
+| Piloto | `email_outbox` + enum `email_status` + CHECKs (`20261117202424_add_email_outbox`) |
 | 2 / 3 | Ver esqueleto arriba |
 
 Regla: nunca editar una migración ya aplicada; se crea otra. Cada migración lleva un nombre descriptivo (ej. `add_area`).

@@ -70,7 +70,20 @@ export class AuthPersonalData implements PersonalDataContributor, OnModuleInit {
   ): Promise<void> {
     const user = await tx.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { birthDate: true },
+      select: { birthDate: true, email: true },
+    });
+    // Queued or recently sent e-mail to this person (including a pending
+    // new address) holds their address and maybe a link: remove it too.
+    const pendingAddresses = await tx.emailVerificationToken.findMany({
+      where: { userId, newEmail: { not: null } },
+      select: { newEmail: true },
+    });
+    await tx.emailOutbox.deleteMany({
+      where: {
+        toAddress: {
+          in: [user.email, ...pendingAddresses.map((t) => t.newEmail!)],
+        },
+      },
     });
     await tx.userTotp.deleteMany({ where: { userId } });
     await tx.mfaRecoveryCode.deleteMany({ where: { userId } });
