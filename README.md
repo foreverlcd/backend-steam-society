@@ -43,6 +43,11 @@ Variables principales:
   en horas (entero positivo, 48 por defecto; R-06, ADR-021).
 - `EMAIL_VERIFICATION_TTL_HOURS`: validez del enlace de verificación de correo,
   en horas (entero positivo, 48 por defecto; ADR-024).
+- `PASSWORD_BREACH_CHECK`: `off` (por defecto) o `hibp`. Con `hibp`, al
+  registrarse o cambiar la contraseña se consulta Have I Been Pwned por rango
+  (k-anonimato: solo salen los 5 primeros caracteres del hash SHA-1, con
+  relleno). Si la contraseña aparece en filtraciones: `400 PASSWORD_BREACHED`.
+  Si el servicio no responde en 3 s, se acepta la contraseña (no bloquea).
 - `MFA_ENCRYPTION_KEY`: clave de 32 bytes en base64 que cifra los secretos del
   2FA. Obligatoria en producción (la API no arranca sin ella). En desarrollo,
   si falta, se deriva de `SESSION_SECRET` y se muestra un aviso. Genérala con:
@@ -118,6 +123,13 @@ después de que la API ya está levantada. Cuando la base vuelve, `/health` resp
 | POST | `/v1/me/mfa/totp/confirm` | Sesión | Confirma con `{ "code" }` y devuelve `{ recoveryCodes }` (una sola vez) |
 | POST | `/v1/me/mfa/recovery-codes` | Sesión | Regenera los códigos con `{ "code" }` |
 | POST | `/v1/me/mfa/disable` | Sesión | Desactiva con `{ "password", "code" }` (204; no permitido al admin) |
+| GET | `/v1/me/sessions` | Sesión | Sesiones activas: `{ id, current, signedInAt, lastActiveAt, userAgent }` |
+| DELETE | `/v1/me/sessions/:id` | Sesión | Cierra una sesión (204; `404 SESSION_NOT_FOUND`, `400 INVALID_SESSION_ID`) |
+| POST | `/v1/me/sessions/revoke-others` | Sesión | Cierra todas las demás: `{ revoked }` |
+| POST | `/v1/me/password` | Sesión | Cambia la contraseña con `{ "password", "code"?, "newPassword" }` (204) |
+| POST | `/v1/me/email` | Sesión | Pide cambiar el correo con `{ "password", "code"?, "newEmail" }` (202) |
+| GET | `/v1/me/export` | Sesión | Descarga todos tus datos en JSON (`steam-society-mis-datos-AAAA-MM-DD.json`) |
+| POST | `/v1/me/delete` | Sesión | Elimina la cuenta con `{ "password", "code"?, "confirmation": "ELIMINAR" }` (204) |
 | GET | `/v1/me/profile` | Sesión `mentor`/`mentee` | Perfil propio con áreas e idiomas |
 | PUT | `/v1/me/profile` | Sesión `mentor`/`mentee` | Edita el perfil propio |
 | POST | `/v1/me/profile/submit` | Sesión `mentor` | Envía el perfil a revisión |
@@ -199,6 +211,32 @@ curl -i -X POST http://localhost:3000/v1/auth/register \
   `{ "mfaRequired": true }` y guarda un reto de 5 minutos en la sesión; luego
   `POST /v1/auth/login/mfa`. Errores: `401 INVALID_MFA_CODE` y
   `401 MFA_CHALLENGE_EXPIRED`.
+
+### Cuenta: sesiones, cambios y datos personales (F2)
+
+- **Confirmar que eres tú (step-up):** cambiar contraseña o correo y eliminar
+  la cuenta piden la contraseña actual y, si la cuenta tiene 2FA, un código
+  (`401 INVALID_CREDENTIALS`, `400 MFA_CODE_REQUIRED`, `401 INVALID_MFA_CODE`).
+- **Sesiones activas:** el `id` público es parte del SHA-256 del id de sesión;
+  el id real nunca sale de la API. Cambiar la contraseña, activar el 2FA o
+  eliminar la cuenta cierra las demás sesiones.
+- **Cambio de correo:** se envía un enlace al correo nuevo (reutiliza
+  `POST /v1/auth/email/verify`) y un aviso al actual. Al confirmar, el correo
+  anterior recibe otro aviso. `409 EMAIL_UNCHANGED` / `409 EMAIL_TAKEN`.
+- **Exportar datos:** cada módulo aporta su sección (`account`, `profile`,
+  `scheduling`, `bookings`) mediante `PersonalDataRegistry`
+  (`src/shared/personal-data/`). Una mentora no recibe el mensaje privado de
+  quien la reservó.
+- **Eliminar cuenta:** se rechaza con reservas abiertas a futuro
+  (`409 ACCOUNT_HAS_OPEN_BOOKINGS`, con `details.openBookings`) y para el admin
+  (`403 ADMIN_SELF_DELETE_FORBIDDEN`). Si se permite, todo ocurre en una
+  transacción: la cuenta queda anonimizada (`status = deleted`), el perfil y la
+  disponibilidad se borran o vacían, las ofertas se archivan y se cierran todas
+  las sesiones. Las reservas y la auditoría se conservan sin datos personales.
+  Una reserva pedida al mismo tiempo no puede colarse: el borrado y la reserva
+  usan los mismos locks y se vuelve a comprobar dentro de la transacción.
+  Los pagos no se tocan (decisión pendiente, P-03). La retención es
+  **provisional** hasta DA-04. Detalle en `docs/03-DATA-MODEL.md`.
 
 ### Recuperación de contraseña
 
@@ -412,6 +450,10 @@ Luego ejecuta:
 ```bash
 pnpm test:e2e
 ```
+
+Para correr dos ramas a la vez (por ejemplo, en worktrees), usa otra base de
+test con `E2E_DATABASE_NAME=steam_society_test_<sufijo>`; debe empezar con
+`steam_society_test` y se crea sola.
 
 Los e2e truncan las tablas de autenticación, perfiles, onboarding, ofertas,
 disponibilidad, reservas y auditoría antes de cada prueba. No apuntes

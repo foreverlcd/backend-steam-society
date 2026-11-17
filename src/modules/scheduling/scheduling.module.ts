@@ -15,11 +15,13 @@ import { ProfilesMentorSettingsAdapter } from './infrastructure/profiles-mentor-
 import { AvailabilityController } from './presentation/availability.controller.js';
 import { OfferingsController } from './presentation/offerings.controller.js';
 import { SlotsController } from './presentation/slots.controller.js';
+import { SchedulingPersonalData } from './infrastructure/scheduling-personal-data.js';
 
 @Module({
   imports: [PrismaModule, ProfilesModule],
   controllers: [OfferingsController, AvailabilityController, SlotsController],
   providers: [
+    SchedulingPersonalData,
     OfferingsService,
     AvailabilityService,
     SlotsService,

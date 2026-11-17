@@ -19,10 +19,15 @@ export function totpTimeStep(at: Date): number {
   return Math.floor(at.getTime() / 1000 / TOTP_PERIOD_SECONDS);
 }
 
-export function totpCodeForStep(secretBase32: string, timeStep: number): string {
+export function totpCodeForStep(
+  secretBase32: string,
+  timeStep: number,
+): string {
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(timeStep));
-  const hmac = createHmac('sha1', base32Decode(secretBase32)).update(counter).digest();
+  const hmac = createHmac('sha1', base32Decode(secretBase32))
+    .update(counter)
+    .digest();
   const offset = hmac[hmac.length - 1] & 0x0f;
   const binary =
     ((hmac[offset] & 0x7f) << 24) |
@@ -36,7 +41,11 @@ export function totpCodeForStep(secretBase32: string, timeStep: number): string 
  * Returns the matched time step, or null. Callers must reject a step that is
  * not greater than the last accepted one, so a code cannot be replayed.
  */
-export function matchTotpStep(secretBase32: string, code: string, at: Date): number | null {
+export function matchTotpStep(
+  secretBase32: string,
+  code: string,
+  at: Date,
+): number | null {
   if (!/^\d{6}$/.test(code)) return null;
   const current = totpTimeStep(at);
   for (let delta = -TOTP_DRIFT_STEPS; delta <= TOTP_DRIFT_STEPS; delta++) {
@@ -47,7 +56,11 @@ export function matchTotpStep(secretBase32: string, code: string, at: Date): num
   return null;
 }
 
-export function totpProvisioningUri(secretBase32: string, accountEmail: string, issuer: string): string {
+export function totpProvisioningUri(
+  secretBase32: string,
+  accountEmail: string,
+  issuer: string,
+): string {
   const label = encodeURIComponent(`${issuer}:${accountEmail}`);
   const params = new URLSearchParams({
     secret: secretBase32,

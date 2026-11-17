@@ -37,3 +37,7 @@ En la ficha de una mentora (`/mentors/[id]`), una visitante sabe desde el princi
 ## Bitácora
 | Fecha | Quién | Qué pasó |
 |---|---|---|
+
+## Cierre
+
+Completado y fusionado en el web (`main`, commit `397603d`).

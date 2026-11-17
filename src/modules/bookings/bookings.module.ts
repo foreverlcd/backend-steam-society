@@ -14,11 +14,13 @@ import { MailNotificationsAdapter } from './infrastructure/mail-notifications.ad
 import { PrismaBookingRepository } from './infrastructure/prisma-booking.repository.js';
 import { ProfilesMenteeProfileAdapter } from './infrastructure/profiles-mentee-profile.adapter.js';
 import { BookingsController } from './presentation/bookings.controller.js';
+import { BookingsPersonalData } from './infrastructure/bookings-personal-data.js';
 
 @Module({
   imports: [PrismaModule, SchedulingModule, ProfilesModule, AuthModule],
   controllers: [BookingsController],
   providers: [
+    BookingsPersonalData,
     BookingsService,
     BookingsExpirationTask,
     { provide: BOOKING_REPOSITORY, useClass: PrismaBookingRepository },

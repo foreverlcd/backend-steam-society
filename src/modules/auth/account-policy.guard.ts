@@ -34,7 +34,10 @@ export class AccountPolicyGuard implements CanActivate {
     if (
       this.mfaService.isRequiredFor(user.role) &&
       !user.mfaEnabled &&
-      !this.reflector.getAllAndOverride<boolean>(ALLOWED_WITHOUT_MFA_KEY, targets)
+      !this.reflector.getAllAndOverride<boolean>(
+        ALLOWED_WITHOUT_MFA_KEY,
+        targets,
+      )
     ) {
       throw new ForbiddenException({
         statusCode: 403,
@@ -45,7 +48,10 @@ export class AccountPolicyGuard implements CanActivate {
 
     if (
       !user.emailVerified &&
-      this.reflector.getAllAndOverride<boolean>(REQUIRES_VERIFIED_EMAIL_KEY, targets)
+      this.reflector.getAllAndOverride<boolean>(
+        REQUIRES_VERIFIED_EMAIL_KEY,
+        targets,
+      )
     ) {
       throw new ForbiddenException({
         statusCode: 403,

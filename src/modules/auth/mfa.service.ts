@@ -118,7 +118,10 @@ export class MfaService {
     await this.mfa.disableTotp(user.id);
   }
 
-  async regenerateRecoveryCodes(user: AuthUser, code: string): Promise<string[]> {
+  async regenerateRecoveryCodes(
+    user: AuthUser,
+    code: string,
+  ): Promise<string[]> {
     if (!user.mfaEnabled) throw mfaNotEnabled();
     if (!(await this.verifySecondFactor(user.id, { code }))) {
       throw invalidMfaCode();

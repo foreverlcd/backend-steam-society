@@ -72,6 +72,8 @@ pnpm lint:arch
 # Delegar
 scripts/harness/delegate.sh sonnet   implementer docs/exec-plans/active/<plan>.md ../frontend-steam-society
 scripts/harness/delegate.sh codex    reviewer    docs/exec-plans/active/<plan>.md ../frontend-steam-society
+# Revisar una rama ya commiteada (diff main...HEAD en vez de los cambios sin commit)
+REVIEW_BASE=main scripts/harness/delegate.sh codex reviewer <tarea>.md .
 MODEL=opencode/glm-5.3-flash-free scripts/harness/delegate.sh opencode doc-gardener docs/harness/tasks/garden-all.md
 
 # Ver la app (web y API levantadas)

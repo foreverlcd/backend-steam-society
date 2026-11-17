@@ -27,5 +27,9 @@ declare module 'express-session' {
     userId?: string;
     /** Password was correct; waiting for the second factor (ADR-024). */
     pendingMfa?: { userId: string; expiresAtMs: number };
+    /** When this sign-in happened (epoch ms); shown in "Sesiones activas". */
+    signedInAtMs?: number;
+    /** Browser description at sign-in, truncated; never used for security. */
+    userAgent?: string;
   }
 }

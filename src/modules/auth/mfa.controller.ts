@@ -1,5 +1,14 @@
-import { Body, Controller, Get, HttpCode, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import type { Request } from 'express';
 import { AllowWithoutMfa } from '../../shared/http/account-policy.decorators.js';
 import {
   disableMfaSchema,
@@ -10,6 +19,7 @@ import {
 import type { AuthUser } from './auth.types.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { MfaService, type MfaStatus, type TotpSetup } from './mfa.service.js';
+import { SessionRepository } from './session.repository.js';
 
 /** Second factor management for the signed-in user (ADR-024). */
 @AllowWithoutMfa()
@@ -17,7 +27,10 @@ import { MfaService, type MfaStatus, type TotpSetup } from './mfa.service.js';
 @UseGuards(ThrottlerGuard)
 @Throttle({ default: { limit: 10, ttl: 60_000 } })
 export class MfaController {
-  constructor(private readonly mfaService: MfaService) {}
+  constructor(
+    private readonly mfaService: MfaService,
+    private readonly sessions: SessionRepository,
+  ) {}
 
   @Get()
   status(@CurrentUser() user: AuthUser): Promise<MfaStatus> {
@@ -35,8 +48,15 @@ export class MfaController {
   async confirm(
     @CurrentUser() user: AuthUser,
     @Body({ schema: totpCodeBodySchema }) body: TotpCodeBody,
+    @Req() request: Request,
   ): Promise<{ recoveryCodes: string[] }> {
-    return { recoveryCodes: await this.mfaService.confirmTotpSetup(user, body.code) };
+    const recoveryCodes = await this.mfaService.confirmTotpSetup(
+      user,
+      body.code,
+    );
+    // Sessions opened with the password alone predate the second factor.
+    await this.sessions.revokeAll(user.id, request.sessionID);
+    return { recoveryCodes };
   }
 
   @Post('recovery-codes')
@@ -46,7 +66,10 @@ export class MfaController {
     @Body({ schema: totpCodeBodySchema }) body: TotpCodeBody,
   ): Promise<{ recoveryCodes: string[] }> {
     return {
-      recoveryCodes: await this.mfaService.regenerateRecoveryCodes(user, body.code),
+      recoveryCodes: await this.mfaService.regenerateRecoveryCodes(
+        user,
+        body.code,
+      ),
     };
   }
 
