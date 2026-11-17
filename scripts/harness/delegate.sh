@@ -61,16 +61,24 @@ case "$ENGINE" in
     ;;
   codex)
     SANDBOX=workspace-write; [ "$READONLY" = 1 ] && SANDBOX=read-only
-    codex exec ${MODEL:+-m "$MODEL"} -s "$SANDBOX" -C "$REPO" -o "$OUT" "$PROMPT"
+    # gpt-6-luna works with the owner's ChatGPT account (free quota; it will run out).
+    # Prompt via stdin ("-"): a reviewer prompt with a big diff exceeds the
+    # argv limit, and with an open stdin codex waits for more input forever.
+    printf '%s' "$PROMPT" | codex exec -m "${MODEL:-gpt-6-luna}" -s "$SANDBOX" -C "$REPO" -o "$OUT" -
     ;;
   agy)
-    MODE=accept-edits; [ "$READONLY" = 1 ] && MODE=plan
-    agy ${MODEL:+--model "$MODEL"} --mode "$MODE" -p "$PROMPT" | tee "$OUT"
+    # Headless agy auto-denies anything not allowed in --settings. Read-only
+    # roles get session-scoped read permissions; agy edits through shell
+    # commands, so it is NOT used as implementer (would need a full shell).
+    if [ "$READONLY" = 0 ]; then echo "agy is review-only in this harness (see docs/HARNESS.md)"; exit 2; fi
+    agy ${MODEL:+--model "$MODEL"} --mode plan \
+      --settings '{"permissions":{"allow":["read_file","list_dir","grep_search","find_by_name"]}}' \
+      -p "$PROMPT" < /dev/null | tee "$OUT"
     ;;
   opencode)
     echo "NOTE: free opencode models send this repo's code to third-party providers. Never use them on tasks that touch secrets or personal data." >&2
     if [ "$READONLY" = 1 ]; then AGENT=(--agent plan); else AGENT=(--auto); fi
-    opencode run -m "${MODEL:-opencode/deepseek-v4.1-flash-free}" "${AGENT[@]}" "$PROMPT" | tee "$OUT"
+    opencode run -m "${MODEL:-opencode/deepseek-v4.1-flash-free}" "${AGENT[@]}" "$PROMPT" < /dev/null | tee "$OUT"
     ;;
   *) echo "unknown engine: $ENGINE"; exit 2 ;;
 esac
