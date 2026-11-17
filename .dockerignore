@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+node_modules
+dist
+*.tsbuildinfo
+.git
+.github
+.harness
+.claude
+.agents
+test
+docs
+load
+backups

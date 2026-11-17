@@ -14,5 +14,7 @@ src/generated/
 
 # TypeScript build cache
 *.tsbuildinfo
+# local database backups (scripts/db-backup.sh)
+/backups/
 # harness run logs
 /.harness/
