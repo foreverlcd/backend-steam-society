@@ -11,6 +11,8 @@ export interface EmailToQueue {
   text: string;
   /** Do not send after this instant (links that expire). */
   expiresAt?: Date | null;
+  /** Queuing the same key again does nothing (safe retries of the caller). */
+  dedupeKey?: string;
 }
 
 /**
@@ -29,8 +31,10 @@ export class EmailOutbox {
     client: Prisma.TransactionClient = this.prisma,
   ): Promise<void> {
     const now = this.clock.now();
-    await client.emailOutbox.create({
+    await client.emailOutbox.createMany({
+      skipDuplicates: true,
       data: {
+        dedupeKey: email.dedupeKey ?? null,
         kind: email.kind,
         toAddress: email.to,
         subject: email.subject,

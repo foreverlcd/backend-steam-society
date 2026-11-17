@@ -160,8 +160,8 @@ describe('BookingsService', () => {
       applyTransition: vi.fn(),
       expireById: vi.fn(),
       expireDue: vi.fn(),
-      claimDueReminders: vi.fn().mockResolvedValue([]),
-      releaseReminder: vi.fn().mockResolvedValue(undefined),
+      findDueReminders: vi.fn().mockResolvedValue([]),
+      markReminded: vi.fn().mockResolvedValue(undefined),
     };
     scheduling = {
       findOfferingById: vi.fn().mockResolvedValue(offering),
@@ -769,7 +769,7 @@ describe('BookingsService', () => {
 
   describe('reminders', () => {
     it('reminds both participants in their own time zones', async () => {
-      repository.claimDueReminders.mockResolvedValue([
+      repository.findDueReminders.mockResolvedValue([
         makeBooking({
           status: 'confirmed',
           mentee: { ...makeBooking().mentee, timezone: 'Europe/Madrid' },
@@ -778,7 +778,7 @@ describe('BookingsService', () => {
 
       await expect(service.sendDueReminders()).resolves.toBe(1);
 
-      expect(repository.claimDueReminders).toHaveBeenCalledWith(
+      expect(repository.findDueReminders).toHaveBeenCalledWith(
         NOW,
         new Date(NOW.getTime() + 24 * 3_600_000),
       );
@@ -792,18 +792,21 @@ describe('BookingsService', () => {
       expect(sent[1]).toMatchObject({
         recipientEmail: makeBooking().mentor.email,
       });
-      expect(repository.releaseReminder).not.toHaveBeenCalled();
+      expect(sent.map((n) => n.dedupeKey)).toEqual([
+        'booking.reminder:booking-1:mentee',
+        'booking.reminder:booking-1:mentor',
+      ]);
+      expect(repository.markReminded).toHaveBeenCalledWith('booking-1', NOW);
     });
 
-    it('releases the claim when the e-mail cannot be queued', async () => {
-      repository.claimDueReminders.mockResolvedValue([
+    it('does not mark the booking when the e-mail cannot be queued', async () => {
+      repository.findDueReminders.mockResolvedValue([
         makeBooking({ status: 'confirmed' }),
       ]);
       notifications.send.mockRejectedValue(new Error('db down'));
 
-      await service.sendDueReminders();
-
-      expect(repository.releaseReminder).toHaveBeenCalledWith('booking-1');
+      await expect(service.sendDueReminders()).resolves.toBe(0);
+      expect(repository.markReminded).not.toHaveBeenCalled();
     });
   });
 });

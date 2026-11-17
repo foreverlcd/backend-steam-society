@@ -121,11 +121,23 @@ export class EmailDispatcher {
   }
 
   private async deliver(row: ClaimedRow): Promise<keyof DispatchResult> {
+    // The batch may take a while: a link must not leave once it expired.
+    if (row.expires_at !== null && row.expires_at <= this.clock.now()) {
+      await this.prisma.emailOutbox.update({
+        where: { id: row.id },
+        data: { status: 'expired', body: null, lockedUntil: null },
+      });
+      return 'expired';
+    }
     try {
+      // Delivery is at-least-once: if we crash after the SMTP server
+      // accepted it, the row is sent again after the lock expires. The
+      // stable Message-ID lets mail clients recognise the duplicate.
       await this.transport.deliver({
         to: row.to_address,
         subject: row.subject,
         text: row.body,
+        messageId: `<${row.id}@outbox.steam-society>`,
       });
       await this.prisma.emailOutbox.update({
         where: { id: row.id },

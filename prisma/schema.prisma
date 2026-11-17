@@ -486,6 +486,8 @@ model EmailOutbox {
   id            String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
   /// Template that produced it (e.g. `auth.password_reset`), for metrics.
   kind          String
+  /// Optional idempotency key: queuing the same key twice keeps one row.
+  dedupeKey     String?     @unique @map("dedupe_key")
   toAddress     String      @map("to_address")
   subject       String
   body          String?

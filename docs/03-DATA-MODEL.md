@@ -229,7 +229,7 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 
 ## Cola de correo (`email_outbox`)
 
-- `email_outbox`: `id` (uuid v7), `kind` (plantilla, p. ej. `auth.password_reset`), `to_address` (índice), `subject`, `body` (null salvo en `pending`), `status` (`email_status`: `pending`, `sent`, `failed`, `expired`), `attempts`, `next_attempt_at`, `locked_until`, `expires_at` (los enlaces que caducan no se envían tarde), `last_error` (solo código SMTP o clase de error, sin texto ni direcciones), `created_at`, `sent_at`. Índice `(status, next_attempt_at)`.
+- `email_outbox`: `id` (uuid v7), `kind` (plantilla, p. ej. `auth.password_reset`), `dedupe_key` (UK, opcional: encolar dos veces con la misma clave deja una sola fila), `to_address` (índice), `subject`, `body` (null salvo en `pending`), `status` (`email_status`: `pending`, `sent`, `failed`, `expired`), `attempts`, `next_attempt_at`, `locked_until`, `expires_at` (los enlaces que caducan no se envían tarde), `last_error` (solo código SMTP o clase de error, sin texto ni direcciones), `created_at`, `sent_at`. Índice `(status, next_attempt_at)`.
 - CHECKs: `attempts >= 0`; solo `pending` tiene `body` y todo `pending` lo tiene; `sent_at` existe si y solo si `status = 'sent'`.
 - Retención: las filas terminadas se borran a los 30 días. Al eliminar una cuenta se borran sus filas (correo actual y correo nuevo pendiente).
 
@@ -287,6 +287,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 | F2 | `email_verification_token.new_email` + CHECK de normalización (`20261117155718_add_email_change`) |
 | Piloto | `email_outbox` + enum `email_status` + CHECKs (`20261117202424_add_email_outbox`) |
 | Piloto | `booking.reminder_sent_at` (recordatorio 24 h antes, una sola vez) |
+| Piloto | `email_outbox.dedupe_key` UK (`20261117212848_add_email_outbox_dedupe_key`) |
 | 2 / 3 | Ver esqueleto arriba |
 
 Regla: nunca editar una migración ya aplicada; se crea otra. Cada migración lleva un nombre descriptivo (ej. `add_area`).

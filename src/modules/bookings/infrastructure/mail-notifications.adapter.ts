@@ -100,6 +100,7 @@ export class MailNotificationsAdapter implements NotificationsPort {
           ].join('\n\n'),
           // Pointless once the session has started.
           expiresAt: notification.startsAt,
+          dedupeKey: notification.dedupeKey,
         });
         return;
     }

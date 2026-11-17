@@ -449,10 +449,11 @@ export class BookingsService {
    */
   async sendDueReminders(): Promise<number> {
     const now = this.clock.now();
-    const due = await this.repository.claimDueReminders(
+    const due = await this.repository.findDueReminders(
       now,
       new Date(now.getTime() + REMINDER_LEAD_MS),
     );
+    let reminded = 0;
 
     for (const booking of due) {
       const base = {
@@ -466,12 +467,15 @@ export class BookingsService {
         reason: null,
       };
       try {
+        // Queue first, mark after: a crash in between only re-runs the
+        // queuing, which the dedupe keys turn into a no-op.
         await this.notifications.send({
           ...base,
           recipientEmail: booking.mentee.email,
           recipientName: displayName(booking.mentee, 'mentee'),
           counterpartName: displayName(booking.mentor, 'tu mentora'),
           timezone: booking.mentee.timezone,
+          dedupeKey: `booking.reminder:${booking.id}:mentee`,
         });
         await this.notifications.send({
           ...base,
@@ -479,17 +483,19 @@ export class BookingsService {
           recipientName: displayName(booking.mentor, 'mentora'),
           counterpartName: displayName(booking.mentee, 'tu mentee'),
           timezone: booking.mentor.timezone,
+          dedupeKey: `booking.reminder:${booking.id}:mentor`,
         });
+        await this.repository.markReminded(booking.id, now);
+        reminded += 1;
       } catch (error) {
-        // Not queued: let the next run try again.
-        await this.repository.releaseReminder(booking.id);
+        // Not marked: the next run tries again without duplicating.
         this.logger.error(
           `Booking reminder failed: ${error instanceof Error ? error.name : 'UnknownError'}`,
         );
       }
     }
 
-    return due.length;
+    return reminded;
   }
 
   async expireDue(): Promise<number> {

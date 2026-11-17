@@ -270,37 +270,32 @@ export class PrismaBookingRepository implements BookingRepositoryPort {
     });
   }
 
-  async claimDueReminders(now: Date, until: Date): Promise<Booking[]> {
-    const claimed = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      UPDATE booking SET reminder_sent_at = ${now}
-      WHERE id IN (
-        SELECT b.id
-        FROM booking b
-        JOIN session s ON s.id = b.session_id
-        WHERE b.status = 'confirmed'
-          AND b.reminder_sent_at IS NULL
-          AND s.starts_at > ${now}
-          AND s.starts_at <= ${until}
-          -- Confirmed at the last minute: the acceptance e-mail is enough.
-          AND b.confirmed_at <= s.starts_at - (${until}::timestamptz - ${now}::timestamptz)
-        ORDER BY s.starts_at
-        LIMIT 100
-        FOR UPDATE OF b SKIP LOCKED
-      )
-      RETURNING id`;
-    if (claimed.length === 0) return [];
+  async findDueReminders(now: Date, until: Date): Promise<Booking[]> {
+    const due = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT b.id
+      FROM booking b
+      JOIN session s ON s.id = b.session_id
+      WHERE b.status = 'confirmed'
+        AND b.reminder_sent_at IS NULL
+        AND s.starts_at > ${now}
+        AND s.starts_at <= ${until}
+        -- Confirmed at the last minute: the acceptance e-mail is enough.
+        AND b.confirmed_at <= s.starts_at - (${until}::timestamptz - ${now}::timestamptz)
+      ORDER BY s.starts_at
+      LIMIT 100`;
+    if (due.length === 0) return [];
 
     const records = await this.prisma.booking.findMany({
-      where: { id: { in: claimed.map((row) => row.id) } },
+      where: { id: { in: due.map((row) => row.id) } },
       include: bookingInclude,
     });
     return records.map(toBooking);
   }
 
-  async releaseReminder(bookingId: string): Promise<void> {
-    await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: { reminderSentAt: null },
+  async markReminded(bookingId: string, now: Date): Promise<void> {
+    await this.prisma.booking.updateMany({
+      where: { id: bookingId, reminderSentAt: null },
+      data: { reminderSentAt: now },
     });
   }
 

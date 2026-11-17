@@ -111,10 +111,17 @@ describe('E-mail outbox (e2e)', () => {
 
     await expect(dispatcher.dispatchDue()).resolves.toMatchObject({ sent: 1 });
 
+    const row = await onlyRow();
     expect(transport.delivered).toEqual([
-      { to: 'ana@example.com', subject: 'Hola', text: 'enlace secreto' },
+      {
+        to: 'ana@example.com',
+        subject: 'Hola',
+        text: 'enlace secreto',
+        // Stable: a resend after a crash carries the same Message-ID.
+        messageId: `<${row.id}@outbox.steam-society>`,
+      },
     ]);
-    expect(await onlyRow()).toMatchObject({
+    expect(row).toMatchObject({
       status: 'sent',
       body: null,
       attempts: 1,
@@ -200,6 +207,49 @@ describe('E-mail outbox (e2e)', () => {
     await expect(dispatcher.dispatchDue()).resolves.toMatchObject({
       failed: 1,
     });
+  });
+
+  it('queues an e-mail once per dedupe key', async () => {
+    const email = {
+      kind: 'test.kind',
+      to: 'ana@example.com',
+      subject: 'Hola',
+      text: 'x',
+      dedupeKey: 'test:1',
+    };
+    await outbox.enqueue(email);
+    await outbox.enqueue(email);
+    // Also inside a transaction: a duplicate must not abort it.
+    await prisma.$transaction(async (tx) => {
+      await outbox.enqueue(email, tx);
+      await outbox.enqueue({ ...email, dedupeKey: 'test:2' }, tx);
+    });
+
+    expect(await prisma.emailOutbox.count()).toBe(2);
+  });
+
+  it('expires a link that runs out while the batch is being sent', async () => {
+    await queue({ expiresAt: new Date(clock.current.getTime() + 60_000) });
+    const deliver = transport.deliver.bind(transport);
+    // The clock moves past the expiry between the claim and the send.
+    transport.deliver = async (email) => {
+      throw new Error(`should not send ${email.subject}`);
+    };
+    const realDeliver = dispatcher['deliver'].bind(dispatcher);
+    dispatcher['deliver'] = (row: never) => {
+      clock.advance(61_000);
+      return realDeliver(row);
+    };
+    try {
+      await expect(dispatcher.dispatchDue()).resolves.toMatchObject({
+        expired: 1,
+        sent: 0,
+      });
+    } finally {
+      transport.deliver = deliver;
+      dispatcher['deliver'] = realDeliver;
+    }
+    expect(await onlyRow()).toMatchObject({ status: 'expired', body: null });
   });
 
   it('delivers each e-mail once with concurrent dispatchers', async () => {

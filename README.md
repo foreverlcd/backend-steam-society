@@ -254,10 +254,18 @@ curl -i -X POST http://localhost:3000/v1/auth/register \
 - Sin `SMTP_URL`, los correos quedan en cola (en desarrollo usa Mailpit).
 - Varias instancias pueden correr a la vez: cada una toma filas distintas
   (`FOR UPDATE SKIP LOCKED`).
+- Entrega **al menos una vez**: si el proceso se cae justo después de que el
+  proveedor aceptó el correo, se reenvía al vencer el bloqueo (10 min). Cada
+  correo lleva un `Message-ID` fijo (`<id>@outbox.steam-society>`) para que el
+  cliente de correo reconozca el duplicado.
+- La caducidad se revisa justo antes de cada envío, no solo al tomar el lote.
 - **Recordatorio 24 h antes:** cada 5 min se encola un correo para la mentee y
   la mentora de cada reserva confirmada que empieza en menos de 24 h, en la
-  zona horaria de cada una y con el enlace de la sesión. Sale una sola vez
-  (`booking.reminder_sent_at`). Si la reserva se confirmó con menos de 24 h,
+  zona horaria de cada una y con el enlace de la sesión. Sale una sola vez:
+  primero se encolan los dos correos con `dedupe_key`
+  (`booking.reminder:<id>:mentee|mentor`) y después se marca
+  `booking.reminder_sent_at`; si algo falla en medio, el siguiente ciclo no
+  duplica. Si la reserva se confirmó con menos de 24 h,
   basta el correo de aceptación. Caduca al empezar la sesión.
 
 ### Recuperación de contraseña

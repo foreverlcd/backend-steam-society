@@ -16,6 +16,8 @@ export interface BookingNotification {
   timezone: string;
   meetingUrl: string | null;
   reason: string | null;
+  /** Idempotency key: notifying twice with it queues one e-mail. */
+  dedupeKey?: string;
 }
 
 export interface NotificationsPort {

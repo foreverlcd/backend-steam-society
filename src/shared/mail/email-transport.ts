@@ -8,6 +8,8 @@ export interface OutgoingEmail {
   to: string;
   subject: string;
   text: string;
+  /** Stable per queued row: a resend after a crash keeps the same id. */
+  messageId?: string;
 }
 
 /** Delivers one e-mail now. Only the outbox dispatcher calls it. */
