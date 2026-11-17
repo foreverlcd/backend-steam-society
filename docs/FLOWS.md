@@ -272,6 +272,9 @@ sequenceDiagram
 | Correo de restablecer contraseña / verificación / SMTP | `src/modules/auth/mailer.service.ts`, `SMTP_URL`/`SMTP_FROM` en `src/config/env.ts` |
 | Verificación de correo y cuáles rutas la exigen | `@RequireVerifiedEmail` (`src/shared/http/account-policy.decorators.ts`), `account-policy.guard.ts`, `EMAIL_VERIFICATION_TTL_HOURS` |
 | 2FA (TOTP, códigos de recuperación, roles obligados) | `src/modules/auth/{mfa.service,mfa.controller,mfa.repository,totp,secret-box}.ts`; roles obligados en `MFA_REQUIRED_ROLES`; `@AllowWithoutMfa` en rutas |
+| Sesiones activas, cambiar contraseña o correo, step-up | `src/modules/auth/{account-security.service,account-security.controller,session.repository}.ts` |
+| Contraseñas filtradas (HIBP) | `src/modules/auth/password-breach-checker.ts`, `PASSWORD_BREACH_CHECK` |
+| Exportar datos y eliminar cuenta | `src/modules/account/`; registro en `src/shared/personal-data/`; cada módulo en su `*-personal-data.ts` |
 | Pagos y proveedor | `src/modules/payments/` (`PaymentGateway`, adaptadores); ver `docs/PAYMENTS.md`; web `src/components/payments/`, `src/lib/api/payments.ts` |
 | Roles y permisos de un endpoint | `@Roles(...)` en el controller; `src/modules/auth/roles.guard.ts`, `src/shared/http/roles.decorator.ts` |
 | Sesión, cookie, CORS, CSRF | `src/app.setup.ts`, `src/shared/config/web-origins.ts`, `WEB_ORIGIN` |
