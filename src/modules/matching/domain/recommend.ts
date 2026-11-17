@@ -330,7 +330,7 @@ function scorePriceFit(
 function scoreReliability(config: MatchingConfig): ComponentResult {
   return component(
     'reliability',
-    config.reliabilityNeutral,
+    config.neutralReliabilityScore,
     config,
     'Sin datos de confiabilidad todavía; valor neutral.',
     null,

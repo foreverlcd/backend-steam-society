@@ -479,17 +479,17 @@ export class ProfilesRepository {
     `;
 
     const hasMore = rows.length > data.limit;
-    const page = hasMore ? rows.slice(0, data.limit) : rows;
-    const last = page[page.length - 1];
+    const pageRows = hasMore ? rows.slice(0, data.limit) : rows;
+    const last = pageRows[pageRows.length - 1];
     const records =
-      page.length === 0
+      pageRows.length === 0
         ? []
         : await this.prisma.mentorProfile.findMany({
-            where: { userId: { in: page.map((row) => row.userId) } },
+            where: { userId: { in: pageRows.map((row) => row.userId) } },
             include: publicMentorInclude,
           });
     const byId = new Map(records.map((record) => [record.userId, record]));
-    const ordered = page
+    const ordered = pageRows
       .map((row) => byId.get(row.userId))
       .filter((record): record is PublicMentorRecord => Boolean(record));
 

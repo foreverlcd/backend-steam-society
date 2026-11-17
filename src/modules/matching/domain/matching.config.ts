@@ -15,7 +15,7 @@ export const DEFAULT_MATCHING_CONFIG: MatchingConfig = {
   },
   horizonDays: 14,
   targetAvailabilityHours: 6,
-  reliabilityNeutral: 0.5,
+  neutralReliabilityScore: 0.5,
   defaultLimit: 3,
   maxLimit: 10,
   levelFitMaxYearsDistance: 7,

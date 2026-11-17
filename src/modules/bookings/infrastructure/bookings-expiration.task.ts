@@ -13,10 +13,10 @@ export class BookingsExpirationTask {
   @Interval(EXPIRATION_INTERVAL_MS)
   async expireDue(): Promise<void> {
     try {
-      const expired = await this.bookings.expireDue();
+      const expiredCount = await this.bookings.expireDue();
 
-      if (expired > 0) {
-        this.logger.log(`Expired ${expired} booking request(s)`);
+      if (expiredCount > 0) {
+        this.logger.log(`Expired ${expiredCount} booking request(s)`);
       }
     } catch (error) {
       this.logger.error(
