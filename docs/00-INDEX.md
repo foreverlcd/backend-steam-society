@@ -7,6 +7,11 @@ Steam Society: plataforma de mentorías STEAM para mujeres. Este repo es el back
 | `PROGRESS.md` | Estado vivo: etapa actual, hecho, pendiente, decisiones recientes | SIEMPRE, al empezar y al terminar |
 | `DEMO.md` | Guion de demo de 5 minutos y cuentas ficticias | Al preparar o ejecutar una demo |
 | `PAYMENTS.md` | Módulo de pagos desacoplado: diagramas, invariantes, cómo conectar un proveedor real o quitarlo | Antes de tocar pagos o elegir pasarela |
+| `FLOWS.md` | Mapa visual: sistema, módulos, capas, recorridos, estados, dónde tocar qué | Antes de una tarea en un área que no conoces |
+| `GOLDEN-PRINCIPLES.md` | 14 reglas concretas nacidas de errores reales | Antes de implementar o revisar |
+| `HARNESS.md` | Arnés de agentes: gate, reglas en código, roles, delegación, limpieza | Al planificar o delegar tareas |
+| `exec-plans/` | Plantilla, planes activos y completados, deuda técnica | Al planificar o retomar una tarea |
+| `harness/` | Roles de agentes, tareas recurrentes y bitácora de fallas | Al delegar o al mejorar el arnés |
 | `SKILLS.md` | Registro y política de skills: fuente, hash, fecha, banderas y permiso | Revisas o actualizas una skill |
 | `01-PRODUCT.md` | Roles, reglas de negocio R-xx, flujos, alcance por hito, glosario | Implementas cualquier funcionalidad |
 | `02-ARCHITECTURE.md` | Monolito modular, contextos, hexagonal selectiva, carpetas, reglas entre módulos | Creas un módulo o dudas dónde va el código |
