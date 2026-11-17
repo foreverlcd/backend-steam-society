@@ -86,8 +86,8 @@ describe('AccountSecurityService', () => {
     expect(mocks.updatePassword).toHaveBeenCalledWith(
       'user-1',
       '$argon2id$new',
+      'sid-1',
     );
-    expect(mocks.revokeAll).toHaveBeenCalledWith('user-1', 'sid-1');
     await vi.waitFor(() =>
       expect(mocks.sendPasswordChangedNotice).toHaveBeenCalledWith(
         'ana@example.com',

@@ -4,6 +4,7 @@ Cada vez que un agente falla, entrega algo incorrecto o necesita ayuda, se anota
 
 | Fecha | Motor / rol | Qué pasó | Qué le faltó | Qué agregamos |
 |---|---|---|---|---|
+| 2026-11-17 | codex / reviewer (rama ya commiteada) | La primera revisión recibió un diff vacío: `delegate.sh` solo miraba cambios sin commit. | Poder revisar una rama completa. | `REVIEW_BASE=main` en `delegate.sh` (usa `git diff main...HEAD`). La segunda revisión halló 3 bugs reales de zona roja (carrera borrado/reserva, 500 en cambio de correo, contraseña y sesiones no atómicas). |
 | 2026-11-17 | opus / implementación (F2 cuenta) | Repetí el error del 2026-11-16: Prettier sobre todo `src` reformateó 10 archivos ajenos. Lo revertí con `git checkout -- <archivos>`. | Aplicar la regla también al planificador, no solo al implementador. | Formatear siempre con la lista de archivos tocados (`git status --short`), nunca un directorio. |
 | 2026-11-17 | gate.sh (secret scan) | Marcó `'not-the-password'` en un e2e: un valor de prueba sin el prefijo acordado. | — | Renombrado a `test-only-wrong-password`; la convención `test-only-` vale también para contraseñas incorrectas. |
 | 2026-11-17 | e2e en paralelo | Dos ramas a la vez compartían `steam_society_test` y se truncaban las tablas entre sí. | Una base por rama. | `E2E_DATABASE_NAME` (debe empezar con `steam_society_test`); documentado en README. |

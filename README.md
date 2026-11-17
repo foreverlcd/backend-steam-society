@@ -233,6 +233,8 @@ curl -i -X POST http://localhost:3000/v1/auth/register \
   transacción: la cuenta queda anonimizada (`status = deleted`), el perfil y la
   disponibilidad se borran o vacían, las ofertas se archivan y se cierran todas
   las sesiones. Las reservas y la auditoría se conservan sin datos personales.
+  Una reserva pedida al mismo tiempo no puede colarse: el borrado y la reserva
+  usan los mismos locks y se vuelve a comprobar dentro de la transacción.
   Los pagos no se tocan (decisión pendiente, P-03). La retención es
   **provisional** hasta DA-04. Detalle en `docs/03-DATA-MODEL.md`.
 

@@ -108,7 +108,21 @@ export class UserRepository {
    * verified; an email-change token moves the account to the new address
    * (already proven, so it is verified too) and audits the change.
    */
-  consumeEmailVerificationToken(
+  async consumeEmailVerificationToken(
+    tokenHash: string,
+    now: Date,
+  ): Promise<EmailTokenOutcome> {
+    try {
+      return await this.consumeEmailVerificationTokenOnce(tokenHash, now);
+    } catch (error) {
+      // Someone registered the new address between our check and the update:
+      // the transaction rolled back, so the link stays usable.
+      if (isUniqueViolation(error)) return { status: 'email_taken' };
+      throw error;
+    }
+  }
+
+  private consumeEmailVerificationTokenOnce(
     tokenHash: string,
     now: Date,
   ): Promise<EmailTokenOutcome> {
@@ -171,13 +185,22 @@ export class UserRepository {
     });
   }
 
-  /** Sets a new password hash and audits it (sessions are handled by the caller). */
-  async updatePassword(userId: string, passwordHash: string): Promise<void> {
+  /**
+   * Sets a new password hash, audits it and signs out every other session, all
+   * in one transaction: an old session never survives with the new password.
+   */
+  async updatePassword(
+    userId: string,
+    passwordHash: string,
+    keepSessionId: string,
+  ): Promise<void> {
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: userId },
         data: { passwordHash },
       }),
+      this.prisma.$executeRaw`
+        DELETE FROM auth_session WHERE sess->>'userId' = ${userId} AND sid <> ${keepSessionId}`,
       this.prisma.auditLog.create({
         data: {
           actorUserId: userId,
@@ -247,4 +270,12 @@ async function revokeSessions(
   userId: string,
 ): Promise<void> {
   await tx.$executeRaw`DELETE FROM auth_session WHERE sess->>'userId' = ${userId}`;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === 'P2002'
+  );
 }

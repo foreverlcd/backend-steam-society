@@ -9,6 +9,7 @@ import {
   type PersonalDataContributor,
 } from '../../../shared/personal-data/personal-data.registry.js';
 import { PrismaService } from '../../../shared/prisma/prisma.service.js';
+import { lockAsMentee, lockAsMentor } from './prisma-booking.repository.js';
 
 const OPEN_STATUSES = ['requested', 'awaiting_payment', 'confirmed'] as const;
 
@@ -72,25 +73,20 @@ export class BookingsPersonalData
 
   /** Open bookings have another person waiting: they must be closed first. */
   async assertErasable(userId: string, now: Date): Promise<void> {
-    const open = await this.prisma.booking.count({
-      where: {
-        status: { in: [...OPEN_STATUSES] },
-        session: { endsAt: { gt: now } },
-        OR: [{ menteeId: userId }, { session: { mentorId: userId } }],
-      },
-    });
-    if (open > 0) {
-      throw new ConflictException({
-        statusCode: 409,
-        code: 'ACCOUNT_HAS_OPEN_BOOKINGS',
-        message:
-          'Cancel or finish your open bookings before deleting the account',
-        details: { openBookings: open },
-      });
-    }
+    assertNoOpenBookings(await countOpenBookings(this.prisma, userId, now));
   }
 
-  async erase(tx: Prisma.TransactionClient, userId: string): Promise<void> {
+  async erase(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    now: Date,
+  ): Promise<void> {
+    // Same locks as booking creation: a booking requested meanwhile either
+    // commits first (and is counted here) or waits and then sees the deletion.
+    await lockAsMentee(tx, userId);
+    await lockAsMentor(tx, userId);
+    assertNoOpenBookings(await countOpenBookings(tx, userId, now));
+
     await tx.booking.updateMany({
       where: { menteeId: userId },
       data: { message: null },
@@ -98,6 +94,32 @@ export class BookingsPersonalData
     await tx.session.updateMany({
       where: { mentorId: userId },
       data: { meetingUrl: null },
+    });
+  }
+}
+
+function countOpenBookings(
+  client: Prisma.TransactionClient,
+  userId: string,
+  now: Date,
+): Promise<number> {
+  return client.booking.count({
+    where: {
+      status: { in: [...OPEN_STATUSES] },
+      session: { endsAt: { gt: now } },
+      OR: [{ menteeId: userId }, { session: { mentorId: userId } }],
+    },
+  });
+}
+
+function assertNoOpenBookings(open: number): void {
+  if (open > 0) {
+    throw new ConflictException({
+      statusCode: 409,
+      code: 'ACCOUNT_HAS_OPEN_BOOKINGS',
+      message:
+        'Cancel or finish your open bookings before deleting the account',
+      details: { openBookings: open },
     });
   }
 }

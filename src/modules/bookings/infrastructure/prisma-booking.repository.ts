@@ -4,6 +4,7 @@ import { PrismaService } from '../../../shared/prisma/prisma.service.js';
 import type { Booking } from '../domain/booking.js';
 import type { BookingStatus } from '../domain/booking-status.js';
 import {
+  BookingPartyUnavailableError,
   BookingStatusConflictError,
   MenteeOverlapError,
   SlotTakenError,
@@ -58,12 +59,22 @@ export class PrismaBookingRepository implements BookingRepositoryPort {
   async create(data: CreateBookingData): Promise<Booking> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        // Serialize concurrent requests for the same mentee and mentor. Locks
-        // are always taken in this order to avoid deadlocks.
-        // pg_advisory_xact_lock returns void, which the pg adapter cannot
-        // deserialize. Casting to text keeps the lock and returns a row.
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${data.menteeId}, 1))::text AS locked`;
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${data.mentorId}, 2))::text AS locked`;
+        // Serialize concurrent requests for the same mentee and mentor.
+        await lockAsMentee(tx, data.menteeId);
+        await lockAsMentor(tx, data.mentorId);
+
+        // Account deletion takes the same locks, so this sees its result: a
+        // deleted mentee or an archived offering cannot get a new booking.
+        const [available] = await tx.$queryRaw<
+          Array<{ mentee: boolean; offering: boolean }>
+        >`
+          SELECT
+            EXISTS (SELECT 1 FROM "user" WHERE id = ${data.menteeId}::uuid AND status = 'active' AND deleted_at IS NULL) AS mentee,
+            EXISTS (SELECT 1 FROM offering WHERE id = ${data.offeringId}::uuid AND active) AS offering
+        `;
+        if (!available?.mentee || !available.offering) {
+          throw new BookingPartyUnavailableError();
+        }
 
         const menteeOverlap = await tx.$queryRaw<Array<{ exists: boolean }>>`
           SELECT EXISTS (
@@ -414,4 +425,23 @@ function isExclusionViolation(error: unknown): boolean {
     cause?.originalCode === '23P01' ||
     meta?.message?.includes('session_no_overlap') === true
   );
+}
+
+/**
+ * Serialises booking changes per participant. Always taken mentee first, then
+ * mentor, to avoid deadlocks. pg_advisory_xact_lock returns void, which the pg
+ * adapter cannot deserialise: the cast to text keeps the lock and returns a row.
+ */
+export async function lockAsMentee(
+  tx: Prisma.TransactionClient,
+  userId: string,
+): Promise<void> {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${userId}, 1))::text AS locked`;
+}
+
+export async function lockAsMentor(
+  tx: Prisma.TransactionClient,
+  userId: string,
+): Promise<void> {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${userId}, 2))::text AS locked`;
 }

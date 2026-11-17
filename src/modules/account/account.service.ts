@@ -55,8 +55,11 @@ export class AccountService {
       await contributor.assertErasable?.(user.id, now);
     }
     await this.prisma.$transaction(async (tx) => {
-      // Serialise with bookings created meanwhile for the same user.
-      await tx.$queryRaw`SELECT 1 FROM "user" WHERE "id" = ${user.id}::uuid FOR UPDATE`;
+      // One deletion at a time per account. NO KEY UPDATE (not UPDATE) so a
+      // booking insert, whose foreign key takes KEY SHARE on this row, cannot
+      // deadlock with us; bookings are serialised by their own locks, which
+      // the bookings contributor takes and re-checks inside this transaction.
+      await tx.$queryRaw`SELECT 1 FROM "user" WHERE "id" = ${user.id}::uuid FOR NO KEY UPDATE`;
       for (const contributor of contributors) {
         await contributor.erase(tx, user.id, now);
       }

@@ -50,6 +50,14 @@ export class SlotTakenError extends Error {
   }
 }
 
+/** The offering was archived or a participant left while booking. */
+export class BookingPartyUnavailableError extends Error {
+  constructor() {
+    super('The offering or one of the participants is no longer available');
+    this.name = 'BookingPartyUnavailableError';
+  }
+}
+
 export class MenteeOverlapError extends Error {
   constructor() {
     super('The mentee already has an active booking in this time range');

@@ -35,10 +35,11 @@ $(cat "$TASK")"
 # Reviewers get the diff inside the prompt: headless engines (agy, opencode
 # plan) cannot always ask permission to run git themselves.
 if [ "$ROLE" = "reviewer" ]; then
-  DIFF="$(cd "$REPO" && git diff HEAD; cd "$REPO" && git ls-files --others --exclude-standard | while read -r f; do git diff --no-index /dev/null "$f" || true; done)"
+  # REVIEW_BASE=main reviews a branch already committed (git diff main...HEAD).
+  DIFF="$(cd "$REPO" && git diff "${REVIEW_BASE:+$REVIEW_BASE...}HEAD"; cd "$REPO" && git ls-files --others --exclude-standard | while read -r f; do git diff --no-index /dev/null "$f" || true; done)"
   PROMPT="$PROMPT
 
-# Cambio a revisar (git diff HEAD + archivos nuevos)
+# Cambio a revisar (git diff ${REVIEW_BASE:+$REVIEW_BASE...}HEAD + archivos nuevos)
 El diff ya está aquí: NO ejecutes comandos de shell (en modo headless se rechazan). Si necesitas más contexto, solo lee archivos.
 \`\`\`diff
 ${DIFF:0:150000}

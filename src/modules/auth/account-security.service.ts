@@ -77,8 +77,8 @@ export class AccountSecurityService {
     await this.users.updatePassword(
       user.id,
       await this.passwordHasher.hash(newPassword),
+      currentSid,
     );
-    await this.sessions.revokeAll(user.id, currentSid);
     this.notify('Password changed notice', () =>
       this.mailer.sendPasswordChangedNotice(user.email),
     );

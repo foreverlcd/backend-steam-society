@@ -7,6 +7,9 @@ import type { App } from 'supertest/types.js';
 import { seedTaxonomies } from '../prisma/seed-data.js';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
+import { BookingsService } from '../src/modules/bookings/application/bookings.service.js';
+import { BookingsPersonalData } from '../src/modules/bookings/infrastructure/bookings-personal-data.js';
+import type { AuthUser } from '../src/modules/auth/auth.types.js';
 import { PrismaService } from '../src/shared/prisma/prisma.service.js';
 import { currentTotp, enrollTotp, markEmailVerified } from './helpers/auth.js';
 
@@ -106,7 +109,7 @@ describe('Account data rights (e2e)', () => {
     role: 'mentor' | 'mentee',
   ): Promise<AuthSession> {
     const email = `account-${randomUUID()}@example.com`;
-    const password = 'correct-horse-battery';
+    const password = 'test-only-correct-horse-battery';
 
     await request(app.getHttpServer())
       .post('/v1/auth/register')
@@ -445,5 +448,81 @@ describe('Account data rights (e2e)', () => {
       confirmation: 'ELIMINAR',
     }).expect(403);
     expect(response.body.code).toBe('ADMIN_SELF_DELETE_FORBIDDEN');
+  });
+
+  it('re-checks open bookings inside the deletion transaction', async () => {
+    const { mentor, offering } = await prepareMentorWithOffering();
+    const mentee = await createMentee();
+    await book(mentee.cookie, offering.id, limaInstant(targetDate, 9));
+    const contributor = app.get(BookingsPersonalData);
+
+    // As if the booking arrived after assertErasable ran.
+    await expect(
+      prisma.$transaction((tx) =>
+        contributor.erase(tx, mentor.userId, new Date()),
+      ),
+    ).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_HAS_OPEN_BOOKINGS' },
+    });
+  });
+
+  it('does not book for a mentee deleted while the request was in flight', async () => {
+    const { offering } = await prepareMentorWithOffering();
+    const mentee = await createMentee();
+    const me = await request(app.getHttpServer())
+      .get('/v1/me')
+      .set('Cookie', mentee.cookie)
+      .expect(200);
+    const staleUser = me.body as AuthUser;
+    await prisma.user.update({
+      where: { id: mentee.userId },
+      data: { status: 'deleted', deletedAt: new Date() },
+    });
+
+    await expect(
+      app.get(BookingsService).create(staleUser, {
+        offeringId: offering.id,
+        startsAt: limaInstant(targetDate, 9),
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'BOOKING_SLOT_UNAVAILABLE' },
+    });
+    expect(await prisma.booking.count()).toBe(0);
+  });
+
+  it('never leaves an open booking on a deleted account (concurrent requests)', async () => {
+    for (let round = 0; round < 3; round += 1) {
+      const { mentor, offering } = await prepareMentorWithOffering();
+      const mentee = await createMentee();
+
+      const [booking, deletion] = await Promise.all([
+        request(app.getHttpServer())
+          .post('/v1/bookings')
+          .set('Cookie', mentee.cookie)
+          .send({
+            offeringId: offering.id,
+            startsAt: limaInstant(targetDate, 9),
+          }),
+        deleteAccount(mentor.cookie, {
+          password: mentor.password,
+          confirmation: 'ELIMINAR',
+        }),
+      ]);
+
+      // Exactly one wins; never a 500 from a deadlock.
+      expect(booking.status < 500 && deletion.status < 500).toBe(true);
+      expect(booking.status === 201 && deletion.status === 204).toBe(false);
+      const deleted =
+        (await prisma.user.findUniqueOrThrow({ where: { id: mentor.userId } }))
+          .status === 'deleted';
+      const openBookings = await prisma.booking.count({
+        where: { session: { mentorId: mentor.userId }, status: 'requested' },
+      });
+      expect(deleted && openBookings > 0).toBe(false);
+
+      await prisma.$executeRawUnsafe(
+        'TRUNCATE TABLE "booking", "session", "availability_rule", "offering", "audit_log", "onboarding_response", "mentee_language", "mentor_language", "mentee_interest", "mentor_area", "mentee_profile", "mentor_profile", "auth_session", "user" CASCADE',
+      );
+    }
   });
 });
