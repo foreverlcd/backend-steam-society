@@ -4,11 +4,16 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { CLOCK } from '../../shared/clock/clock.js';
 import { SystemClock } from '../../shared/clock/system-clock.js';
 import { PrismaModule } from '../../shared/prisma/prisma.module.js';
+import { AccountPolicyGuard } from './account-policy.guard.js';
 import { AuthController, MeController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { MailerService } from './mailer.service.js';
+import { MfaController } from './mfa.controller.js';
+import { MfaRepository } from './mfa.repository.js';
+import { MfaService } from './mfa.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
 import { RolesGuard } from './roles.guard.js';
+import { SecretBox } from './secret-box.js';
 import { SessionAuthGuard } from './session-auth.guard.js';
 import { UserRepository } from './user.repository.js';
 
@@ -25,9 +30,15 @@ import { UserRepository } from './user.repository.js';
         getTracker: (request: Record<string, unknown>) => {
           // Signed-in requests are limited per account, so people sharing an
           // IP (a school, a NAT) do not exhaust each other's quota.
-          const session = request.session as { userId?: unknown } | undefined;
+          const session = request.session as
+            | { userId?: unknown; pendingMfa?: { userId?: unknown } }
+            | undefined;
           if (typeof session?.userId === 'string') {
             return `user:${session.userId}`;
+          }
+          // Second-factor guesses are limited per account, whatever the IP.
+          if (typeof session?.pendingMfa?.userId === 'string') {
+            return `mfa:${session.pendingMfa.userId}`;
           }
 
           const email =
@@ -43,16 +54,21 @@ import { UserRepository } from './user.repository.js';
       },
     ]),
   ],
-  controllers: [AuthController, MeController],
+  controllers: [AuthController, MeController, MfaController],
   providers: [
     AuthService,
     MailerService,
     PasswordHasher,
     UserRepository,
+    MfaRepository,
+    MfaService,
+    SecretBox,
     ThrottlerGuard,
     { provide: CLOCK, useClass: SystemClock },
     { provide: APP_GUARD, useClass: SessionAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    // Order matters: runs after the session and role checks (ADR-024).
+    { provide: APP_GUARD, useClass: AccountPolicyGuard },
   ],
   exports: [AuthService, MailerService],
 })

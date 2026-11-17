@@ -31,6 +31,25 @@ export class MailerService {
     );
   }
 
+  async sendEmailVerification(
+    to: string,
+    token: string,
+    validHours: number,
+  ): Promise<void> {
+    const verifyUrl = `${this.appUrl}/verify-email?token=${encodeURIComponent(token)}`;
+
+    await this.send(
+      to,
+      'Confirma tu correo en Steam Society',
+      [
+        'Gracias por registrarte en Steam Society.',
+        `Confirma tu correo abriendo este enlace (válido ${validHours} horas): ${verifyUrl}`,
+        'Necesitas confirmarlo para reservar sesiones o enviar tu perfil de mentora a revisión.',
+        'Si no creaste esta cuenta, ignora este correo.',
+      ].join('\n\n'),
+    );
+  }
+
   async send(to: string, subject: string, text: string): Promise<void> {
     if (!this.transporter) {
       throw new Error('SMTP_URL is not configured');

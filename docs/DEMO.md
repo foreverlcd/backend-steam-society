@@ -18,7 +18,7 @@ Todos los datos son ficticios (`@demo.steamsociety.local`).
 | `valeria.quispe@demo.steamsociety.local` | Mentora (datos/IA) | Oferta gratuita y de pago |
 | `rosa.mamani@demo.steamsociety.local` | Mentora (biología) | Oferta gratuita |
 | `lucia.torres@demo.steamsociety.local` | Mentora (mecatrónica) | Oferta gratuita |
-| `ADMIN_EMAIL` del `.env` | Admin | Revisar mentoras |
+| `ADMIN_EMAIL` del `.env` | Admin | Revisar mentoras (exige activar el 2FA en el primer ingreso) |
 
 Contraseña de las cuentas demo: el `DEMO_PASSWORD` de la última ejecución del
 seed (cada ejecución la restablece, así que si la olvidas basta con volver a

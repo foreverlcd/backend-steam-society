@@ -16,6 +16,8 @@ function authUser(overrides: Partial<AuthUser> = {}): AuthUser {
     firstName: 'Ada',
     lastName: 'Lovelace',
     birthDate: new Date('1990-01-01T00:00:00.000Z'),
+    emailVerified: true,
+    mfaEnabled: false,
     ...overrides,
   };
 }

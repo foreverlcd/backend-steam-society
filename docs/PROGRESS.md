@@ -1,6 +1,6 @@
 # PROGRESS: estado vivo (actualizar al terminar cada sesión)
 
-Última actualización: 2026-11-17 · **Arnés de agentes listo** (`docs/HARNESS.md`); siguiente: quick wins de UX ejecutados con el arnés (`docs/exec-plans/active/`). · **Hito 1 cerrado en código** en las ramas `feat/close-milestone-1` (backend y web). Hay una revisión senior de 1.5/1.6 con 10 hallazgos corregidos, un módulo de pagos desacoplado (ADR-025, `disabled` por defecto y `fake` en desarrollo), y la etapa 1.7 tiene datos demo, guion, k6 y límites de peticiones. Las recomendaciones de F0 se aceptaron como provisionales (ADR-026). Gates: backend 267 unitarios + 64 e2e, build y lint; web 69 tests, build, lint y format. Pendiente humano: demo con 3 personas, evaluación de matching con 10 pares reales y decisión sobre los parches de seguridad de `next` y `multer`.
+Última actualización: 2026-11-17 · **F2 identidad hecha en código (ADR-024)**: verificación de correo y 2FA TOTP, backend y web (probado en navegador con el correo real de Mailpit). · **Arnés de agentes listo** (`docs/HARNESS.md`); siguiente: quick wins de UX ejecutados con el arnés (`docs/exec-plans/active/`). · **Hito 1 cerrado en código** en las ramas `feat/close-milestone-1` (backend y web). Hay una revisión senior de 1.5/1.6 con 10 hallazgos corregidos, un módulo de pagos desacoplado (ADR-025, `disabled` por defecto y `fake` en desarrollo), y la etapa 1.7 tiene datos demo, guion, k6 y límites de peticiones. Las recomendaciones de F0 se aceptaron como provisionales (ADR-026). Gates: backend 267 unitarios + 64 e2e, build y lint; web 69 tests, build, lint y format. Pendiente humano: demo con 3 personas, evaluación de matching con 10 pares reales y decisión sobre los parches de seguridad de `next` y `multer`.
 
 ## Hecho (con evidencia)
 - Entorno: Node 24.22.1, pnpm 12.15.0, NestJS 12.2 (ESM, Vitest, oxlint).
@@ -100,6 +100,20 @@
 - [ ] Revisión del diff por el desarrollador y revisión senior de la zona roja.
 - [ ] Evaluación humana con 10 pares reales y ajuste de pesos si hace falta.
 - [ ] Prueba manual en navegador del flujo catálogo → detalle → reserva → aceptación (requiere API en `localhost:3000` y web en `localhost:3001`).
+
+## F2: identidad (verificación de correo y 2FA, ADR-024)
+Rama `feat/f2-identity` (cambios sin commit al escribir esto).
+- [x] Migración `20261117150930_add_email_verification_and_mfa`: tablas `email_verification_token`, `user_totp` y `mfa_recovery_code`, CHECKs a mano y backfill (las cuentas existentes quedan verificadas). Detalle en `docs/03-DATA-MODEL.md`.
+- [x] Verificación de correo: `POST /v1/auth/email/verify` (204) y `POST /v1/auth/email/resend` (202; `409 EMAIL_ALREADY_VERIFIED`); enlace `${APP_URL}/verify-email?token=`, TTL `EMAIL_VERIFICATION_TTL_HOURS` (48). `@RequireVerifiedEmail` en `POST /v1/bookings` y `POST /v1/me/profile/submit` (`403 EMAIL_NOT_VERIFIED`).
+- [x] 2FA TOTP (RFC 6238, sin dependencias nuevas): secreto cifrado con AES-256-GCM (`MFA_ENCRYPTION_KEY`), anti-repetición con `last_used_time_step`, 10 códigos de recuperación de un solo uso. Endpoints `GET /v1/me/mfa`, `POST /v1/me/mfa/totp/setup|totp/confirm|recovery-codes|disable`; login en dos pasos con `POST /v1/auth/login/mfa`; límite por cuenta (`mfa:<userId>`); auditoría `user.mfa_enabled` y `user.mfa_disabled`.
+- [x] Obligatorio para admin (`AccountPolicyGuard`, `@AllowWithoutMfa`): `403 MFA_ENROLLMENT_REQUIRED` y `403 MFA_REQUIRED_FOR_ROLE`. `AuthUser` incluye `emailVerified` y `mfaEnabled`.
+- [x] Seeds: el admin nace verificado; `seed-demo` verifica correos y aprueba mentoras por Prisma con auditoría (la API de admin exige 2FA); ahora pide `DATABASE_URL` y `ADMIN_EMAIL`, no `ADMIN_PASSWORD`.
+- [x] Gate: se agregó el paso `tsc --noEmit` a `scripts/gate.sh`.
+- [x] Tests: 296 unitarios y 70 e2e; `scripts/gate.sh full` en verde.
+- [x] Docs: ADR-024, `03-DATA-MODEL.md`, README, `06-CONVENTIONS.md`, `05-ROADMAP.md`, `FLOWS.md` §9 y §10.
+- [x] UI web: paso de código o código de recuperación en el login, `/verify-email`, aviso con reenvío, página Seguridad, admin redirigido a activar el 2FA.
+- [ ] Pendiente: revisión del desarrollador de la zona roja; QR en la activación (requiere dependencia); flujo de soporte si se pierden teléfono y códigos.
+- Aplazado sin decidir (ADR-024): roles `superadmin`/finanzas/soporte/moderación y WebAuthn. SMS rechazado. Sin flujo de recuperación si se pierden el dispositivo y los códigos (hoy, manual en base). Respaldar `MFA_ENCRYPTION_KEY`.
 
 ## Decisiones tomadas (acumuladas)
 ### 1.6 (2026-10-31)
@@ -245,7 +259,7 @@
 1. Que tres personas del equipo completen `docs/DEMO.md` sin ayuda (aceptación de 1.7) y la evaluación de matching con 10 pares reales.
 2. Revisar los avisos de dependencias de desarrollo (`pnpm audit`).
 3. F1 (fundación de producción) según `docs/discovery/08-ROADMAP-V3.md`, con las respuestas provisionales de ADR-026.
-4. F2: verificación de correo, 2FA y roles separados (ADR-024), con correo gratuito.
+4. F2: verificación de correo y 2FA listos en backend y web (ADR-024). Los roles separados siguen aplazados.
 
 ## Descubrimiento y diseño para producción (2026-11-01)
 - **Rama:** `docs/discovery` desde `develop` (`40de1ef`), publicada junto con `develop`. Solo lectura y documentos: no se modificó `src`, `test`, `prisma` ni la web.
@@ -283,4 +297,5 @@
 | 2026-11-01 | Descubrimiento y diseño: `docs/discovery/00-08` (hardcodes, configuración/roles, readiness, release, infraestructura gratuita, NFR/capacidad, admin v2, roadmap v3); sin tocar código; pendiente de aprobación | Agente |
 | 2026-11-16 | Cierre del Hito 1: revisión de zonas rojas 1.5/1.6 con 10 correcciones, módulo de pagos desacoplado (ADR-025), F0 provisional (ADR-026), 1.7 (seed demo, guion, k6, rate limits), web con botón Pagar y checkout simulado; reglas de push del agente endurecidas | Agente (pendiente de revisión) |
 | 2026-11-17 | Decisiones de F0 del desarrollador registradas (ADR-026); el seed demo ahora restablece la contraseña de las cuentas ficticias | Agente |
+| 2026-11-17 | F2 identidad (ADR-024): verificación de correo, 2FA TOTP obligatorio para admin, login en dos pasos, seeds adaptados y paso `tsc` en el gate; 296 unitarios y 70 e2e, gate full en verde | Agente (pendiente de revisión) |
 | 2026-11-17 | Arnés de agentes (`docs/HARNESS.md`): gate único `scripts/gate.sh` en ambos repos, `check-boundaries.mjs` dentro de `pnpm lint`, principios de oro, `exec-plans/` y deuda técnica, roles (implementador, revisor, jardinero), `delegate.sh` (sonnet/haiku/codex/agy/opencode), subagentes `.claude/agents`, `ui-shots` en el web y mapa visual `docs/FLOWS.md` + `docs/PAYMENTS.md` | Agente |

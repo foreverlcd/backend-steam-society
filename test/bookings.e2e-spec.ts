@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { BookingsService } from '../src/modules/bookings/application/bookings.service.js';
 import { PrismaService } from '../src/shared/prisma/prisma.service.js';
+import { markEmailVerified } from './helpers/auth.js';
 
 interface AuthSession {
   cookie: string;
@@ -125,6 +126,7 @@ describe('Bookings (e2e)', () => {
         birthDate: '1998-01-01',
       })
       .expect(201);
+    await markEmailVerified(prisma, email);
 
     const login = await request(app.getHttpServer())
       .post('/v1/auth/login')

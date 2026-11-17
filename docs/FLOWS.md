@@ -186,7 +186,80 @@ sequenceDiagram
 - Red de seguridad en BD: restricción de exclusión `session_no_overlap` (`prisma/migrations/20261030234248_add_sessions_and_bookings/`) y error `SlotTakenError` mapeado a `bookingSlotTaken`.
 - El correo se envía tras el commit; si falla, la reserva sigue válida (ADR-022).
 
-## 9. Dónde tocar qué
+## 9. Registro y verificación de correo (ADR-024)
+
+```mermaid
+sequenceDiagram
+  actor Usuaria
+  participant Web
+  participant A as AuthController
+  participant S as AuthService
+  participant DB as Postgres
+  participant M as MailerService
+  participant Mail as Mailpit o SMTP
+  Usuaria->>Web: completa el registro
+  Web->>A: POST /v1/auth/register
+  A->>S: register(body) tras validar Zod
+  S->>DB: INSERT user con email_verified_at nulo
+  S-->>Web: 201 AuthUser con emailVerified false
+  S->>DB: guarda hash SHA-256 del token y expires_at
+  S->>M: sendEmailVerification(email, token, horas)
+  M->>Mail: enlace APP_URL/verify-email?token=...
+  Note over S,M: si el correo falla solo se registra el error y la cuenta sigue creada
+  Usuaria->>Web: abre el enlace
+  Web->>A: POST /v1/auth/email/verify con token
+  A->>S: verifyEmail(token)
+  S->>DB: transaccion que consume el token y marca email_verified_at
+  DB-->>S: ok o token invalido, vencido o usado
+  S-->>Web: 204 o 400 INVALID_VERIFICATION_TOKEN
+  Usuaria->>Web: pide otro enlace
+  Web->>A: POST /v1/auth/email/resend con sesion
+  A->>S: resendEmailVerification(user)
+  S->>DB: borra tokens sin usar y crea uno nuevo
+  S-->>Web: 202 o 409 EMAIL_ALREADY_VERIFIED
+```
+
+- Sin verificar, la usuaria entra y navega. `AccountPolicyGuard` (`src/modules/auth/account-policy.guard.ts`) responde `403 EMAIL_NOT_VERIFIED` solo en rutas con `@RequireVerifiedEmail` (`POST /v1/bookings`, `POST /v1/me/profile/submit`).
+- Solo se guarda el hash del token; reenviar invalida los enlaces anteriores.
+
+## 10. Login con 2FA (ADR-024)
+
+```mermaid
+sequenceDiagram
+  actor Usuaria
+  participant Web
+  participant A as AuthController
+  participant S as AuthService
+  participant F as MfaService
+  participant DB as Postgres
+  Usuaria->>Web: correo y contrasena
+  Web->>A: POST /v1/auth/login con throttle 5 por min
+  A->>S: login(email, password)
+  S-->>A: AuthUser con mfaEnabled
+  alt cuenta sin 2FA
+    A->>S: startSession(userId)
+    A-->>Web: 200 AuthUser y cookie de sesion
+  else cuenta con 2FA
+    A->>S: startMfaChallenge(userId)
+    Note over S: session.pendingMfa vale 5 minutos
+    A-->>Web: 200 mfaRequired true
+    Usuaria->>Web: codigo de la app o codigo de recuperacion
+    Web->>A: POST /v1/auth/login/mfa con throttle por cuenta mfa userId
+    A->>S: pendingMfaUserId(request)
+    S-->>A: userId o 401 MFA_CHALLENGE_EXPIRED
+    A->>F: verifySecondFactor(userId, prueba)
+    F->>DB: lee user_totp, descifra el secreto y valida el paso de 30 s
+    F->>DB: rechaza un paso ya usado o consume el codigo de recuperacion
+    F-->>A: true o false
+    A->>S: startSession(userId)
+    A-->>Web: 200 AuthUser o 401 INVALID_MFA_CODE
+  end
+```
+
+- El admin sin 2FA entra, pero `AccountPolicyGuard` responde `403 MFA_ENROLLMENT_REQUIRED` en todo salvo las rutas con `@AllowWithoutMfa` (`/me`, logout, `/me/mfa/*`, reenvío de verificación). Debe activar el 2FA con `POST /v1/me/mfa/totp/setup` y `totp/confirm`.
+- El secreto TOTP se cifra con AES-256-GCM (`secret-box.ts`, `MFA_ENCRYPTION_KEY`). Detalle de las tablas en `docs/03-DATA-MODEL.md`.
+
+## 11. Dónde tocar qué
 
 | Si quieres cambiar... | Archivos |
 |---|---|
@@ -196,7 +269,9 @@ sequenceDiagram
 | Pesos y razones del matching | `src/modules/matching/domain/matching.config.ts`, `recommend.ts`; doc `docs/08-MATCHING.md` |
 | Preguntas del onboarding | `src/modules/profiles/onboarding.config.ts`, `onboarding.completion.ts`; web `src/components/onboarding/` |
 | Correos de reserva | `src/modules/bookings/infrastructure/mail-notifications.adapter.ts` |
-| Correo de restablecer contraseña / SMTP | `src/modules/auth/mailer.service.ts`, `SMTP_URL`/`SMTP_FROM` en `src/config/env.ts` |
+| Correo de restablecer contraseña / verificación / SMTP | `src/modules/auth/mailer.service.ts`, `SMTP_URL`/`SMTP_FROM` en `src/config/env.ts` |
+| Verificación de correo y cuáles rutas la exigen | `@RequireVerifiedEmail` (`src/shared/http/account-policy.decorators.ts`), `account-policy.guard.ts`, `EMAIL_VERIFICATION_TTL_HOURS` |
+| 2FA (TOTP, códigos de recuperación, roles obligados) | `src/modules/auth/{mfa.service,mfa.controller,mfa.repository,totp,secret-box}.ts`; roles obligados en `MFA_REQUIRED_ROLES`; `@AllowWithoutMfa` en rutas |
 | Pagos y proveedor | `src/modules/payments/` (`PaymentGateway`, adaptadores); ver `docs/PAYMENTS.md`; web `src/components/payments/`, `src/lib/api/payments.ts` |
 | Roles y permisos de un endpoint | `@Roles(...)` en el controller; `src/modules/auth/roles.guard.ts`, `src/shared/http/roles.decorator.ts` |
 | Sesión, cookie, CORS, CSRF | `src/app.setup.ts`, `src/shared/config/web-origins.ts`, `WEB_ORIGIN` |

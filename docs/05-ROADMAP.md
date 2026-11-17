@@ -96,7 +96,7 @@ Spike previo: llamada 1:1 entre dos redes distintas (wifi y datos móviles) con 
 | R5 Disponibilidad y zonas horarias | Tests de propiedades y de concurrencia (etapas 1.4 y 1.5) |
 
 ## Bosquejo de API (borrador; cada etapa propone su OpenAPI)
-- Auth: `POST /v1/auth/register|login|logout`, `POST /v1/auth/password/forgot|reset`, `GET /v1/me`.
+- Auth: `POST /v1/auth/register|login|logout`, `POST /v1/auth/password/forgot|reset`, `GET /v1/me`; F2 (ADR-024): `POST /v1/auth/login/mfa`, `POST /v1/auth/email/verify|resend`, `GET /v1/me/mfa` y `POST /v1/me/mfa/totp/setup|totp/confirm|recovery-codes|disable`.
 - Perfiles: `GET|PUT /v1/me/profile`, `PUT /v1/me/onboarding`, `GET|PUT /v1/me/availability`.
 - Admin: `GET /v1/admin/mentors?status=…`, `POST /v1/admin/mentors/:id/approve|reject`.
 - Ofertas: `GET|POST /v1/me/offerings`, `PATCH /v1/me/offerings/:id`, `POST /v1/me/offerings/:id/archive`.
