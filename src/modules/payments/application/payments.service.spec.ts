@@ -18,8 +18,10 @@ const mentee: AuthUser = {
   status: 'active',
   firstName: 'Lucía',
   lastName: null,
-  timezone: 'America/Lima',
-} as AuthUser;
+  birthDate: null,
+  emailVerified: true,
+  mfaEnabled: false,
+};
 
 function makePayment(overrides: Partial<Payment> = {}): Payment {
   return {

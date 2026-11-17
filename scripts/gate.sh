@@ -35,6 +35,7 @@ secret_scan() {
 echo "gate ($MODE) backend"
 step boundaries node scripts/check-boundaries.mjs
 step lint       pnpm -s exec oxlint --type-aware src/ test/
+step typecheck  pnpm -s exec tsc --noEmit -p tsconfig.json
 step build      pnpm -s build
 step unit       pnpm -s test
 step secrets    secret_scan

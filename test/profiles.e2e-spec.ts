@@ -7,6 +7,7 @@ import { seedTaxonomies } from '../prisma/seed-data.js';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { PrismaService } from '../src/shared/prisma/prisma.service.js';
+import { enrollTotp, markEmailVerified } from './helpers/auth.js';
 
 function sessionCookie(setCookie: string | string[] | undefined): string {
   const cookies = Array.isArray(setCookie) ? setCookie : [setCookie];
@@ -74,6 +75,7 @@ describe('Profiles and onboarding (e2e)', () => {
         birthDate: '1998-01-01',
       })
       .expect(201);
+    await markEmailVerified(prisma, email);
 
     const login = await request(app.getHttpServer())
       .post('/v1/auth/login')
@@ -98,7 +100,10 @@ describe('Profiles and onboarding (e2e)', () => {
       .send({ email, password })
       .expect(200);
 
-    return { cookie: sessionCookie(login.headers['set-cookie']), id: user.id };
+    const cookie = sessionCookie(login.headers['set-cookie']);
+    // Admins must enroll a second factor before using admin routes (ADR-024).
+    await enrollTotp(app, cookie);
+    return { cookie, id: user.id };
   }
 
   async function completeMentorOnboarding(cookie: string): Promise<void> {
@@ -284,6 +289,7 @@ describe('Profiles and onboarding (e2e)', () => {
     expect(approved.body.profile.status).toBe('approved');
 
     const audits = await prisma.auditLog.findMany({
+      where: { entityType: 'mentor_profile' },
       orderBy: { createdAt: 'asc' },
     });
     expect(audits.map((audit) => audit.action)).toEqual([

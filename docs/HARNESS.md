@@ -49,9 +49,10 @@ flowchart LR
 | Alta | Zonas rojas (reservas, pagos, auth, migraciones), diseño | Planificador (Opus) | `codex` + `sonnet` |
 
 Estado real de los motores (2026-11-17):
-- **Funcionan:** `sonnet` y `haiku` (claude -p), y `opencode` con modelos gratuitos (deepseek-v4.1-flash-free dio una revisión excelente).
-- **codex:** la cuenta de ChatGPT actual rechaza todos los modelos. Mientras tanto, el revisor de otra familia es opencode.
-- **agy:** en modo headless necesita reglas de permiso de lectura en su configuración (pendiente de decisión del dueño).
+- **sonnet / haiku** (`claude -p`): implementan y revisan.
+- **codex**: modelo `gpt-6-luna` (por defecto en `delegate.sh`). Es la cuota gratuita de la cuenta de ChatGPT y **se terminará**. Cuando falle por cuota, usa opencode.
+- **agy**: solo como **revisor** (modo `plan`, permisos de lectura por sesión con `--settings`; cada regla necesita destino, por ejemplo `read_file(<repo>/**)`). Ojo: sus reglas no limitan de verdad qué archivos lee (probado: leyó `.env.example` fuera del alcance y sin hacer caso a `deny`), así que, igual que con codex en solo lectura, no abrir `.env` depende de la instrucción del rol. En modo headless edita mediante comandos de shell, así que como implementador necesitaría un shell completo, y no se lo damos.
+- **opencode** con modelos gratuitos (por ejemplo `deepseek-v4.1-flash-free`): implementa tareas bajas y revisa. Envía el código a terceros.
 
 Reglas de seguridad de los motores:
 - **opencode gratis** envía el código a proveedores de terceros. Úsalo solo en tareas sin secretos ni datos personales. Nunca en zonas rojas.

@@ -30,6 +30,8 @@ const mentor: AuthUser = {
   firstName: 'Ana',
   lastName: 'Perez',
   birthDate: null,
+  emailVerified: true,
+  mfaEnabled: false,
 };
 
 const mentee: AuthUser = {
@@ -40,6 +42,8 @@ const mentee: AuthUser = {
   firstName: 'Lucia',
   lastName: 'Diaz',
   birthDate: null,
+  emailVerified: true,
+  mfaEnabled: false,
 };
 
 const rule: AvailabilityRule = {

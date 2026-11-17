@@ -43,7 +43,19 @@ try {
   await prisma.user.upsert({
     where: { email },
     update: { passwordHash, role: 'admin', status: 'active', deletedAt: null },
-    create: { email, passwordHash, role: 'admin', status: 'active' },
+    // The admin is created by us, so its email counts as verified (ADR-024).
+    create: {
+      email,
+      passwordHash,
+      role: 'admin',
+      status: 'active',
+      emailVerifiedAt: new Date(),
+    },
+  });
+  // An admin created before ADR-024 may still be unverified; keep any date it has.
+  await prisma.user.updateMany({
+    where: { email, emailVerifiedAt: null },
+    data: { emailVerifiedAt: new Date() },
   });
 
   await seedTaxonomies(prisma);

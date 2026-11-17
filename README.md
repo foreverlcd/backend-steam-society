@@ -41,8 +41,16 @@ Variables principales:
   `http://127.0.0.1:8025`.
 - `BOOKING_REQUEST_TTL_HOURS`: plazo de respuesta de una solicitud de reserva,
   en horas (entero positivo, 48 por defecto; R-06, ADR-021).
+- `EMAIL_VERIFICATION_TTL_HOURS`: validez del enlace de verificación de correo,
+  en horas (entero positivo, 48 por defecto; ADR-024).
+- `MFA_ENCRYPTION_KEY`: clave de 32 bytes en base64 que cifra los secretos del
+  2FA. Obligatoria en producción (la API no arranca sin ella). En desarrollo,
+  si falta, se deriva de `SESSION_SECRET` y se muestra un aviso. Genérala con:
+  `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
+  Respáldala: sin ella no se pueden descifrar los 2FA ya registrados.
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD`: solo para `pnpm db:seed`. El registro público
-  nunca crea administradores.
+  nunca crea administradores. El admin se crea con el correo ya verificado y
+  debe activar el 2FA en su primer uso.
 
 No versiones `.env` ni compartas sus valores.
 
@@ -97,11 +105,19 @@ después de que la API ya está levantada. Cuando la base vuelve, `/health` resp
 |---|---|---|---|
 | GET | `/health` | Pública | Estado de la API y de la base |
 | POST | `/v1/auth/register` | Pública | Registro `mentee` o `mentor` |
-| POST | `/v1/auth/login` | Pública | Crea la sesión |
+| POST | `/v1/auth/login` | Pública | Crea la sesión; con 2FA activo responde `{ "mfaRequired": true }` |
+| POST | `/v1/auth/login/mfa` | Pública (reto pendiente) | Segundo paso con `{ "code" }` o `{ "recoveryCode" }` |
+| POST | `/v1/auth/email/verify` | Pública | Confirma el correo con `{ "token" }` (204) |
+| POST | `/v1/auth/email/resend` | Sesión | Reenvía el enlace de verificación (202; `409 EMAIL_ALREADY_VERIFIED`) |
 | POST | `/v1/auth/logout` | Sesión | Destruye la sesión |
 | POST | `/v1/auth/password/forgot` | Pública | Solicita enlace de recuperación |
 | POST | `/v1/auth/password/reset` | Pública | Consume el token y cambia la contraseña |
-| GET | `/v1/me` | Sesión | Devuelve la usuaria autenticada |
+| GET | `/v1/me` | Sesión | Devuelve la usuaria autenticada (incluye `emailVerified` y `mfaEnabled`) |
+| GET | `/v1/me/mfa` | Sesión | Estado del 2FA: `{ enabled, required, recoveryCodesRemaining }` |
+| POST | `/v1/me/mfa/totp/setup` | Sesión | Inicia la configuración: `{ secret, otpauthUri }` |
+| POST | `/v1/me/mfa/totp/confirm` | Sesión | Confirma con `{ "code" }` y devuelve `{ recoveryCodes }` (una sola vez) |
+| POST | `/v1/me/mfa/recovery-codes` | Sesión | Regenera los códigos con `{ "code" }` |
+| POST | `/v1/me/mfa/disable` | Sesión | Desactiva con `{ "password", "code" }` (204; no permitido al admin) |
 | GET | `/v1/me/profile` | Sesión `mentor`/`mentee` | Perfil propio con áreas e idiomas |
 | PUT | `/v1/me/profile` | Sesión `mentor`/`mentee` | Edita el perfil propio |
 | POST | `/v1/me/profile/submit` | Sesión `mentor` | Envía el perfil a revisión |
@@ -159,7 +175,30 @@ curl -i -X POST http://localhost:3000/v1/auth/register \
 - Las peticiones que cambian estado desde otro origen pasan por la protección
   CSRF de NestJS 12. El frontend debe estar en `WEB_ORIGIN`.
 - El login y la recuperación están limitados por IP + correo con
-  `@nestjs/throttler`.
+  `@nestjs/throttler`; el segundo paso del 2FA, por cuenta (`mfa:<userId>`).
+
+### Verificación de correo y 2FA (ADR-024)
+
+- El registro envía un enlace `${APP_URL}/verify-email?token=...` (token de 32
+  bytes, solo se guarda su hash SHA-256, caduca según
+  `EMAIL_VERIFICATION_TTL_HOURS`). La página del web llama a
+  `POST /v1/auth/email/verify`. Reenviar invalida los enlaces anteriores. En
+  local, el correo llega a Mailpit (`http://127.0.0.1:8025`).
+- Sin verificar se puede entrar y navegar, pero las rutas con
+  `@RequireVerifiedEmail` (`POST /v1/bookings`, `POST /v1/me/profile/submit`)
+  responden `403 EMAIL_NOT_VERIFIED`.
+- 2FA con TOTP (RFC 6238: SHA-1, 6 dígitos, 30 s, tolerancia de ±1 paso), sin
+  dependencias nuevas. Configurar: `totp/setup` (muestra el secreto y el URI
+  `otpauth://`) y `totp/confirm` con el primer código; devuelve 10 códigos de
+  recuperación `XXXXX-XXXXX` de un solo uso. Un código TOTP no se acepta dos veces.
+- Es **obligatorio para `admin`**: sin 2FA solo puede usar `/me`, logout,
+  `/me/mfa/*` y el reenvío de verificación; el resto responde
+  `403 MFA_ENROLLMENT_REQUIRED`, y no puede desactivarlo
+  (`403 MFA_REQUIRED_FOR_ROLE`). Es opcional para mentora y mentee.
+- Con 2FA, el login es en dos pasos: `POST /v1/auth/login` responde
+  `{ "mfaRequired": true }` y guarda un reto de 5 minutos en la sesión; luego
+  `POST /v1/auth/login/mfa`. Errores: `401 INVALID_MFA_CODE` y
+  `401 MFA_CHALLENGE_EXPIRED`.
 
 ### Recuperación de contraseña
 
@@ -301,7 +340,7 @@ Comandos disponibles:
 pnpm db:migrate    # Crear o aplicar migraciones en desarrollo
 pnpm db:generate   # Regenerar el cliente tras cambiar el esquema
 pnpm db:validate   # Validar el esquema y la configuración
-pnpm db:seed       # Crear/actualizar el admin desde ADMIN_EMAIL y ADMIN_PASSWORD
+pnpm db:seed       # Crear/actualizar el admin (verificado) desde ADMIN_EMAIL y ADMIN_PASSWORD
 pnpm db:studio     # Abrir Prisma Studio
 ```
 
@@ -312,7 +351,13 @@ Ejecuta ese comando después de un `git clone` o de cambiar
 ## Datos demo y guion de demostración
 
 Con la API corriendo y `pnpm db:seed` hecho, crea 3 mentoras aprobadas (con
-ofertas gratuitas y una de pago) y 2 mentoradas ficticias a través de la API:
+ofertas gratuitas y una de pago) y 2 mentoradas ficticias. Casi todo pasa por la
+API; dos pasos van directo a la base con Prisma porque la API no puede hacerlos
+sin intervención: marcar los correos demo como verificados (no hay bandeja) y
+aprobar las mentoras (la API de admin exige el código 2FA del admin; la
+aprobación deja la misma fila de auditoría). Por eso el script necesita
+`DATABASE_URL` y `ADMIN_EMAIL` (el admin que figura como aprobador), pero ya no
+`ADMIN_PASSWORD`:
 
 ```bash
 DEMO_PASSWORD='una-contraseña-de-12+' pnpm db:seed:demo

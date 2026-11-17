@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import type { AuthUser } from '../auth/auth.types.js';
+import { RequireVerifiedEmail } from '../../shared/http/account-policy.decorators.js';
 import { Roles } from '../../shared/http/roles.decorator.js';
 import {
   listMentorsQuerySchema,
@@ -45,6 +46,7 @@ export class ProfilesController {
   @Post('profile/submit')
   @HttpCode(200)
   @Roles('mentor')
+  @RequireVerifiedEmail()
   submitProfile(@CurrentUser() user: AuthUser) {
     return this.profiles.submitMentorProfile(user);
   }

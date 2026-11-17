@@ -4,7 +4,11 @@
  * reuses existing accounts and skips what is already there.
  *
  * Requires: API running, `pnpm db:seed` done (admin + taxonomies).
- * Env: DEMO_PASSWORD (>= 12 chars), ADMIN_EMAIL, ADMIN_PASSWORD,
+ * Two steps go straight to the database because the API cannot do them
+ * unattended (ADR-024): marking demo emails as verified (there is no inbox)
+ * and approving mentors (the admin API needs the admin's 2FA code). The
+ * approval writes the same status change and audit row as the admin endpoint.
+ * Env: DEMO_PASSWORD (>= 12 chars), ADMIN_EMAIL, DATABASE_URL,
  *      optional DEMO_API_URL (default http://localhost:3000/v1) and
  *      DEMO_WEB_ORIGIN (default http://localhost:3001).
  * All people and emails are fictional (@demo.steamsociety.local).
@@ -21,7 +25,7 @@ const API = (process.env.DEMO_API_URL ?? 'http://localhost:3000/v1').replace(
 const ORIGIN = process.env.DEMO_WEB_ORIGIN ?? 'http://localhost:3001';
 const PASSWORD = process.env.DEMO_PASSWORD;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const DATABASE_URL = process.env.DATABASE_URL;
 
 if (process.env.NODE_ENV === 'production') {
   throw new Error('seed-demo must never run against production');
@@ -31,9 +35,17 @@ if (!PASSWORD || PASSWORD.length < 12) {
   throw new Error('DEMO_PASSWORD (at least 12 characters) is required');
 }
 
-if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
-  throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD are required');
+if (!ADMIN_EMAIL) {
+  throw new Error('ADMIN_EMAIL is required (the admin recorded as approver)');
 }
+
+if (!DATABASE_URL) {
+  throw new Error('DATABASE_URL is required');
+}
+
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: DATABASE_URL }),
+});
 
 interface MentorSeed {
   email: string;
@@ -223,6 +235,11 @@ async function signUp(
     },
     [409],
   );
+  // Demo inboxes do not exist: verify the email as the link would.
+  await prisma.user.updateMany({
+    where: { email: person.email, emailVerifiedAt: null },
+    data: { emailVerifiedAt: new Date() },
+  });
   await session.login(person.email, PASSWORD!);
   return session;
 }
@@ -252,7 +269,33 @@ function limaDate(offsetDays: number): string {
   return new Date(millis).toISOString().slice(0, 10);
 }
 
-async function seedMentor(admin: Session, seed: MentorSeed): Promise<void> {
+/** Same effect as POST /admin/mentors/:id/approve (pending_review -> approved). */
+async function approveMentor(adminId: string, mentorId: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.mentorProfile.updateMany({
+      where: { userId: mentorId, status: 'pending_review' },
+      data: {
+        status: 'approved',
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+        rejectionReason: null,
+      },
+    });
+    if (count === 1) {
+      await tx.auditLog.create({
+        data: {
+          actorUserId: adminId,
+          action: 'mentor_profile.approved',
+          entityType: 'mentor_profile',
+          entityId: mentorId,
+          metadata: { from: 'pending_review', to: 'approved', via: 'seed-demo' },
+        },
+      });
+    }
+  });
+}
+
+async function seedMentor(adminId: string, seed: MentorSeed): Promise<void> {
   const session = await signUp('mentor', seed);
   const areas = await areaIds(session, seed.root, seed.children);
 
@@ -289,12 +332,7 @@ async function seedMentor(admin: Session, seed: MentorSeed): Promise<void> {
   }
 
   const { data: me } = await session.request<{ id: string }>('GET', '/me');
-  await admin.request(
-    'POST',
-    `/admin/mentors/${me.id}/approve`,
-    undefined,
-    [409],
-  );
+  await approveMentor(adminId, me.id);
 
   await session.request('PUT', '/me/availability', {
     rules: [1, 2, 3, 4, 5, 6].map((weekday) => ({
@@ -358,47 +396,40 @@ async function seedMentee(seed: MenteeSeed): Promise<void> {
  * demo. Only touches the demo domain and never runs in production.
  */
 async function resetDemoPasswords(): Promise<void> {
-  const databaseUrl = process.env.DATABASE_URL;
-
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required');
-  }
-
-  const prisma = new PrismaClient({
-    adapter: new PrismaPg({ connectionString: databaseUrl }),
+  const passwordHash = await hash(PASSWORD!, {
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  });
+  const { count } = await prisma.user.updateMany({
+    where: { email: { endsWith: DEMO_DOMAIN }, role: { not: 'admin' } },
+    data: { passwordHash },
   });
 
-  try {
-    const passwordHash = await hash(PASSWORD!, {
-      memoryCost: 19456,
-      timeCost: 2,
-      parallelism: 1,
-    });
-    const { count } = await prisma.user.updateMany({
-      where: { email: { endsWith: DEMO_DOMAIN }, role: { not: 'admin' } },
-      data: { passwordHash },
-    });
-
-    if (count > 0) {
-      console.log(`  ${count} cuentas demo con la contraseña actualizada`);
-    }
-  } finally {
-    await prisma.$disconnect();
+  if (count > 0) {
+    console.log(`  ${count} cuentas demo con la contraseña actualizada`);
   }
 }
 
 const DEMO_DOMAIN = '@demo.steamsociety.local';
 
-await resetDemoPasswords();
+try {
+  await resetDemoPasswords();
 
-const admin = new Session();
-await admin.login(ADMIN_EMAIL, ADMIN_PASSWORD);
+  const admin = await prisma.user.findFirst({
+    where: { email: ADMIN_EMAIL.toLowerCase(), role: 'admin' },
+    select: { id: true },
+  });
+  if (!admin) throw new Error('Admin not found: run pnpm db:seed first');
 
-console.log(`Sembrando datos demo en ${API}`);
-for (const mentor of MENTORS) {
-  await seedMentor(admin, mentor);
+  console.log(`Sembrando datos demo en ${API}`);
+  for (const mentor of MENTORS) {
+    await seedMentor(admin.id, mentor);
+  }
+  for (const mentee of MENTEES) {
+    await seedMentee(mentee);
+  }
+  console.log('Listo. Contraseña de todas las cuentas demo: DEMO_PASSWORD.');
+} finally {
+  await prisma.$disconnect();
 }
-for (const mentee of MENTEES) {
-  await seedMentee(mentee);
-}
-console.log('Listo. Contraseña de todas las cuentas demo: DEMO_PASSWORD.');

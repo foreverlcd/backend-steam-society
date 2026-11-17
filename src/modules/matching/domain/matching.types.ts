@@ -98,7 +98,7 @@ export interface MatchingConfig {
   weights: MatchingWeights;
   horizonDays: number;
   targetAvailabilityHours: number;
-  reliabilityNeutral: number;
+  neutralReliabilityScore: number;
   defaultLimit: number;
   maxLimit: number;
   levelFitMaxYearsDistance: number;

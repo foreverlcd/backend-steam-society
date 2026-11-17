@@ -13,7 +13,12 @@ export interface CreateUserInput {
   lastName?: string;
 }
 
-export function toAuthUser(user: User): AuthUser {
+/** A user row plus the one-to-one TOTP state, enough to build an AuthUser. */
+export type UserWithMfa = User & { totp: { confirmedAt: Date | null } | null };
+
+const WITH_MFA = { totp: { select: { confirmedAt: true } } } as const;
+
+export function toAuthUser(user: UserWithMfa): AuthUser {
   return {
     id: user.id,
     email: user.email,
@@ -22,6 +27,8 @@ export function toAuthUser(user: User): AuthUser {
     firstName: user.firstName,
     lastName: user.lastName,
     birthDate: user.birthDate,
+    emailVerified: user.emailVerifiedAt !== null,
+    mfaEnabled: user.totp?.confirmedAt != null,
   };
 }
 
@@ -36,16 +43,17 @@ export class ResetTokenAlreadyUsedError extends Error {
 export class UserRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { email } });
+  findByEmail(email: string): Promise<UserWithMfa | null> {
+    return this.prisma.user.findUnique({ where: { email }, include: WITH_MFA });
   }
 
-  findById(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id } });
+  findById(id: string): Promise<UserWithMfa | null> {
+    return this.prisma.user.findUnique({ where: { id }, include: WITH_MFA });
   }
 
-  create(input: CreateUserInput): Promise<User> {
+  create(input: CreateUserInput): Promise<UserWithMfa> {
     return this.prisma.user.create({
+      include: WITH_MFA,
       data: {
         email: input.email,
         passwordHash: input.passwordHash,
@@ -54,6 +62,54 @@ export class UserRepository {
         firstName: input.firstName,
         lastName: input.lastName,
       },
+    });
+  }
+
+  /** Replaces any unused verification token of the user with a new one. */
+  createEmailVerificationToken(
+    userId: string,
+    tokenHash: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    return this.prisma.$transaction(async (tx) => {
+      // Lock the user row so concurrent resends run one after the other and
+      // only the newest link stays valid.
+      await tx.$queryRaw`SELECT 1 FROM "user" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+      await tx.emailVerificationToken.deleteMany({
+        where: { userId, usedAt: null },
+      });
+      await tx.emailVerificationToken.create({
+        data: { userId, tokenHash, expiresAt },
+      });
+    });
+  }
+
+  /**
+   * Atomically consumes a valid token and marks the e-mail as verified.
+   * Returns false when the token is unknown, expired or already used.
+   */
+  consumeEmailVerificationToken(tokenHash: string, now: Date): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const token = await tx.emailVerificationToken.findFirst({
+        where: { tokenHash, usedAt: null, expiresAt: { gt: now } },
+        select: { id: true, userId: true },
+      });
+      if (!token) return false;
+
+      const claimed = await tx.emailVerificationToken.updateMany({
+        where: { id: token.id, usedAt: null },
+        data: { usedAt: now },
+      });
+      if (claimed.count !== 1) return false;
+
+      await tx.user.updateMany({
+        where: { id: token.userId, emailVerifiedAt: null },
+        data: { emailVerifiedAt: now },
+      });
+      await tx.emailVerificationToken.deleteMany({
+        where: { userId: token.userId, usedAt: null },
+      });
+      return true;
     });
   }
 

@@ -22,6 +22,8 @@ import {
 } from './user.repository.js';
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+/** Time the user has to type the second factor after a correct password. */
+const MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
@@ -62,6 +64,13 @@ export class AuthService {
         firstName: input.firstName,
         lastName: input.lastName,
       });
+      // The account exists even if the e-mail provider is down; the user can
+      // ask for a new link later (POST /auth/email/resend).
+      void this.sendEmailVerification(user.id, user.email).catch((error) => {
+        this.logger.error(
+          `Verification email failed: ${error instanceof Error ? error.name : 'UnknownError'}`,
+        );
+      });
       return toAuthUser(user);
     } catch (error) {
       if (isUniqueConstraintError(error)) {
@@ -83,37 +92,102 @@ export class AuthService {
       throw invalidCredentials();
     }
 
-    const valid = await this.passwordHasher.verify(user.passwordHash, password);
+    const passwordMatches = await this.passwordHasher.verify(
+      user.passwordHash,
+      password,
+    );
 
-    if (!valid) {
+    if (!passwordMatches) {
       throw invalidCredentials();
     }
 
     return toAuthUser(user);
   }
 
+  /** Signs the user in: a fresh session id bound to the user. */
   async startSession(request: Request, userId: string): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      request.session.regenerate((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve();
-      });
-    });
-
+    await regenerateSession(request);
     request.session.userId = userId;
+    await saveSession(request);
+  }
 
-    await new Promise<void>((resolve, reject) => {
-      request.session.save((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve();
+  /**
+   * The password was correct but the account has a second factor: the session
+   * only remembers who is trying to sign in, for a few minutes.
+   */
+  async startMfaChallenge(request: Request, userId: string): Promise<void> {
+    await regenerateSession(request);
+    request.session.pendingMfa = {
+      userId,
+      expiresAtMs: this.clock.now().getTime() + MFA_CHALLENGE_TTL_MS,
+    };
+    await saveSession(request);
+  }
+
+  /** Returns the user waiting for a second factor, or throws if none/expired. */
+  pendingMfaUserId(request: Request): string {
+    const pending = request.session.pendingMfa;
+    if (!pending || pending.expiresAtMs <= this.clock.now().getTime()) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'MFA_CHALLENGE_EXPIRED',
+        message: 'Sign in again to continue',
       });
-    });
+    }
+    return pending.userId;
+  }
+
+  async findActiveUser(userId: string): Promise<AuthUser> {
+    const user = await this.users.findById(userId);
+    if (!user || user.status !== 'active' || user.deletedAt !== null) {
+      throw invalidCredentials();
+    }
+    return toAuthUser(user);
+  }
+
+  async sendEmailVerification(userId: string, email: string): Promise<void> {
+    const token = randomBytes(32).toString('base64url');
+    const validHours = this.emailVerificationTtlHours();
+    const expiresAt = new Date(
+      this.clock.now().getTime() + validHours * 60 * 60 * 1000,
+    );
+    await this.users.createEmailVerificationToken(
+      userId,
+      hashToken(token),
+      expiresAt,
+    );
+    await this.mailer.sendEmailVerification(email, token, validHours);
+  }
+
+  async resendEmailVerification(user: AuthUser): Promise<void> {
+    if (user.emailVerified) {
+      throw new ConflictException({
+        statusCode: 409,
+        code: 'EMAIL_ALREADY_VERIFIED',
+        message: 'Email is already verified',
+      });
+    }
+    await this.sendEmailVerification(user.id, user.email);
+  }
+
+  async verifyEmail(token: string): Promise<void> {
+    const consumed = await this.users.consumeEmailVerificationToken(
+      hashToken(token),
+      this.clock.now(),
+    );
+    if (!consumed) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'INVALID_VERIFICATION_TOKEN',
+        message: 'Invalid or expired verification link',
+      });
+    }
+  }
+
+  private emailVerificationTtlHours(): number {
+    return Number(
+      this.configService.get<number>('EMAIL_VERIFICATION_TTL_HOURS') ?? 48,
+    );
   }
 
   async logout(request: Request): Promise<void> {
@@ -185,6 +259,18 @@ export class AuthService {
   getSessionCookieName(): string {
     return resolveSessionCookieName(this.isSecureSessionCookie());
   }
+}
+
+function regenerateSession(request: Request): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    request.session.regenerate((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+function saveSession(request: Request): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    request.session.save((error) => (error ? reject(error) : resolve()));
+  });
 }
 
 function normalizeEmail(email: string): string {

@@ -4,9 +4,6 @@ Lista viva. El rol `doc-gardener` y los revisores agregan filas; el planificador
 
 | Desde | Área | Problema | Requiere decisión | Propuesta |
 |---|---|---|---|---|
-| 2026-11-17 | Docs | `docs/02-ARCHITECTURE.md` nombra los módulos `identity`, `notifications` y `admin`. En el código son `auth`, `MailerService` (dentro de `auth`) y los endpoints `/admin/mentors` (dentro de `profiles`). | Sí: ¿renombrar el doc o el código? | Actualizar el doc al código real (más barato) |
-| 2026-11-17 | Auth | No existe verificación de correo: el registro deja la cuenta `active`. `pending_verification` existe solo como tipo. | Sí: ¿entra en el piloto? | Llevarla junto con 2FA y el correo gratuito (ADR-026) |
-| 2026-11-17 | Docs | `docs/04-STATE-MACHINES.md` es menos estricto que el código en cuanto a cancelar: la mentora solo cancela desde `confirmed`, y las reservas pagadas se pueden cancelar hasta `endsAt`. | No | Alinear el doc con `booking-status.ts` |
 | 2026-11-17 | Pagos | El puerto `PaymentGateway` solo admite los resultados `paid` y `failed`; no hay forma de ignorar estados intermedios de un proveedor real. Tampoco hay raw body para la firma HMAC. | No (antes de elegir pasarela) | Ver `docs/PAYMENTS.md` §7 |
 | 2026-11-17 | Pagos | `settle`, `confirmPaid` y `markWebhookProcessed` corren en secuencia, sin una transacción única. Un pago cobrado sobre una reserva expirada requiere reembolso manual. | No | Outbox o transacción al conectar una pasarela real |
 | 2026-11-17 | Arquitectura | `profiles` y `auth` son módulos planos (sin capas); `catalog` no tiene dominio. `check-boundaries` solo vigila capas donde existen. | No | Migrar a capas cuando se toquen |
@@ -14,3 +11,4 @@ Lista viva. El rol `doc-gardener` y los revisores agregan filas; el planificador
 | 2026-11-17 | Web tests | `BookingsView` no tiene tests de los estados vacíos por rol ni del filtro "Por pagar" oculto. | No | Tarea baja para haiku |
 | 2026-11-17 | Web copy | `admin-view.tsx` todavía muestra "Onboarding" (solo lo ve el equipo). | No | Opcional |
 | 2026-11-17 | Arnés | codex no funciona con la cuenta actual, y agy headless necesita reglas de permiso de solo lectura. | Sí (dueño) | Ver `docs/harness/LOG.md` |
+| 2026-11-17 | Web / Pagos | El fake-checkout del web usa los nombres `feeBps` y `amount`; la API usa `feeBasisPoints` y `amountMinor`. | No | Renombrar en el web (`feeBps`→`feeBasisPoints`, `amount`→`amountMinor`) cuando se decida la pasarela; aplazado hasta entonces |

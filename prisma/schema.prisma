@@ -40,29 +40,73 @@ enum UserStatus {
 }
 
 model User {
-  id                  String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  email               String               @unique
-  passwordHash        String?              @map("password_hash")
-  role                UserRole
-  status              UserStatus           @default(active)
-  firstName           String?              @map("first_name")
-  lastName            String?              @map("last_name")
-  birthDate           DateTime?            @map("birth_date") @db.Date
-  timezone            String               @default("America/Lima")
-  locale              String               @default("es")
-  emailVerifiedAt     DateTime?            @map("email_verified_at") @db.Timestamptz(3)
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt           DateTime?            @map("deleted_at") @db.Timestamptz(3)
-  passwordResetTokens PasswordResetToken[]
-  mentorProfile       MentorProfile?       @relation("MentorProfile")
-  menteeProfile       MenteeProfile?       @relation("MenteeProfile")
-  reviewedProfiles    MentorProfile[]      @relation("MentorReviewer")
-  onboardingResponses OnboardingResponse[]
-  auditLogs           AuditLog[]           @relation("AuditActor")
-  availabilityRules   AvailabilityRule[]
+  id                      String                   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email                   String                   @unique
+  passwordHash            String?                  @map("password_hash")
+  role                    UserRole
+  status                  UserStatus               @default(active)
+  firstName               String?                  @map("first_name")
+  lastName                String?                  @map("last_name")
+  birthDate               DateTime?                @map("birth_date") @db.Date
+  timezone                String                   @default("America/Lima")
+  locale                  String                   @default("es")
+  emailVerifiedAt         DateTime?                @map("email_verified_at") @db.Timestamptz(3)
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt               DateTime?                @map("deleted_at") @db.Timestamptz(3)
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  totp                    UserTotp?
+  mfaRecoveryCodes        MfaRecoveryCode[]
+  mentorProfile           MentorProfile?           @relation("MentorProfile")
+  menteeProfile           MenteeProfile?           @relation("MenteeProfile")
+  reviewedProfiles        MentorProfile[]          @relation("MentorReviewer")
+  onboardingResponses     OnboardingResponse[]
+  auditLogs               AuditLog[]               @relation("AuditActor")
+  availabilityRules       AvailabilityRule[]
 
   @@map("user")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("email_verification_token")
+}
+
+/// TOTP second factor (ADR-024). The seed is encrypted with AES-256-GCM
+/// (SecretBox); `confirmedAt` is null until the user proves a first code.
+model UserTotp {
+  userId           String    @id @map("user_id") @db.Uuid
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  secretCiphertext String    @map("secret_ciphertext")
+  confirmedAt      DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  /// Highest accepted 30 s time step; codes at or below it are replays.
+  lastUsedTimeStep BigInt?   @map("last_used_time_step")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("user_totp")
+}
+
+/// One-time recovery codes for the second factor, stored as SHA-256 hashes.
+model MfaRecoveryCode {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([userId, codeHash])
+  @@map("mfa_recovery_code")
 }
 
 model PasswordResetToken {
