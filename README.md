@@ -265,7 +265,8 @@ curl -i -X POST http://localhost:3000/v1/auth/register \
   primero se encolan los dos correos con `dedupe_key`
   (`booking.reminder:<id>:mentee|mentor`) y después se marca
   `booking.reminder_sent_at`; si algo falla en medio, el siguiente ciclo no
-  duplica. Si la reserva se confirmó con menos de 24 h,
+  duplica. Al cancelar la reserva, los recordatorios que aún no salieron se
+  retiran. Si la reserva se confirmó con menos de 24 h,
   basta el correo de aceptación. Caduca al empezar la sesión.
 
 ### Recuperación de contraseña

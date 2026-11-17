@@ -1026,5 +1026,19 @@ describe('Bookings (e2e)', () => {
         })
       ).session.startsAt,
     );
+
+    // Cancelling withdraws the reminders that did not leave yet.
+    await request(app.getHttpServer())
+      .post(`/v1/bookings/${early.id}/cancel`)
+      .set('Cookie', mentee.cookie)
+      .send({ reason: 'Surgió un imprevisto' })
+      .expect(200);
+    const withdrawn = await prisma.emailOutbox.findMany({
+      where: { kind: 'booking.reminder' },
+    });
+    expect(withdrawn.map((row) => [row.status, row.body])).toEqual([
+      ['expired', null],
+      ['expired', null],
+    ]);
   });
 });

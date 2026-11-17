@@ -9,6 +9,10 @@ import type {
 export class MailNotificationsAdapter implements NotificationsPort {
   constructor(private readonly mailer: MailerService) {}
 
+  async withdraw(dedupeKeys: string[]): Promise<void> {
+    await this.mailer.withdraw(dedupeKeys);
+  }
+
   async send(notification: BookingNotification): Promise<void> {
     const when = formatInstant(notification.startsAt, notification.timezone);
 

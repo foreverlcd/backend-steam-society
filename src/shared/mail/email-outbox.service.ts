@@ -46,4 +46,13 @@ export class EmailOutbox {
       },
     });
   }
+
+  /** Drops queued e-mails that no longer make sense (e.g. a cancelled session). */
+  async withdraw(dedupeKeys: string[]): Promise<void> {
+    if (dedupeKeys.length === 0) return;
+    await this.prisma.emailOutbox.updateMany({
+      where: { dedupeKey: { in: dedupeKeys }, status: 'pending' },
+      data: { status: 'expired', body: null, lockedUntil: null },
+    });
+  }
 }

@@ -120,6 +120,13 @@ export interface ParticipantResponse {
 /** Reminders go out about one day before the session. */
 export const REMINDER_LEAD_MS = 24 * 3_600_000;
 
+function reminderKeys(bookingId: string): [string, string] {
+  return [
+    `booking.reminder:${bookingId}:mentee`,
+    `booking.reminder:${bookingId}:mentor`,
+  ];
+}
+
 @Injectable()
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
@@ -353,6 +360,7 @@ export class BookingsService {
       sessionStatus: 'cancelled',
     });
 
+    await this.withdrawReminders(updated.id);
     await this.notifyCancelled(updated, actor);
 
     return toBookingResponse(updated);
@@ -475,7 +483,7 @@ export class BookingsService {
           recipientName: displayName(booking.mentee, 'mentee'),
           counterpartName: displayName(booking.mentor, 'tu mentora'),
           timezone: booking.mentee.timezone,
-          dedupeKey: `booking.reminder:${booking.id}:mentee`,
+          dedupeKey: reminderKeys(booking.id)[0],
         });
         await this.notifications.send({
           ...base,
@@ -483,9 +491,16 @@ export class BookingsService {
           recipientName: displayName(booking.mentor, 'mentora'),
           counterpartName: displayName(booking.mentee, 'tu mentee'),
           timezone: booking.mentor.timezone,
-          dedupeKey: `booking.reminder:${booking.id}:mentor`,
+          dedupeKey: reminderKeys(booking.id)[1],
         });
         await this.repository.markReminded(booking.id, now);
+        // Cancelled while we queued: cancel() may have withdrawn before the
+        // e-mails existed, so check again now that they do.
+        const current = await this.repository.findById(booking.id);
+        if (current?.status !== 'confirmed') {
+          await this.withdrawReminders(booking.id);
+          continue;
+        }
         reminded += 1;
       } catch (error) {
         // Not marked: the next run tries again without duplicating.
@@ -496,6 +511,16 @@ export class BookingsService {
     }
 
     return reminded;
+  }
+
+  private async withdrawReminders(bookingId: string): Promise<void> {
+    try {
+      await this.notifications.withdraw(reminderKeys(bookingId));
+    } catch (error) {
+      this.logger.error(
+        `Reminder withdrawal failed: ${error instanceof Error ? error.name : 'UnknownError'}`,
+      );
+    }
   }
 
   async expireDue(): Promise<number> {

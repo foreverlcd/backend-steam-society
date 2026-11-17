@@ -22,4 +22,6 @@ export interface BookingNotification {
 
 export interface NotificationsPort {
   send(notification: BookingNotification): Promise<void>;
+  /** Drops notifications queued with these keys that were not sent yet. */
+  withdraw(dedupeKeys: string[]): Promise<void>;
 }

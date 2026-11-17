@@ -177,7 +177,10 @@ describe('BookingsService', () => {
       }),
     };
     menteeProfile = { exists: vi.fn().mockResolvedValue(true) };
-    notifications = { send: vi.fn().mockResolvedValue(undefined) };
+    notifications = {
+      send: vi.fn().mockResolvedValue(undefined),
+      withdraw: vi.fn().mockResolvedValue(undefined),
+    };
     service = new BookingsService(
       repository as unknown as BookingRepositoryPort,
       scheduling as unknown as SchedulingRepositoryPort,
@@ -769,12 +772,12 @@ describe('BookingsService', () => {
 
   describe('reminders', () => {
     it('reminds both participants in their own time zones', async () => {
-      repository.findDueReminders.mockResolvedValue([
-        makeBooking({
-          status: 'confirmed',
-          mentee: { ...makeBooking().mentee, timezone: 'Europe/Madrid' },
-        }),
-      ]);
+      const booking = makeBooking({
+        status: 'confirmed',
+        mentee: { ...makeBooking().mentee, timezone: 'Europe/Madrid' },
+      });
+      repository.findDueReminders.mockResolvedValue([booking]);
+      repository.findById.mockResolvedValue(booking);
 
       await expect(service.sendDueReminders()).resolves.toBe(1);
 
@@ -807,6 +810,21 @@ describe('BookingsService', () => {
 
       await expect(service.sendDueReminders()).resolves.toBe(0);
       expect(repository.markReminded).not.toHaveBeenCalled();
+    });
+
+    it('withdraws the reminders when the booking was cancelled meanwhile', async () => {
+      repository.findDueReminders.mockResolvedValue([
+        makeBooking({ status: 'confirmed' }),
+      ]);
+      repository.findById.mockResolvedValue(
+        makeBooking({ status: 'cancelled' }),
+      );
+
+      await expect(service.sendDueReminders()).resolves.toBe(0);
+      expect(notifications.withdraw).toHaveBeenCalledWith([
+        'booking.reminder:booking-1:mentee',
+        'booking.reminder:booking-1:mentor',
+      ]);
     });
   });
 });

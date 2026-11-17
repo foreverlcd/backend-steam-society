@@ -131,6 +131,10 @@ export class MailerService {
   async send(email: EmailToQueue): Promise<void> {
     await this.outbox.enqueue(email);
   }
+
+  async withdraw(dedupeKeys: string[]): Promise<void> {
+    await this.outbox.withdraw(dedupeKeys);
+  }
 }
 
 /** a***@dominio.com: enough to recognise the address without exposing it. */

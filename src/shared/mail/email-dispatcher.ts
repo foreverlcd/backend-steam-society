@@ -1,6 +1,11 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  type OnApplicationBootstrap,
+  type OnModuleDestroy,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Interval } from '@nestjs/schedule';
 import { CLOCK, type Clock } from '../clock/clock.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EMAIL_TRANSPORT, type EmailTransport } from './email-transport.js';
@@ -39,9 +44,13 @@ export interface DispatchResult {
 }
 
 @Injectable()
-export class EmailDispatcher {
+export class EmailDispatcher
+  implements OnApplicationBootstrap, OnModuleDestroy
+{
   private readonly logger = new Logger(EmailDispatcher.name);
-  private readonly enabled: boolean;
+  /** 0 turns the background sender off (tests drive it by hand). */
+  private readonly intervalMs: number;
+  private timer: NodeJS.Timeout | undefined;
   private running = false;
   private warnedNotConfigured = false;
   private lastCleanupAt = 0;
@@ -52,13 +61,23 @@ export class EmailDispatcher {
     @Inject(CLOCK) private readonly clock: Clock,
     configService: ConfigService,
   ) {
-    this.enabled =
-      Number(configService.get('EMAIL_DISPATCH_INTERVAL_MS') ?? 1) !== 0;
+    this.intervalMs = Number(
+      configService.get('EMAIL_DISPATCH_INTERVAL_MS') ?? DEFAULT_INTERVAL_MS,
+    );
   }
 
-  @Interval(DEFAULT_INTERVAL_MS)
+  onApplicationBootstrap(): void {
+    if (this.intervalMs > 0) {
+      this.timer = setInterval(() => void this.tick(), this.intervalMs);
+    }
+  }
+
+  onModuleDestroy(): void {
+    clearInterval(this.timer);
+  }
+
   async tick(): Promise<void> {
-    if (!this.enabled || this.running) return;
+    if (this.running) return;
     this.running = true;
     try {
       const result = await this.dispatchDue();
