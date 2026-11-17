@@ -14,3 +14,5 @@ src/generated/
 
 # TypeScript build cache
 *.tsbuildinfo
+# harness run logs
+/.harness/

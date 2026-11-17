@@ -17,8 +17,17 @@ Responde siempre en español. Código, identificadores y mensajes de commit van 
 - Convenciones de código, API, tests y seguridad: @docs/06-CONVENTIONS.md
 - Decisiones (ADRs) y decisiones PENDIENTES: @docs/07-DECISIONS.md
 - Especificación del matching: @docs/08-MATCHING.md
+- Mapa visual (diagramas de flujo, módulos, estados, dónde tocar qué): @docs/FLOWS.md
+- Reglas concretas que todo cambio respeta: @docs/GOLDEN-PRINCIPLES.md
+- Pagos (módulo desacoplado, cómo conectar un proveedor): @docs/PAYMENTS.md
 
 Los documentos son la fuente de verdad. Si el código y un documento se contradicen, o si el documento parece incorrecto o incompleto: DETENTE y pregunta. No lo cambies en silencio.
+
+## Arnés de agentes (docs/HARNESS.md)
+- Gate único: `scripts/gate.sh` (rápido) o `scripts/gate.sh full` (con e2e). Es la definición mínima de terminado; corrígelo hasta que pase.
+- `pnpm lint` incluye `scripts/check-boundaries.mjs`: si falla, su mensaje dice cómo corregir. No agregues una dependencia entre módulos sin un ADR.
+- Las tareas delegables se escriben con `docs/exec-plans/TEMPLATE.md` en `docs/exec-plans/active/`. Los roles están en `docs/harness/roles/`.
+- Si un agente falla por falta de contexto o herramienta, anótalo en `docs/harness/LOG.md` y agrega lo que faltaba.
 
 ## Stack (cerrado; no propongas alternativas)
 TypeScript, Node 24 LTS, pnpm, NestJS 12 (ESM, Vitest, oxlint), PostgreSQL 18 con Prisma 7 (adaptador PrismaPg), Docker Compose. Versiones reales: `package.json`.
@@ -58,4 +67,4 @@ Tu conocimiento llega a mayo de 2025 y este proyecto usa versiones posteriores (
 - Lo que Prisma no expresa (exclusiones, CHECK, columnas generadas) va en migraciones SQL creadas con `--create-only`. Una migración ya aplicada no se edita: se crea otra.
 
 ## Definición de terminado (toda etapa)
-`pnpm build`, `pnpm lint` y `pnpm test` en verde; migraciones aplicadas y probadas; tests nuevos para lo nuevo; documentos y PROGRESS.md actualizados; README al día si cambió cómo se levanta el proyecto; sin TODOs silenciosos (si queda algo, va a PROGRESS.md).
+`scripts/gate.sh` en verde (`full` antes de integrar); migraciones aplicadas y probadas; tests nuevos para lo nuevo; documentos y PROGRESS.md actualizados; README al día si cambió cómo se levanta el proyecto; sin TODOs silenciosos (si queda algo, va a PROGRESS.md).

@@ -1,0 +1,17 @@
+# Bitácora del arnés
+
+Cada vez que un agente falla, entrega algo incorrecto o necesita ayuda, se anota aquí **qué le faltó** y **qué agregamos** al repo para que no vuelva a pasar. Así el arnés mejora con el uso. Las más recientes van arriba.
+
+| Fecha | Motor / rol | Qué pasó | Qué le faltó | Qué agregamos |
+|---|---|---|---|---|
+| 2026-11-17 | opus (planificador) | El criterio de terminado ("sin Onboarding visible") era imposible con la lista cerrada de archivos del plan. El implementador lo detectó y el revisor lo marcó ALTA. | Que el planificador verifique su propio criterio con grep antes de delegar. | Paso "verifica que el criterio se pueda cumplir con la lista de archivos" en `TEMPLATE.md`. |
+| 2026-11-17 | agy / reviewer | En modo headless rechaza `command` y también `read_file` si no hay regla de permiso. | Reglas de permiso de solo lectura en la configuración de agy (decisión del dueño). | El revisor recibe el diff dentro del prompt; agy queda pendiente de permisos. |
+| 2026-11-17 | codex / reviewer | La cuenta de ChatGPT rechaza todos los modelos probados (`gpt-6.1-sol`, `gpt-6.1`, `gpt-5.5`…). | Un plan de ChatGPT que incluya Codex, o un modelo permitido. | Revisor de otra familia: opencode (deepseek gratis) hasta resolverlo. |
+| 2026-11-17 | opencode deepseek-v4.1-flash-free / reviewer | Revisión de calidad: 8 hallazgos útiles, incluidos el caso borde `isFree` y un salto de layout. | — | Confirmado como revisor de otra familia para tareas sin secretos. |
+| 2026-11-17 | delegate.sh | Con `set -e`, `git diff --no-index` (sale con 1 si hay diferencias) mataba el script sin mensaje. | — | `\|\| true` y error si el motor no produce salida. |
+| 2026-11-17 | haiku / implementer (delegate.sh) | No llegó a ejecutarse: `--allowedTools` es variádico y se tragó el prompt; además `delegate.sh` salió con código 0. | Probar el delegador de punta a punta antes de usarlo. | El prompt va por stdin; `delegate.sh` falla si el motor no produce salida. |
+| 2026-11-17 | sonnet / docs (FLOWS.md) | Supuso que `profiles` y `scheduling` dependen de `auth` solo por `APP_GUARD`, porque miró los `*.module.ts` y no los imports. | Saber que las dependencias entre módulos se miden por imports de TypeScript. | `check-boundaries.mjs` congela el grafo real, y `FLOWS.md` §2 lo explica. |
+| 2026-11-17 | sonnet / docs (PAYMENTS.md) | Encontró 8 diferencias entre la documentación y el código de pagos (forma de la respuesta, transacción, relación en Prisma…). | Un proceso que detecte documentación desfasada. | Rol `doc-gardener` y `tech-debt-tracker.md`. |
+| 2026-11-16 | opus / implementación | Prettier `--write` sobre todo `src` cambió archivos ajenos a la tarea. | Formatear solo los archivos tocados. | Regla en `roles/implementer.md`: tocar solo los archivos listados. |
+| 2026-11-16 | opus / e2e | Los throttles nuevos rompían el e2e (429) porque contaban por IP. | Contar por usuario cuando hay sesión. | Principio de oro 9. |
+| 2026-11-16 | opus / web | Lint `react-hooks/set-state-in-effect`. | Patrón de inicialización perezosa documentado. | Principio de oro 11. |
