@@ -29,7 +29,7 @@ Estados terminales: `declined`, `cancelled`, `expired`, `completed`, `no_show`. 
 | `requested` / `awaiting_payment` | cancelar | `cancelled` | mentee | Antes de confirmar | Libera la sesión; registra `cancelled_by` y `cancelled_at` |
 | `requested` / `awaiting_payment` | vencer | `expired` | sistema | `now > expires_at` | Libera la sesión; notifica. Se evalúa al consultar y por una tarea periódica; la actualización es idempotente (ADR-023) |
 | `awaiting_payment` | pago acreditado | `confirmed` | sistema (evento de payments) | Pago `paid` | Igual que aceptar gratuita |
-| `confirmed` | cancelar | `cancelled` | mentee o mentora | Gratuita: hasta el inicio. De pago: **política pendiente (DA-05)** | Registra `cancelled_by` y `cancel_reason`; libera la sesión 1:1; reembolso según DA-05 (Hito 2); cuenta para la reputación |
+| `confirmed` | cancelar | `cancelled` | mentee o mentora (la mentora solo puede cancelar desde `confirmed`; la mentee también desde `requested` y `awaiting_payment`) | Gratuita: `now < starts_at`. De pago: `now < ends_at`; la política completa sigue pendiente (DA-05) | Registra `cancelled_by` y `cancel_reason`; libera la sesión 1:1; reembolso según DA-05 (Hito 2); cuenta para la reputación |
 | `confirmed` | completar | `completed` | sistema o mentora | `now >= ends_at` | `completed_at`; habilita reseñas (Hito 3) |
 | `confirmed` | no-show | `no_show` | mentora (ausente mentee) o mentee (ausente mentora) | `now > starts_at` | Registra `no_show_party`; cuenta para la reputación |
 
