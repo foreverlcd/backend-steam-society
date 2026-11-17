@@ -20,6 +20,7 @@ import { SecretBox } from './secret-box.js';
 import { SessionAuthGuard } from './session-auth.guard.js';
 import { SessionRepository } from './session.repository.js';
 import { UserRepository } from './user.repository.js';
+import { AuthPersonalData } from './auth-personal-data.js';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { UserRepository } from './user.repository.js';
     AccountSecurityController,
   ],
   providers: [
+    AuthPersonalData,
     AuthService,
     AccountSecurityService,
     MailerService,
@@ -81,6 +83,6 @@ import { UserRepository } from './user.repository.js';
     // Order matters: runs after the session and role checks (ADR-024).
     { provide: APP_GUARD, useClass: AccountPolicyGuard },
   ],
-  exports: [AuthService, MailerService],
+  exports: [AuthService, AccountSecurityService, MailerService],
 })
 export class AuthModule {}

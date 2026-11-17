@@ -24,6 +24,8 @@ const ALLOWED = {
   catalog: ['profiles', 'scheduling', 'shared', 'config', 'generated'],
   matching: ['auth', 'profiles', 'scheduling', 'shared', 'config', 'generated'],
   payments: ['auth', 'bookings', 'shared', 'config', 'generated'],
+  // Data rights: reads other modules only through shared/personal-data.
+  account: ['auth', 'shared', 'config', 'generated'],
 };
 
 const LAYERS = ['domain', 'application', 'infrastructure', 'presentation'];
@@ -53,7 +55,8 @@ function walk(dir, out = []) {
   return out;
 }
 
-const IMPORT_RE = /(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
+const IMPORT_RE =
+  /(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
 const errors = [];
 
 for (const file of walk(ROOT)) {
@@ -103,7 +106,10 @@ for (const file of walk(ROOT)) {
         `${where}: domain imports ${toLayer}/ ('${spec}').\n  FIX: domain/ may only import other domain/ files. Move the logic up to application/ or pass the value in as a parameter.`,
       );
     }
-    if (fromLayer === 'application' && (toLayer === 'infrastructure' || toLayer === 'presentation')) {
+    if (
+      fromLayer === 'application' &&
+      (toLayer === 'infrastructure' || toLayer === 'presentation')
+    ) {
       errors.push(
         `${where}: application imports ${toLayer}/ ('${spec}').\n  FIX: define a port in application/ports/ and bind the implementation in <module>.module.ts.`,
       );

@@ -5,6 +5,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { validateEnv } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
+import { AccountModule } from './modules/account/account.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { BookingsModule } from './modules/bookings/bookings.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
@@ -12,6 +13,7 @@ import { MatchingModule } from './modules/matching/matching.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { SchedulingModule } from './modules/scheduling/scheduling.module.js';
+import { PersonalDataModule } from './shared/personal-data/personal-data.registry.js';
 import { PrismaModule } from './shared/prisma/prisma.module.js';
 
 @Module({
@@ -19,6 +21,7 @@ import { PrismaModule } from './shared/prisma/prisma.module.js';
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    PersonalDataModule,
     HealthModule,
     AuthModule,
     ProfilesModule,
@@ -27,6 +30,7 @@ import { PrismaModule } from './shared/prisma/prisma.module.js';
     CatalogModule,
     MatchingModule,
     PaymentsModule,
+    AccountModule,
   ],
   controllers: [AppController],
   providers: [AppService],

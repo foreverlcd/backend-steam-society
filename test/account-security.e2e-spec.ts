@@ -172,7 +172,10 @@ describe('Account security (e2e)', () => {
       const wrong = await http()
         .post('/v1/me/password')
         .set('Cookie', here)
-        .send({ password: 'not-the-password', newPassword: NEW_TEST_PASSWORD })
+        .send({
+          password: 'test-only-wrong-password',
+          newPassword: NEW_TEST_PASSWORD,
+        })
         .expect(401);
       expect(wrong.body.code).toBe('INVALID_CREDENTIALS');
 
