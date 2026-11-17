@@ -33,11 +33,15 @@ describe('SecretBox', () => {
 
   it('rejects tampered ciphertext and other keys', () => {
     const stored = box({ MFA_ENCRYPTION_KEY: key }).encrypt('secret');
-    const other = box({ MFA_ENCRYPTION_KEY: randomBytes(32).toString('base64') });
+    const other = box({
+      MFA_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+    });
     expect(() => other.decrypt(stored)).toThrow();
     const parts = stored.split('.');
     parts[3] = Buffer.from('tampered').toString('base64url');
-    expect(() => box({ MFA_ENCRYPTION_KEY: key }).decrypt(parts.join('.'))).toThrow();
+    expect(() =>
+      box({ MFA_ENCRYPTION_KEY: key }).decrypt(parts.join('.')),
+    ).toThrow();
   });
 
   it('derives a stable key from SESSION_SECRET when no key is configured', () => {

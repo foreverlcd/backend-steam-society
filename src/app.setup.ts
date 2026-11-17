@@ -6,10 +6,12 @@ import { ConfigService } from '@nestjs/config';
 import connectPgSimple from 'connect-pg-simple';
 import session from 'express-session';
 import { parseWebOrigins } from './shared/config/web-origins.js';
-import { resolveSessionCookieName } from './shared/http/session-cookie.js';
+import {
+  resolveSessionCookieName,
+  SESSION_TTL_MS,
+} from './shared/http/session-cookie.js';
 
 const PgSession = connectPgSimple(session);
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function configureApp(app: INestApplication): void {
   // NestJS 12.1+: Helmet defaults, including removal of X-Powered-By.

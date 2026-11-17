@@ -51,7 +51,10 @@ class FakeMfaRepository {
   };
   acceptTimeStep = async (_userId: string, step: number) => {
     if (!this.totp) return false;
-    if (this.totp.lastUsedTimeStep !== null && step <= this.totp.lastUsedTimeStep) {
+    if (
+      this.totp.lastUsedTimeStep !== null &&
+      step <= this.totp.lastUsedTimeStep
+    ) {
       return false;
     }
     this.totp.lastUsedTimeStep = step;
@@ -117,25 +120,35 @@ describe('MfaService', () => {
     );
     expect(codes).toHaveLength(RECOVERY_CODE_COUNT);
     expect(new Set(codes).size).toBe(RECOVERY_CODE_COUNT);
-    expect(repo.enable).toHaveBeenCalledWith('user-1', NOW, codes.map(hashRecoveryCode));
+    expect(repo.enable).toHaveBeenCalledWith(
+      'user-1',
+      NOW,
+      codes.map(hashRecoveryCode),
+    );
   });
 
   it('rejects a wrong first code', async () => {
     await service.startTotpSetup(user());
-    await expect(service.confirmTotpSetup(user(), '000000')).rejects.toMatchObject({
+    await expect(
+      service.confirmTotpSetup(user(), '000000'),
+    ).rejects.toMatchObject({
       response: { code: 'INVALID_MFA_CODE' },
     });
     expect(repo.enable).not.toHaveBeenCalled();
   });
 
   it('asks to start the setup before confirming', async () => {
-    await expect(service.confirmTotpSetup(user(), '123456')).rejects.toMatchObject({
+    await expect(
+      service.confirmTotpSetup(user(), '123456'),
+    ).rejects.toMatchObject({
       response: { code: 'MFA_SETUP_REQUIRED' },
     });
   });
 
   it('refuses a second setup once enabled', async () => {
-    await expect(service.startTotpSetup(user({ mfaEnabled: true }))).rejects.toMatchObject({
+    await expect(
+      service.startTotpSetup(user({ mfaEnabled: true })),
+    ).rejects.toMatchObject({
       response: { code: 'MFA_ALREADY_ENABLED' },
     });
   });
@@ -153,8 +166,12 @@ describe('MfaService', () => {
     const { codes } = await enroll();
     const lowerNoDash = codes[0].toLowerCase().replace('-', '');
 
-    expect(await service.verifySecondFactor('user-1', { recoveryCode: lowerNoDash })).toBe(true);
-    expect(await service.verifySecondFactor('user-1', { recoveryCode: codes[0] })).toBe(false);
+    expect(
+      await service.verifySecondFactor('user-1', { recoveryCode: lowerNoDash }),
+    ).toBe(true);
+    expect(
+      await service.verifySecondFactor('user-1', { recoveryCode: codes[0] }),
+    ).toBe(false);
     expect(await service.getStatus(user({ mfaEnabled: true }))).toMatchObject({
       enabled: true,
       recoveryCodesRemaining: RECOVERY_CODE_COUNT - 1,
@@ -171,7 +188,11 @@ describe('MfaService', () => {
     expect(service.isRequiredFor('admin')).toBe(true);
     expect(service.isRequiredFor('mentor')).toBe(false);
     await expect(
-      service.disable(user({ role: 'admin', mfaEnabled: true }), 'pw', '123456'),
+      service.disable(
+        user({ role: 'admin', mfaEnabled: true }),
+        'pw',
+        '123456',
+      ),
     ).rejects.toMatchObject({ response: { code: 'MFA_REQUIRED_FOR_ROLE' } });
   });
 

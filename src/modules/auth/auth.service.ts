@@ -14,6 +14,7 @@ import { resolveSessionCookieName } from '../../shared/http/session-cookie.js';
 import type { AuthUser } from './auth.types.js';
 import type { RegisterInput } from './auth.schemas.js';
 import { MailerService } from './mailer.service.js';
+import { PasswordBreachChecker } from './password-breach-checker.js';
 import { PasswordHasher } from './password-hasher.service.js';
 import {
   ResetTokenAlreadyUsedError,
@@ -24,6 +25,8 @@ import {
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 /** Time the user has to type the second factor after a correct password. */
 const MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+/** Enough to recognise a browser in "Sesiones activas"; never trusted. */
+const USER_AGENT_MAX_LENGTH = 200;
 
 @Injectable()
 export class AuthService {
@@ -34,6 +37,7 @@ export class AuthService {
     private readonly passwordHasher: PasswordHasher,
     private readonly mailer: MailerService,
     private readonly configService: ConfigService,
+    private readonly breachChecker: PasswordBreachChecker,
     @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
@@ -53,6 +57,7 @@ export class AuthService {
       throw emailTaken();
     }
 
+    await this.breachChecker.assertNotBreached(input.password);
     const passwordHash = await this.passwordHasher.hash(input.password);
 
     try {
@@ -108,6 +113,11 @@ export class AuthService {
   async startSession(request: Request, userId: string): Promise<void> {
     await regenerateSession(request);
     request.session.userId = userId;
+    request.session.signedInAtMs = this.clock.now().getTime();
+    const userAgent = request.get('user-agent');
+    if (userAgent) {
+      request.session.userAgent = userAgent.slice(0, USER_AGENT_MAX_LENGTH);
+    }
     await saveSession(request);
   }
 
@@ -170,17 +180,31 @@ export class AuthService {
     await this.sendEmailVerification(user.id, user.email);
   }
 
+  /** Confirms an address: the current one, or a requested change. */
   async verifyEmail(token: string): Promise<void> {
-    const consumed = await this.users.consumeEmailVerificationToken(
+    const outcome = await this.users.consumeEmailVerificationToken(
       hashToken(token),
       this.clock.now(),
     );
-    if (!consumed) {
+    if (outcome.status === 'invalid') {
       throw new BadRequestException({
         statusCode: 400,
         code: 'INVALID_VERIFICATION_TOKEN',
         message: 'Invalid or expired verification link',
       });
+    }
+    if (outcome.status === 'email_taken') {
+      throw emailTaken();
+    }
+    if (outcome.status === 'email_changed') {
+      // The old address learns about the change, in case it was not the owner.
+      void this.mailer
+        .sendEmailChangedNotice(outcome.previousEmail, outcome.newEmail)
+        .catch((error) => {
+          this.logger.error(
+            `Email change notice failed: ${error instanceof Error ? error.name : 'UnknownError'}`,
+          );
+        });
     }
   }
 
@@ -235,6 +259,7 @@ export class AuthService {
       throw invalidResetToken();
     }
 
+    await this.breachChecker.assertNotBreached(password);
     const passwordHash = await this.passwordHasher.hash(password);
 
     try {
@@ -273,15 +298,15 @@ function saveSession(request: Request): Promise<void> {
   });
 }
 
-function normalizeEmail(email: string): string {
+export function normalizeEmail(email: string): string {
   return email.trim().normalize('NFC').toLowerCase();
 }
 
-function hashToken(token: string): string {
+export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-function emailTaken(): ConflictException {
+export function emailTaken(): ConflictException {
   return new ConflictException({
     statusCode: 409,
     code: 'EMAIL_TAKEN',
@@ -289,7 +314,7 @@ function emailTaken(): ConflictException {
   });
 }
 
-function invalidCredentials(): UnauthorizedException {
+export function invalidCredentials(): UnauthorizedException {
   return new UnauthorizedException({
     statusCode: 401,
     code: 'INVALID_CREDENTIALS',

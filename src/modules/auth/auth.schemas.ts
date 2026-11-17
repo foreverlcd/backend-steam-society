@@ -45,6 +45,22 @@ export const disableMfaSchema = z
   .object({ password: z.string().min(1).max(128), code: totpCodeSchema })
   .strict();
 
+/** Step-up for sensitive changes: password again, plus the 2FA code if enabled. */
+const stepUpFields = {
+  password: z.string().min(1).max(128),
+  code: totpCodeSchema.optional(),
+};
+
+export const changePasswordSchema = z
+  .object({ ...stepUpFields, newPassword: passwordSchema })
+  .strict();
+
+export const changeEmailSchema = z
+  .object({ ...stepUpFields, newEmail: emailSchema })
+  .strict();
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type ChangeEmailInput = z.infer<typeof changeEmailSchema>;
 export type LoginMfaInput = z.infer<typeof loginMfaSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 export type TotpCodeBody = z.infer<typeof totpCodeBodySchema>;

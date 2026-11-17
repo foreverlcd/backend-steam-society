@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { User } from '../../generated/prisma/client.js';
 import type { Clock } from '../../shared/clock/clock.js';
 import { AuthService } from './auth.service.js';
+import type { PasswordBreachChecker } from './password-breach-checker.js';
 import { MailerService } from './mailer.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
 import {
@@ -63,21 +64,24 @@ function makeService() {
 
   const sendPasswordReset = vi.fn().mockResolvedValue(undefined);
   const sendEmailVerification = vi.fn().mockResolvedValue(undefined);
+  const sendEmailChangedNotice = vi.fn().mockResolvedValue(undefined);
   const mailer = {
     sendPasswordReset,
     sendEmailVerification,
+    sendEmailChangedNotice,
   } as unknown as MailerService;
 
-  const configGet = vi.fn(
-    (key: string): unknown =>
-      key === 'EMAIL_VERIFICATION_TTL_HOURS' ? 48 : 'false',
+  const configGet = vi.fn((key: string): unknown =>
+    key === 'EMAIL_VERIFICATION_TTL_HOURS' ? 48 : 'false',
   );
   const config = { get: configGet } as unknown as ConfigService;
 
   const clock: Clock = { now: () => NOW };
+  const assertNotBreached = vi.fn().mockResolvedValue(undefined);
+  const breachChecker = { assertNotBreached } as unknown as PasswordBreachChecker;
 
   return {
-    service: new AuthService(users, hasher, mailer, config, clock),
+    service: new AuthService(users, hasher, mailer, config, breachChecker, clock),
     mocks: {
       findByEmail,
       create,
@@ -92,6 +96,8 @@ function makeService() {
       createEmailVerificationToken,
       consumeEmailVerificationToken,
       configGet,
+      assertNotBreached,
+      sendEmailChangedNotice,
     },
   };
 }
@@ -109,7 +115,9 @@ describe('AuthService', () => {
         role: 'mentee',
         birthDate: '2000-01-01',
       });
-      await vi.waitFor(() => expect(mocks.sendEmailVerification).toHaveBeenCalled());
+      await vi.waitFor(() =>
+        expect(mocks.sendEmailVerification).toHaveBeenCalled(),
+      );
 
       expect(user.emailVerified).toBe(false);
       const [, token, hours] = mocks.sendEmailVerification.mock.calls[0];
@@ -139,10 +147,37 @@ describe('AuthService', () => {
 
     it('rejects an unknown, used or expired verification token', async () => {
       const { service, mocks } = makeService();
-      mocks.consumeEmailVerificationToken.mockResolvedValue(false);
+      mocks.consumeEmailVerificationToken.mockResolvedValue({ status: 'invalid' });
 
       await expect(service.verifyEmail('nope')).rejects.toMatchObject({
         response: { code: 'INVALID_VERIFICATION_TOKEN' },
+      });
+    });
+
+    it('tells the previous address when an email change is confirmed', async () => {
+      const { service, mocks } = makeService();
+      mocks.consumeEmailVerificationToken.mockResolvedValue({
+        status: 'email_changed',
+        userId: 'user-1',
+        previousEmail: 'old@example.com',
+        newEmail: 'new@example.com',
+      });
+
+      await service.verifyEmail('token');
+      await vi.waitFor(() =>
+        expect(mocks.sendEmailChangedNotice).toHaveBeenCalledWith(
+          'old@example.com',
+          'new@example.com',
+        ),
+      );
+    });
+
+    it('refuses an email change to an address taken meanwhile', async () => {
+      const { service, mocks } = makeService();
+      mocks.consumeEmailVerificationToken.mockResolvedValue({ status: 'email_taken' });
+
+      await expect(service.verifyEmail('token')).rejects.toMatchObject({
+        response: { code: 'EMAIL_TAKEN' },
       });
     });
 
@@ -160,7 +195,9 @@ describe('AuthService', () => {
         mfaEnabled: false,
       };
 
-      await expect(service.resendEmailVerification(verified)).rejects.toMatchObject({
+      await expect(
+        service.resendEmailVerification(verified),
+      ).rejects.toMatchObject({
         response: { code: 'EMAIL_ALREADY_VERIFIED' },
       });
     });
