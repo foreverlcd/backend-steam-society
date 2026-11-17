@@ -173,7 +173,7 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - `user`: `id`, `email` (UK, minúsculas; CHECK `email = lower(email)`), `password_hash` (null si la autenticación es externa), `role`, `status`, `first_name`, `last_name`, `birth_date` (date; obligatoria en el registro, nula solo para admins de seed; DA-01; CHECK `user_birth_date_required_check`), `timezone` (IANA, default `America/Lima`), `locale` (default `es`), `email_verified_at` (fuente de verdad de la verificación de correo; ADR-024), `created_at`, `updated_at`, `deleted_at`.
 - `auth_session`: `sid` (varchar PK), `sess` (json), `expire` (timestamp(6)); la usa `connect-pg-simple` para las sesiones de autenticación. Se llama `auth_session`, no `session`, porque `session` queda reservado para las sesiones de mentoría de la etapa 1.5. No tiene FK: el `userId` vive dentro del JSON de `sess`; la revocación masiva se hace con SQL sobre `sess->>'userId'`.
 - `password_reset_token`: `id` (uuid v7), `user_id` (FK a `user`, `ON DELETE CASCADE`), `token_hash` (UK; SHA-256 hexadecimal del token, nunca el token en claro), `expires_at` (`timestamptz(3)`, 1 hora), `used_at` (`timestamptz(3)`, un solo uso), `created_at`. El token se consume de forma atómica (`UPDATE ... WHERE used_at IS NULL`).
-- `email_verification_token` (ADR-024): `id` (uuid v7), `user_id` (FK a `user`, `ON DELETE CASCADE`, índice), `token_hash` (UK; SHA-256 del token, nunca el token en claro), `expires_at` (`timestamptz(3)`, `EMAIL_VERIFICATION_TTL_HOURS`, 48 por defecto), `used_at`, `created_at`. CHECK `expires_at > created_at`. Emitir un token nuevo borra los no usados de la usuaria; consumirlo es atómico y marca `user.email_verified_at`.
+- `email_verification_token` (ADR-024): `id` (uuid v7), `user_id` (FK a `user`, `ON DELETE CASCADE`, índice), `token_hash` (UK; SHA-256 del token, nunca el token en claro), `new_email` (null = verificar el correo actual; con valor = cambio de correo pendiente; CHECK: en minúsculas y sin espacios), `expires_at` (`timestamptz(3)`, `EMAIL_VERIFICATION_TTL_HOURS`, 48 por defecto), `used_at`, `created_at`. CHECK `expires_at > created_at`. Emitir un token nuevo borra los no usados del mismo tipo (verificar o cambiar); consumirlo es atómico y marca `user.email_verified_at`.
 - `user_totp` (ADR-024): `user_id` (PK y FK a `user`, `ON DELETE CASCADE`; un factor por usuaria), `secret_ciphertext` (AES-256-GCM con formato `v1.<iv>.<tag>.<texto>`; nunca el secreto en claro), `confirmed_at` (null hasta que la usuaria prueba un primer código; el 2FA está activo solo con `confirmed_at` no nulo), `last_used_time_step` (`bigint`; el mayor paso de 30 s aceptado, para rechazar repeticiones), `created_at`, `updated_at`. CHECK `last_used_time_step IS NULL OR >= 0` y CHECK `secret_ciphertext LIKE 'v1.%'`.
 - `mfa_recovery_code` (ADR-024): `id` (uuid v7), `user_id` (FK a `user`, `ON DELETE CASCADE`), `code_hash` (SHA-256 del código normalizado), `used_at` (un solo uso), `created_at`. UK `(user_id, code_hash)`. Se generan 10 por activación o regeneración; regenerar reemplaza los anteriores.
 - Backfill en la migración `20261117150930_add_email_verification_and_mfa`: `UPDATE "user" SET email_verified_at = created_at WHERE email_verified_at IS NULL` (solo hay datos de desarrollo y demo). El registro nuevo nace sin verificar; el seed del admin lo crea verificado.
@@ -232,6 +232,19 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - `webhook_event`: `id`, `provider`, `event_id`, `payload` (jsonb), `received_at`, `processed_at`; UK `(provider, event_id)`.
 - Aún no existen `refund`, `payout` ni el ledger.
 
+## Eliminación de cuenta (F2, provisional hasta DA-04)
+
+Cada módulo borra o anonimiza lo suyo (`PersonalDataContributor.erase`), en este orden y en una sola transacción:
+
+| Orden | Módulo | Qué pasa |
+|---|---|---|
+| 10 | bookings | Se borra el mensaje que escribió como mentee y el enlace de reunión de sus sesiones como mentora. Las reservas se conservan (la otra persona también las tiene). |
+| 20 | scheduling | Se borran las reglas de disponibilidad; las ofertas se archivan (`active = false`, sin descripción). |
+| 30 | profiles | Se borran respuestas del onboarding, áreas, idiomas e intereses; se vacían los campos personales del perfil; la mentora pasa a `suspended` (sale del catálogo). |
+| 100 | auth | Se borran TOTP, códigos de recuperación y tokens. `user`: correo `deleted-<id>@deleted.invalid`, sin contraseña, nombres ni verificación; la fecha de nacimiento queda en el 1 de enero del mismo año (el CHECK exige una); `status = deleted`, `deleted_at`. Se audita `user.deleted` y se borran sus filas de `auth_session`. |
+
+Se conservan: reservas, sesiones, auditoría y pagos (sin contributor en `payments` hasta decidir P-03). Antes de la transacción se exige que no haya reservas abiertas a futuro y que no sea admin; la transacción bloquea la fila del usuario (`FOR UPDATE`).
+
 ## Hitos 2 y 3: esqueleto (referencia, no implementar aún)
 - **payments**: `payment` (`booking_id` UK, `provider`, `provider_ref` UK, `status`, `amount_minor`, `currency`, `fee_bps` y `fee_minor` copiados al cobrar, `net_minor`, `idempotency_key` UK), `refund`, `payout`, `webhook_event` (`provider`, `event_id`, UK `(provider, event_id)`, `payload`, `processed_at`).
 - **ledger**: `ledger_account` (`code` UK, ej. `provider_clearing`, `platform_revenue`, `mentor_payable:<id>`), `ledger_transaction` (`kind`, `ref_type`, `ref_id`, `idempotency_key` UK), `ledger_line` (`transaction_id`, `account_id`, `direction` debit|credit, `amount_minor > 0`, `currency`). Ejemplo: cobro de 100 con 10 % de comisión → débito `provider_clearing` 100; crédito `mentor_payable` 90; crédito `platform_revenue` 10. La comisión del proveedor y los impuestos [a confirmar con un contador].
@@ -265,6 +278,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 | 1.5 | `session`, `booking` + SQL a mano (exclusión y CHECK) en `20261030234248_add_sessions_and_bookings` |
 | 1.6 | `search_vector` y extensiones de búsqueda (`20261031002413_add_catalog_search`) |
 | F2 | `email_verification_token`, `user_totp`, `mfa_recovery_code` + CHECKs y backfill a mano (`20261117150930_add_email_verification_and_mfa`; ADR-024) |
+| F2 | `email_verification_token.new_email` + CHECK de normalización (`20261117155718_add_email_change`) |
 | 2 / 3 | Ver esqueleto arriba |
 
 Regla: nunca editar una migración ya aplicada; se crea otra. Cada migración lleva un nombre descriptivo (ej. `add_area`).

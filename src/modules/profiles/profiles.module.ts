@@ -8,11 +8,13 @@ import {
 } from './profiles.controller.js';
 import { ProfilesRepository } from './profiles.repository.js';
 import { ProfilesService } from './profiles.service.js';
+import { ProfilesPersonalData } from './profiles-personal-data.js';
 
 @Module({
   imports: [PrismaModule],
   controllers: [ProfilesController, AdminMentorsController],
   providers: [
+    ProfilesPersonalData,
     ProfilesService,
     ProfilesRepository,
     { provide: CLOCK, useClass: SystemClock },

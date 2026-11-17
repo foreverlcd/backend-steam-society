@@ -23,7 +23,9 @@ const RFC_VECTORS: Array<[number, string]> = [
 
 describe('totp', () => {
   it.each(RFC_VECTORS)('matches RFC 6238 vector at t=%i', (seconds, code) => {
-    expect(totpCodeForStep(RFC_SECRET, totpTimeStep(new Date(seconds * 1000)))).toBe(code);
+    expect(
+      totpCodeForStep(RFC_SECRET, totpTimeStep(new Date(seconds * 1000))),
+    ).toBe(code);
   });
 
   it('round-trips base32', () => {
@@ -38,10 +40,18 @@ describe('totp', () => {
   it('accepts the current code and one step of drift, nothing further', () => {
     const now = new Date(1_700_000_000_000);
     const step = totpTimeStep(now);
-    expect(matchTotpStep(RFC_SECRET, totpCodeForStep(RFC_SECRET, step), now)).toBe(step);
-    expect(matchTotpStep(RFC_SECRET, totpCodeForStep(RFC_SECRET, step - 1), now)).toBe(step - 1);
-    expect(matchTotpStep(RFC_SECRET, totpCodeForStep(RFC_SECRET, step + 1), now)).toBe(step + 1);
-    expect(matchTotpStep(RFC_SECRET, totpCodeForStep(RFC_SECRET, step - 2), now)).toBeNull();
+    expect(
+      matchTotpStep(RFC_SECRET, totpCodeForStep(RFC_SECRET, step), now),
+    ).toBe(step);
+    expect(
+      matchTotpStep(RFC_SECRET, totpCodeForStep(RFC_SECRET, step - 1), now),
+    ).toBe(step - 1);
+    expect(
+      matchTotpStep(RFC_SECRET, totpCodeForStep(RFC_SECRET, step + 1), now),
+    ).toBe(step + 1);
+    expect(
+      matchTotpStep(RFC_SECRET, totpCodeForStep(RFC_SECRET, step - 2), now),
+    ).toBeNull();
   });
 
   it('rejects malformed codes', () => {
@@ -51,7 +61,11 @@ describe('totp', () => {
   });
 
   it('builds an otpauth URI authenticator apps understand', () => {
-    const uri = totpProvisioningUri('JBSWY3DPEHPK3PXP', 'ana@example.com', 'Steam Society');
+    const uri = totpProvisioningUri(
+      'JBSWY3DPEHPK3PXP',
+      'ana@example.com',
+      'Steam Society',
+    );
     expect(uri).toBe(
       'otpauth://totp/Steam%20Society%3Aana%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Steam+Society&algorithm=SHA1&digits=6&period=30',
     );

@@ -73,6 +73,8 @@ model EmailVerificationToken {
   userId    String    @map("user_id") @db.Uuid
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash String    @unique @map("token_hash")
+  /// Set when the link confirms a change of address (null: verify the current one).
+  newEmail  String?   @map("new_email")
   expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
   usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)

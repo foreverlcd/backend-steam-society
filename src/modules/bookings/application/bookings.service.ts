@@ -49,6 +49,7 @@ import type {
 import {
   BOOKING_REPOSITORY,
   BookingStatusConflictError,
+  BookingPartyUnavailableError,
   MenteeOverlapError,
   SlotTakenError,
   type BookingRepositoryPort,
@@ -221,6 +222,10 @@ export class BookingsService {
 
       if (error instanceof MenteeOverlapError) {
         throw bookingMenteeOverlap();
+      }
+
+      if (error instanceof BookingPartyUnavailableError) {
+        throw bookingSlotUnavailable();
       }
 
       throw error;

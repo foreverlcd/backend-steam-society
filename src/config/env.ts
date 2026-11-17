@@ -33,6 +33,9 @@ const envSchema = z
       .optional(),
     // Lifetime of the e-mail verification link.
     EMAIL_VERIFICATION_TTL_HOURS: z.coerce.number().int().positive().default(48),
+    // "hibp": reject passwords found in known breaches (Have I Been Pwned,
+    // k-anonymity: only 5 hex chars of the SHA-1 leave the server). "off": skip.
+    PASSWORD_BREACH_CHECK: z.enum(['off', 'hibp']).default('off'),
   })
   .refine(
     (env) =>

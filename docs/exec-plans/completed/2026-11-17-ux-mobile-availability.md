@@ -37,3 +37,7 @@ La mentora configura su disponibilidad sin jerga ni trabajo repetitivo, y en el 
 ## Bitácora
 | Fecha | Quién | Qué pasó |
 |---|---|---|
+
+## Cierre
+
+Completado y fusionado en el web (`main`, commit `21920b8`).

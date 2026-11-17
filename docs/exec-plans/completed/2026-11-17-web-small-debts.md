@@ -35,3 +35,7 @@ Cubrir con tests el comportamiento nuevo de `BookingsView` y quitar la jerga "On
 ## Bitácora
 | Fecha | Quién | Qué pasó |
 |---|---|---|
+
+## Cierre
+
+Completado y fusionado en el web (`main`, commit `0632b08`).
