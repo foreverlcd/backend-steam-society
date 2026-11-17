@@ -36,7 +36,10 @@ Variables principales:
   en producción (cookie `__Host-sid`).
 - `WEB_ORIGIN`: orígenes del frontend separados por coma. Se usa para CORS con
   credenciales y para la protección CSRF.
-- `APP_URL`, `SMTP_URL`, `SMTP_FROM`: enlace de recuperación y correo saliente.
+- `APP_URL`, `SMTP_URL`, `SMTP_FROM`: enlaces de los correos y servidor SMTP
+  (proveedor elegido: Brevo). `SMTP_URL` es obligatorio en producción.
+- `EMAIL_DISPATCH_INTERVAL_MS`: cada cuánto se envía la cola de correos
+  (10000 por defecto; `0` la apaga, como en los e2e).
   En local, Mailpit expone SMTP en `127.0.0.1:1025` y la bandeja en
   `http://127.0.0.1:8025`.
 - `BOOKING_REQUEST_TTL_HOURS`: plazo de respuesta de una solicitud de reserva,
@@ -237,6 +240,34 @@ curl -i -X POST http://localhost:3000/v1/auth/register \
   usan los mismos locks y se vuelve a comprobar dentro de la transacción.
   Los pagos no se tocan (decisión pendiente, P-03). La retención es
   **provisional** hasta DA-04. Detalle en `docs/03-DATA-MODEL.md`.
+
+### Correo saliente (cola con reintentos)
+
+- Ningún módulo envía correo directo: `MailerService` arma el mensaje y lo
+  guarda en `email_outbox` (`src/shared/mail/`). El despachador lo envía cada
+  10 s y, si el proveedor falla, reintenta a 1 min, 5 min, 30 min, 2 h y 6 h.
+  Un rechazo 5xx (dirección inválida) falla de inmediato, sin reintentos.
+- Los enlaces que caducan (restablecer contraseña, confirmar correo) no se
+  envían ni se reintentan después de su vencimiento.
+- El cuerpo (que puede llevar un enlace con token) se borra en cuanto el
+  correo sale de `pending`. Las filas terminadas se borran a los 30 días.
+- Sin `SMTP_URL`, los correos quedan en cola (en desarrollo usa Mailpit).
+- Varias instancias pueden correr a la vez: cada una toma filas distintas
+  (`FOR UPDATE SKIP LOCKED`).
+- Entrega **al menos una vez**: si el proceso se cae justo después de que el
+  proveedor aceptó el correo, se reenvía al vencer el bloqueo (10 min). Cada
+  correo lleva un `Message-ID` fijo (`<id>@outbox.steam-society>`) para que el
+  cliente de correo reconozca el duplicado.
+- La caducidad se revisa justo antes de cada envío, no solo al tomar el lote.
+- **Recordatorio 24 h antes:** cada 5 min se encola un correo para la mentee y
+  la mentora de cada reserva confirmada que empieza en menos de 24 h, en la
+  zona horaria de cada una y con el enlace de la sesión. Sale una sola vez:
+  primero se encolan los dos correos con `dedupe_key`
+  (`booking.reminder:<id>:mentee|mentor`) y después se marca
+  `booking.reminder_sent_at`; si algo falla en medio, el siguiente ciclo no
+  duplica. Al cancelar la reserva, los recordatorios que aún no salieron se
+  retiran. Si la reserva se confirmó con menos de 24 h,
+  basta el correo de aceptación. Caduca al empezar la sesión.
 
 ### Recuperación de contraseña
 

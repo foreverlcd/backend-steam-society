@@ -102,7 +102,7 @@ describe('Bookings (e2e)', () => {
 
   beforeEach(async () => {
     await prisma.$executeRawUnsafe(
-      'TRUNCATE TABLE "webhook_event", "payment", "booking", "session", "availability_rule", "offering", "audit_log", "onboarding_response", "mentee_language", "mentor_language", "mentee_interest", "mentor_area", "mentee_profile", "mentor_profile", "password_reset_token", "auth_session", "user" CASCADE',
+      'TRUNCATE TABLE "email_outbox", "webhook_event", "payment", "booking", "session", "availability_rule", "offering", "audit_log", "onboarding_response", "mentee_language", "mentor_language", "mentee_interest", "mentor_area", "mentee_profile", "mentor_profile", "password_reset_token", "auth_session", "user" CASCADE',
     );
     targetDate = limaDate(2);
   });
@@ -961,5 +961,84 @@ describe('Bookings (e2e)', () => {
         }),
       ).rejects.toThrow();
     });
+  });
+
+  it('queues one reminder per participant, once, a day before', async () => {
+    const { mentor, offering } = await prepareMentorWithOffering();
+    const mentee = await createMentee();
+    const early = await book(
+      mentee.cookie,
+      offering.id,
+      limaInstant(targetDate, 9),
+    );
+    const lastMinute = await book(
+      mentee.cookie,
+      offering.id,
+      limaInstant(targetDate, 12),
+    );
+    for (const booking of [early, lastMinute]) {
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/accept`)
+        .set('Cookie', mentor.cookie)
+        .send({ meetingUrl: 'https://meet.example.com/abc' })
+        .expect(200);
+    }
+    // Both start within the next day; only `early` was confirmed long ago.
+    const now = Date.now();
+    const moveSession = async (
+      bookingId: string,
+      startsInHours: number,
+      confirmedHoursAgo: number,
+    ) => {
+      const record = await prisma.booking.update({
+        where: { id: bookingId },
+        data: { confirmedAt: new Date(now - confirmedHoursAgo * 3_600_000) },
+      });
+      const startsAt = new Date(now + startsInHours * 3_600_000);
+      await prisma.session.update({
+        where: { id: record.sessionId },
+        data: {
+          startsAt,
+          endsAt: new Date(startsAt.getTime() + 3_600_000),
+        },
+      });
+    };
+    await moveSession(early.id, 20, 10);
+    await moveSession(lastMinute.id, 22, 1);
+    await prisma.emailOutbox.deleteMany();
+
+    await expect(bookings.sendDueReminders()).resolves.toBe(1);
+    await expect(bookings.sendDueReminders()).resolves.toBe(0);
+
+    const reminders = await prisma.emailOutbox.findMany({
+      where: { kind: 'booking.reminder' },
+    });
+    expect(reminders.map((row) => row.toAddress).sort()).toEqual(
+      [mentee.email, mentor.email].sort(),
+    );
+    expect(reminders[0].body).toContain('https://meet.example.com/abc');
+    // Not worth sending once the session has started.
+    expect(reminders[0].expiresAt).toEqual(
+      (
+        await prisma.booking.findUniqueOrThrow({
+          where: { id: early.id },
+          include: { session: true },
+        })
+      ).session.startsAt,
+    );
+
+    // Cancelling withdraws the reminders that did not leave yet.
+    await request(app.getHttpServer())
+      .post(`/v1/bookings/${early.id}/cancel`)
+      .set('Cookie', mentee.cookie)
+      .send({ reason: 'Surgió un imprevisto' })
+      .expect(200);
+    const withdrawn = await prisma.emailOutbox.findMany({
+      where: { kind: 'booking.reminder' },
+    });
+    expect(withdrawn.map((row) => [row.status, row.body])).toEqual([
+      ['expired', null],
+      ['expired', null],
+    ]);
   });
 });

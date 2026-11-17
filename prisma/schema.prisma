@@ -409,6 +409,8 @@ model Booking {
   cancelReason    String?       @map("cancel_reason")
   completedAt     DateTime?     @map("completed_at") @db.Timestamptz(3)
   noShowParty     NoShowParty?  @map("no_show_party")
+  /// When the "your session is tomorrow" e-mails were queued.
+  reminderSentAt  DateTime?     @map("reminder_sent_at") @db.Timestamptz(3)
   paymentRequired Boolean       @map("payment_required")
   priceMinor      Int           @map("price_minor")
   currency        String        @db.VarChar(3)
@@ -465,4 +467,43 @@ model WebhookEvent {
 
   @@unique([provider, eventId])
   @@map("webhook_event")
+}
+
+enum EmailStatus {
+  pending
+  sent
+  failed
+  expired
+
+  @@map("email_status")
+}
+
+/// Outgoing e-mail queue (outbox). Rows are written first and sent by a
+/// background task with retries, so a provider outage does not lose mail.
+/// `body` is wiped once the row leaves `pending`: links and tokens in it
+/// never stay in the database.
+model EmailOutbox {
+  id            String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  /// Template that produced it (e.g. `auth.password_reset`), for metrics.
+  kind          String
+  /// Optional idempotency key: queuing the same key twice keeps one row.
+  dedupeKey     String?     @unique @map("dedupe_key")
+  toAddress     String      @map("to_address")
+  subject       String
+  body          String?
+  status        EmailStatus @default(pending)
+  attempts      Int         @default(0)
+  nextAttemptAt DateTime    @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  /// A sender holds the row until then; a crashed sender releases it.
+  lockedUntil   DateTime?   @map("locked_until") @db.Timestamptz(3)
+  /// Not sent after this instant (e.g. a reset link valid one hour).
+  expiresAt     DateTime?   @map("expires_at") @db.Timestamptz(3)
+  /// Error class or SMTP code only, never message text or addresses.
+  lastError     String?     @map("last_error")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  sentAt        DateTime?   @map("sent_at") @db.Timestamptz(3)
+
+  @@index([status, nextAttemptAt])
+  @@index([toAddress])
+  @@map("email_outbox")
 }

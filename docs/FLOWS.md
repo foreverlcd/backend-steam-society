@@ -270,6 +270,8 @@ sequenceDiagram
 | Preguntas del onboarding | `src/modules/profiles/onboarding.config.ts`, `onboarding.completion.ts`; web `src/components/onboarding/` |
 | Correos de reserva | `src/modules/bookings/infrastructure/mail-notifications.adapter.ts` |
 | Correo de restablecer contraseña / verificación / SMTP | `src/modules/auth/mailer.service.ts`, `SMTP_URL`/`SMTP_FROM` en `src/config/env.ts` |
+| Cola de correo, reintentos, envío | `src/shared/mail/` (`EmailOutbox`, `EmailDispatcher`, `SmtpEmailTransport`), `EMAIL_DISPATCH_INTERVAL_MS` |
+| Recordatorio 24 h antes | `BookingsService.sendDueReminders`, `bookings/infrastructure/bookings-reminder.task.ts`, `REMINDER_LEAD_MS` |
 | Verificación de correo y cuáles rutas la exigen | `@RequireVerifiedEmail` (`src/shared/http/account-policy.decorators.ts`), `account-policy.guard.ts`, `EMAIL_VERIFICATION_TTL_HOURS` |
 | 2FA (TOTP, códigos de recuperación, roles obligados) | `src/modules/auth/{mfa.service,mfa.controller,mfa.repository,totp,secret-box}.ts`; roles obligados en `MFA_REQUIRED_ROLES`; `@AllowWithoutMfa` en rutas |
 | Sesiones activas, cambiar contraseña o correo, step-up | `src/modules/auth/{account-security.service,account-security.controller,session.repository}.ts` |

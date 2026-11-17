@@ -160,6 +160,8 @@ describe('BookingsService', () => {
       applyTransition: vi.fn(),
       expireById: vi.fn(),
       expireDue: vi.fn(),
+      findDueReminders: vi.fn().mockResolvedValue([]),
+      markReminded: vi.fn().mockResolvedValue(undefined),
     };
     scheduling = {
       findOfferingById: vi.fn().mockResolvedValue(offering),
@@ -175,7 +177,10 @@ describe('BookingsService', () => {
       }),
     };
     menteeProfile = { exists: vi.fn().mockResolvedValue(true) };
-    notifications = { send: vi.fn().mockResolvedValue(undefined) };
+    notifications = {
+      send: vi.fn().mockResolvedValue(undefined),
+      withdraw: vi.fn().mockResolvedValue(undefined),
+    };
     service = new BookingsService(
       repository as unknown as BookingRepositoryPort,
       scheduling as unknown as SchedulingRepositoryPort,
@@ -763,5 +768,63 @@ describe('BookingsService', () => {
     await expect(service.get(mentee, 'booking-1')).rejects.toSatisfy(
       (error) => errorCode(error) === 'BOOKING_FORBIDDEN',
     );
+  });
+
+  describe('reminders', () => {
+    it('reminds both participants in their own time zones', async () => {
+      const booking = makeBooking({
+        status: 'confirmed',
+        mentee: { ...makeBooking().mentee, timezone: 'Europe/Madrid' },
+      });
+      repository.findDueReminders.mockResolvedValue([booking]);
+      repository.findById.mockResolvedValue(booking);
+
+      await expect(service.sendDueReminders()).resolves.toBe(1);
+
+      expect(repository.findDueReminders).toHaveBeenCalledWith(
+        NOW,
+        new Date(NOW.getTime() + 24 * 3_600_000),
+      );
+      const sent = notifications.send.mock.calls.map(([n]) => n);
+      expect(sent).toHaveLength(2);
+      expect(sent.map((n) => n.type)).toEqual(['reminder', 'reminder']);
+      expect(sent[0]).toMatchObject({
+        recipientEmail: makeBooking().mentee.email,
+        timezone: 'Europe/Madrid',
+      });
+      expect(sent[1]).toMatchObject({
+        recipientEmail: makeBooking().mentor.email,
+      });
+      expect(sent.map((n) => n.dedupeKey)).toEqual([
+        'booking.reminder:booking-1:mentee',
+        'booking.reminder:booking-1:mentor',
+      ]);
+      expect(repository.markReminded).toHaveBeenCalledWith('booking-1', NOW);
+    });
+
+    it('does not mark the booking when the e-mail cannot be queued', async () => {
+      repository.findDueReminders.mockResolvedValue([
+        makeBooking({ status: 'confirmed' }),
+      ]);
+      notifications.send.mockRejectedValue(new Error('db down'));
+
+      await expect(service.sendDueReminders()).resolves.toBe(0);
+      expect(repository.markReminded).not.toHaveBeenCalled();
+    });
+
+    it('withdraws the reminders when the booking was cancelled meanwhile', async () => {
+      repository.findDueReminders.mockResolvedValue([
+        makeBooking({ status: 'confirmed' }),
+      ]);
+      repository.findById.mockResolvedValue(
+        makeBooking({ status: 'cancelled' }),
+      );
+
+      await expect(service.sendDueReminders()).resolves.toBe(0);
+      expect(notifications.withdraw).toHaveBeenCalledWith([
+        'booking.reminder:booking-1:mentee',
+        'booking.reminder:booking-1:mentor',
+      ]);
+    });
   });
 });
