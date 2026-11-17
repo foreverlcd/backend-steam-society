@@ -85,4 +85,8 @@ export interface BookingRepositoryPort {
   ): Promise<Booking>;
   expireById(id: string, now: Date): Promise<Booking | null>;
   expireDue(now: Date, scope?: BookingScope): Promise<Booking[]>;
+  /** Confirmed bookings starting before `until` not reminded yet. */
+  findDueReminders(now: Date, until: Date): Promise<Booking[]>;
+  /** Records that the reminders of this booking are queued. */
+  markReminded(bookingId: string, now: Date): Promise<void>;
 }

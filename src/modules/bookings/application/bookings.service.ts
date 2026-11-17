@@ -117,6 +117,16 @@ export interface ParticipantResponse {
   timezone: string;
 }
 
+/** Reminders go out about one day before the session. */
+export const REMINDER_LEAD_MS = 24 * 3_600_000;
+
+function reminderKeys(bookingId: string): [string, string] {
+  return [
+    `booking.reminder:${bookingId}:mentee`,
+    `booking.reminder:${bookingId}:mentor`,
+  ];
+}
+
 @Injectable()
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
@@ -350,6 +360,7 @@ export class BookingsService {
       sessionStatus: 'cancelled',
     });
 
+    await this.withdrawReminders(updated.id);
     await this.notifyCancelled(updated, actor);
 
     return toBookingResponse(updated);
@@ -438,6 +449,78 @@ export class BookingsService {
     await this.notifyAccepted(updated);
 
     return toBookingResponse(updated);
+  }
+
+  /**
+   * Queues the "your session is tomorrow" e-mail for both participants of
+   * each confirmed booking starting within REMINDER_LEAD_MS.
+   */
+  async sendDueReminders(): Promise<number> {
+    const now = this.clock.now();
+    const due = await this.repository.findDueReminders(
+      now,
+      new Date(now.getTime() + REMINDER_LEAD_MS),
+    );
+    let reminded = 0;
+
+    for (const booking of due) {
+      const base = {
+        type: 'reminder' as const,
+        bookingId: booking.id,
+        offeringTitle: booking.offering.title,
+        startsAt: booking.session.startsAt,
+        endsAt: booking.session.endsAt,
+        expiresAt: booking.expiresAt,
+        meetingUrl: booking.session.meetingUrl,
+        reason: null,
+      };
+      try {
+        // Queue first, mark after: a crash in between only re-runs the
+        // queuing, which the dedupe keys turn into a no-op.
+        await this.notifications.send({
+          ...base,
+          recipientEmail: booking.mentee.email,
+          recipientName: displayName(booking.mentee, 'mentee'),
+          counterpartName: displayName(booking.mentor, 'tu mentora'),
+          timezone: booking.mentee.timezone,
+          dedupeKey: reminderKeys(booking.id)[0],
+        });
+        await this.notifications.send({
+          ...base,
+          recipientEmail: booking.mentor.email,
+          recipientName: displayName(booking.mentor, 'mentora'),
+          counterpartName: displayName(booking.mentee, 'tu mentee'),
+          timezone: booking.mentor.timezone,
+          dedupeKey: reminderKeys(booking.id)[1],
+        });
+        await this.repository.markReminded(booking.id, now);
+        // Cancelled while we queued: cancel() may have withdrawn before the
+        // e-mails existed, so check again now that they do.
+        const current = await this.repository.findById(booking.id);
+        if (current?.status !== 'confirmed') {
+          await this.withdrawReminders(booking.id);
+          continue;
+        }
+        reminded += 1;
+      } catch (error) {
+        // Not marked: the next run tries again without duplicating.
+        this.logger.error(
+          `Booking reminder failed: ${error instanceof Error ? error.name : 'UnknownError'}`,
+        );
+      }
+    }
+
+    return reminded;
+  }
+
+  private async withdrawReminders(bookingId: string): Promise<void> {
+    try {
+      await this.notifications.withdraw(reminderKeys(bookingId));
+    } catch (error) {
+      this.logger.error(
+        `Reminder withdrawal failed: ${error instanceof Error ? error.name : 'UnknownError'}`,
+      );
+    }
   }
 
   async expireDue(): Promise<number> {

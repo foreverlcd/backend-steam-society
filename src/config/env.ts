@@ -32,10 +32,16 @@ const envSchema = z
       })
       .optional(),
     // Lifetime of the e-mail verification link.
-    EMAIL_VERIFICATION_TTL_HOURS: z.coerce.number().int().positive().default(48),
+    EMAIL_VERIFICATION_TTL_HOURS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(48),
     // "hibp": reject passwords found in known breaches (Have I Been Pwned,
     // k-anonymity: only 5 hex chars of the SHA-1 leave the server). "off": skip.
     PASSWORD_BREACH_CHECK: z.enum(['off', 'hibp']).default('off'),
+    // How often the outbox sender runs; 0 turns it off (e2e tests drive it).
+    EMAIL_DISPATCH_INTERVAL_MS: z.coerce.number().int().min(0).default(10_000),
   })
   .refine(
     (env) =>
@@ -52,6 +58,10 @@ const envSchema = z
       message: 'is required in production',
     },
   )
+  .refine((env) => !(env.NODE_ENV === 'production' && !env.SMTP_URL), {
+    path: ['SMTP_URL'],
+    message: 'is required in production (mail would only queue up)',
+  })
   .refine(
     (env) =>
       !(env.NODE_ENV === 'production' && env.THROTTLE_DISABLED === 'true'),
