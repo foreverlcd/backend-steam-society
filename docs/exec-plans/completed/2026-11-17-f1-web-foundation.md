@@ -35,3 +35,6 @@ Imagen de producción del web y CI en GitHub Actions que corre el gate del web, 
 ## Bitácora
 | Fecha | Quién | Qué pasó |
 |---|---|---|
+| 2026-11-17 | sonnet (implementador) | Dockerfile standalone, CI y README. |
+| 2026-11-17 | opencode deepseek (revisor) | MEDIA: CI con clon superficial → el escaneo de secretos no revisaba nada (también afectaba al backend). BAJA: `.dockerignore` incompleto; CI sin prueba de humo de la imagen. Todo aplicado. |
+| 2026-11-17 | planificador | Imagen 299 MB, no root, `/login` y estáticos 200. pnpm fijado; `pnpm/action-setup` sin versión porque `packageManager` ya la declara. |
