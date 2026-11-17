@@ -71,8 +71,13 @@ case "$ENGINE" in
     # roles get session-scoped read permissions; agy edits through shell
     # commands, so it is NOT used as implementer (would need a full shell).
     if [ "$READONLY" = 0 ]; then echo "agy is review-only in this harness (see docs/HARNESS.md)"; exit 2; fi
+    # Rules need a target (read_file(<glob>)); a bare "read_file" is auto-denied.
+    # Tested 2026-11-17: neither scoped allows nor "deny" rules keep it from
+    # reading other files, so .env safety relies on the role prompt (as with codex).
+    ALLOW=""
+    for tool in read_file list_dir grep_search find_by_name; do ALLOW+="\"$tool($REPO/**)\","; done
     agy ${MODEL:+--model "$MODEL"} --mode plan \
-      --settings '{"permissions":{"allow":["read_file","list_dir","grep_search","find_by_name"]}}' \
+      --settings "{\"permissions\":{\"allow\":[${ALLOW%,}]}}" \
       -p "$PROMPT" < /dev/null | tee "$OUT"
     ;;
   opencode)

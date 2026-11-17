@@ -51,7 +51,7 @@ flowchart LR
 Estado real de los motores (2026-11-17):
 - **sonnet / haiku** (`claude -p`): implementan y revisan.
 - **codex**: modelo `gpt-6-luna` (por defecto en `delegate.sh`). Es la cuota gratuita de la cuenta de ChatGPT y **se terminará**. Cuando falle por cuota, usa opencode.
-- **agy**: solo como **revisor** (solo lectura, permisos de lectura por sesión con `--settings`). En modo headless edita mediante comandos de shell, así que como implementador necesitaría un shell completo, y no se lo damos.
+- **agy**: solo como **revisor** (modo `plan`, permisos de lectura por sesión con `--settings`; cada regla necesita destino, por ejemplo `read_file(<repo>/**)`). Ojo: sus reglas no limitan de verdad qué archivos lee (probado: leyó `.env.example` fuera del alcance y sin hacer caso a `deny`), así que, igual que con codex en solo lectura, no abrir `.env` depende de la instrucción del rol. En modo headless edita mediante comandos de shell, así que como implementador necesitaría un shell completo, y no se lo damos.
 - **opencode** con modelos gratuitos (por ejemplo `deepseek-v4.1-flash-free`): implementa tareas bajas y revisa. Envía el código a terceros.
 
 Reglas de seguridad de los motores:
