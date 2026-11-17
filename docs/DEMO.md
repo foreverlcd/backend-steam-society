@@ -20,7 +20,9 @@ Todos los datos son ficticios (`@demo.steamsociety.local`).
 | `lucia.torres@demo.steamsociety.local` | Mentora (mecatrónica) | Oferta gratuita |
 | `ADMIN_EMAIL` del `.env` | Admin | Revisar mentoras |
 
-Contraseña de las cuentas demo: el `DEMO_PASSWORD` que usaste.
+Contraseña de las cuentas demo: el `DEMO_PASSWORD` de la última ejecución del
+seed (cada ejecución la restablece, así que si la olvidas basta con volver a
+correrlo).
 
 ## Guion
 

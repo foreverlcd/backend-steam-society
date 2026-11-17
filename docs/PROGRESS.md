@@ -199,7 +199,7 @@
 - No-show: no hay ventana superior para reportarlo y cualquiera de las dos partes puede adelantarse a `complete` una vez iniciada la sesión. Revisarlo con reputación (Hito 3).
 - k6: `THROTTLE_DISABLED` lee `process.env` en tiempo de petición; la validación de entorno impide activarlo en producción.
 - Seguridad de dependencias (2026-11-16, resuelto): `next` 16.4.3 → 16.4.6 en el web y overrides de pnpm `multer` 2.5.0 y `body-parser` 2.4.0 en el backend (`pnpm-workspace.yaml`). `pnpm audit --prod` quedó limpio en ambos repos. Quitar los overrides cuando `@nestjs/platform-express` traiga esas versiones. Quedan avisos solo en dependencias de desarrollo (backend 24, web 1), sin revisar.
-- Edad mínima 18+ (ADR-026) aún no aplicada en el registro.
+- Sin edad mínima por decisión del desarrollador (ADR-026, revisado el 2026-11-17). Riesgo de salvaguarda y de datos de menores abierto en DA-01/DA-04.
 - 1.5 (zona roja): revisar la transacción de creación (`pg_advisory_xact_lock` mentee→mentora + exclusión SQL), la guarda `WHERE status = <leído>` de cada transición, el vencimiento idempotente y la cancelación de la sesión en la misma transacción.
 - 1.5: `meetingUrl` lo aporta la mentora; la API no genera enlaces. Al confirmar una reserva de pago (Hito 2) habrá que exigirlo también.
 - 1.5: las notificaciones son best-effort y sin outbox; si el proceso cae después del commit, el correo se pierde. Reintentos/outbox se deciden en el Hito 2 (ADR-022).
@@ -245,7 +245,7 @@
 1. Que tres personas del equipo completen `docs/DEMO.md` sin ayuda (aceptación de 1.7) y la evaluación de matching con 10 pares reales.
 2. Revisar los avisos de dependencias de desarrollo (`pnpm audit`).
 3. F1 (fundación de producción) según `docs/discovery/08-ROADMAP-V3.md`, con las respuestas provisionales de ADR-026.
-4. F2: aplicar 18+ en el registro, verificación de correo, 2FA y roles separados (ADR-024).
+4. F2: verificación de correo, 2FA y roles separados (ADR-024), con correo gratuito.
 
 ## Descubrimiento y diseño para producción (2026-11-01)
 - **Rama:** `docs/discovery` desde `develop` (`40de1ef`), publicada junto con `develop`. Solo lectura y documentos: no se modificó `src`, `test`, `prisma` ni la web.
@@ -282,3 +282,4 @@
 | 2026-10-31 | Merges `--no-ff` de 1.6 en `main` backend (`2cfb03b`) y web (`f834ce8`); gates backend 228 unitarios + 55 e2e y web 65 tests/build/lint verdes; `main` y todas las ramas locales publicadas en `origin`; tags locales `backup/pre-merge-feat/1.6-catalog-matching` y `backup/pre-merge-feat/1.6-catalog-client` | Agente (instrucción del desarrollador) |
 | 2026-11-01 | Descubrimiento y diseño: `docs/discovery/00-08` (hardcodes, configuración/roles, readiness, release, infraestructura gratuita, NFR/capacidad, admin v2, roadmap v3); sin tocar código; pendiente de aprobación | Agente |
 | 2026-11-16 | Cierre del Hito 1: revisión de zonas rojas 1.5/1.6 con 10 correcciones, módulo de pagos desacoplado (ADR-025), F0 provisional (ADR-026), 1.7 (seed demo, guion, k6, rate limits), web con botón Pagar y checkout simulado; reglas de push del agente endurecidas | Agente (pendiente de revisión) |
+| 2026-11-17 | Decisiones de F0 del desarrollador registradas (ADR-026); el seed demo ahora restablece la contraseña de las cuentas ficticias | Agente |
