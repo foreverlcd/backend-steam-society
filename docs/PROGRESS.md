@@ -122,7 +122,7 @@ Rama `feat/f2-account` (backend). Plan: `docs/exec-plans/completed/2026-11-17-f2
 - [x] HIBP opcional (`PASSWORD_BREACH_CHECK=hibp`), k-anonimato, sin bloquear si falla.
 - [x] Exportar datos (`GET /v1/me/export`) y eliminar cuenta (`POST /v1/me/delete`) con `PersonalDataRegistry`: cada módulo exporta y borra lo suyo. Retención provisional (DA-04); pagos fuera (P-03).
 - [x] Tests: e2e `account-security` (7) y `account` (5), unitarios del servicio y del registro; gate full verde.
-- [ ] Web: secciones nuevas en Seguridad.
+- [x] Web (rama `feat/f2-account` del web): sesiones, contraseña, correo, descargar datos y eliminar cuenta en `/account/security`; tests y prueba real en navegador con ui-shots (incluida la eliminación). Revisión codex: 1 hallazgo (secretos en el formulario tras eliminar), arreglado.
 
 ## Decisiones tomadas (acumuladas)
 ### 1.6 (2026-10-31)
@@ -268,7 +268,7 @@ Rama `feat/f2-account` (backend). Plan: `docs/exec-plans/completed/2026-11-17-f2
 1. Que tres personas del equipo completen `docs/DEMO.md` sin ayuda (aceptación de 1.7) y la evaluación de matching con 10 pares reales.
 2. Revisar los avisos de dependencias de desarrollo (`pnpm audit`).
 3. F1 (fundación de producción) según `docs/discovery/08-ROADMAP-V3.md`, con las respuestas provisionales de ADR-026.
-4. F2: verificación de correo y 2FA listos (ADR-024); sesiones, cambios de contraseña/correo, exportar y eliminar cuenta listos en backend. Falta la UI web. Consentimiento espera DA-04; roles separados, aplazados.
+4. F2: verificación de correo y 2FA listos (ADR-024); sesiones, cambios de contraseña/correo, exportar y eliminar cuenta listos en backend. UI web lista. Consentimiento espera DA-04; roles separados, aplazados.
 
 ## Descubrimiento y diseño para producción (2026-11-01)
 - **Rama:** `docs/discovery` desde `develop` (`40de1ef`), publicada junto con `develop`. Solo lectura y documentos: no se modificó `src`, `test`, `prisma` ni la web.
