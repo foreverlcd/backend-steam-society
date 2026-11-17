@@ -348,6 +348,10 @@ pnpm db:studio     # Abrir Prisma Studio
 Ejecuta ese comando después de un `git clone` o de cambiar
 `prisma/schema.prisma`, antes de compilar o arrancar la API.
 
+## Despliegue
+
+El repo incluye un `Dockerfile` (objetivos `runtime` y `migrate`), CI en `.github/workflows/ci.yml` y scripts `scripts/db-backup.sh` / `scripts/db-restore.sh`. Funciona con cualquier PostgreSQL vía `DATABASE_URL`. Pasos, variables y simulacro de restauración: [docs/RUNBOOK.md](docs/RUNBOOK.md).
+
 ## Datos demo y guion de demostración
 
 Con la API corriendo y `pnpm db:seed` hecho, crea 3 mentoras aprobadas (con
