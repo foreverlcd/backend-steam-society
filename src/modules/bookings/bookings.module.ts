@@ -10,6 +10,7 @@ import { BOOKING_REPOSITORY } from './application/ports/booking.repository.js';
 import { MENTEE_PROFILE_PORT } from './application/ports/mentee-profile.port.js';
 import { NOTIFICATIONS_PORT } from './application/ports/notifications.port.js';
 import { BookingsExpirationTask } from './infrastructure/bookings-expiration.task.js';
+import { BookingsReminderTask } from './infrastructure/bookings-reminder.task.js';
 import { MailNotificationsAdapter } from './infrastructure/mail-notifications.adapter.js';
 import { PrismaBookingRepository } from './infrastructure/prisma-booking.repository.js';
 import { ProfilesMenteeProfileAdapter } from './infrastructure/profiles-mentee-profile.adapter.js';
@@ -23,6 +24,7 @@ import { BookingsPersonalData } from './infrastructure/bookings-personal-data.js
     BookingsPersonalData,
     BookingsService,
     BookingsExpirationTask,
+    BookingsReminderTask,
     { provide: BOOKING_REPOSITORY, useClass: PrismaBookingRepository },
     { provide: MENTEE_PROFILE_PORT, useClass: ProfilesMenteeProfileAdapter },
     { provide: NOTIFICATIONS_PORT, useClass: MailNotificationsAdapter },

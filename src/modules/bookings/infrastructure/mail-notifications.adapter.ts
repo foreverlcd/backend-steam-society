@@ -84,6 +84,24 @@ export class MailNotificationsAdapter implements NotificationsPort {
           ].join('\n\n'),
         });
         return;
+
+      case 'reminder':
+        await this.mailer.send({
+          kind: 'booking.reminder',
+          to: notification.recipientEmail,
+          subject: 'Mañana tienes una mentoría en Steam Society',
+          text: [
+            `Hola ${notification.recipientName}:`,
+            `Te recordamos tu mentoría "${notification.offeringTitle}" con ${notification.counterpartName} el ${when}.`,
+            notification.meetingUrl
+              ? `Enlace de la sesión: ${notification.meetingUrl}`
+              : 'El enlace de la sesión estará en tu reserva en Steam Society.',
+            'Si no puedes asistir, cancela desde Steam Society para avisar a la otra persona.',
+          ].join('\n\n'),
+          // Pointless once the session has started.
+          expiresAt: notification.startsAt,
+        });
+        return;
     }
   }
 }

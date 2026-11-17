@@ -254,6 +254,11 @@ curl -i -X POST http://localhost:3000/v1/auth/register \
 - Sin `SMTP_URL`, los correos quedan en cola (en desarrollo usa Mailpit).
 - Varias instancias pueden correr a la vez: cada una toma filas distintas
   (`FOR UPDATE SKIP LOCKED`).
+- **Recordatorio 24 h antes:** cada 5 min se encola un correo para la mentee y
+  la mentora de cada reserva confirmada que empieza en menos de 24 h, en la
+  zona horaria de cada una y con el enlace de la sesión. Sale una sola vez
+  (`booking.reminder_sent_at`). Si la reserva se confirmó con menos de 24 h,
+  basta el correo de aceptación. Caduca al empezar la sesión.
 
 ### Recuperación de contraseña
 

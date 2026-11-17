@@ -409,6 +409,8 @@ model Booking {
   cancelReason    String?       @map("cancel_reason")
   completedAt     DateTime?     @map("completed_at") @db.Timestamptz(3)
   noShowParty     NoShowParty?  @map("no_show_party")
+  /// When the "your session is tomorrow" e-mails were queued.
+  reminderSentAt  DateTime?     @map("reminder_sent_at") @db.Timestamptz(3)
   paymentRequired Boolean       @map("payment_required")
   priceMinor      Int           @map("price_minor")
   currency        String        @db.VarChar(3)

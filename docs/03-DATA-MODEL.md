@@ -286,6 +286,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 | F2 | `email_verification_token`, `user_totp`, `mfa_recovery_code` + CHECKs y backfill a mano (`20261117150930_add_email_verification_and_mfa`; ADR-024) |
 | F2 | `email_verification_token.new_email` + CHECK de normalización (`20261117155718_add_email_change`) |
 | Piloto | `email_outbox` + enum `email_status` + CHECKs (`20261117202424_add_email_outbox`) |
+| Piloto | `booking.reminder_sent_at` (recordatorio 24 h antes, una sola vez) |
 | 2 / 3 | Ver esqueleto arriba |
 
 Regla: nunca editar una migración ya aplicada; se crea otra. Cada migración lleva un nombre descriptivo (ej. `add_area`).

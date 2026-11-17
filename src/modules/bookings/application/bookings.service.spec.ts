@@ -160,6 +160,8 @@ describe('BookingsService', () => {
       applyTransition: vi.fn(),
       expireById: vi.fn(),
       expireDue: vi.fn(),
+      claimDueReminders: vi.fn().mockResolvedValue([]),
+      releaseReminder: vi.fn().mockResolvedValue(undefined),
     };
     scheduling = {
       findOfferingById: vi.fn().mockResolvedValue(offering),
@@ -763,5 +765,45 @@ describe('BookingsService', () => {
     await expect(service.get(mentee, 'booking-1')).rejects.toSatisfy(
       (error) => errorCode(error) === 'BOOKING_FORBIDDEN',
     );
+  });
+
+  describe('reminders', () => {
+    it('reminds both participants in their own time zones', async () => {
+      repository.claimDueReminders.mockResolvedValue([
+        makeBooking({
+          status: 'confirmed',
+          mentee: { ...makeBooking().mentee, timezone: 'Europe/Madrid' },
+        }),
+      ]);
+
+      await expect(service.sendDueReminders()).resolves.toBe(1);
+
+      expect(repository.claimDueReminders).toHaveBeenCalledWith(
+        NOW,
+        new Date(NOW.getTime() + 24 * 3_600_000),
+      );
+      const sent = notifications.send.mock.calls.map(([n]) => n);
+      expect(sent).toHaveLength(2);
+      expect(sent.map((n) => n.type)).toEqual(['reminder', 'reminder']);
+      expect(sent[0]).toMatchObject({
+        recipientEmail: makeBooking().mentee.email,
+        timezone: 'Europe/Madrid',
+      });
+      expect(sent[1]).toMatchObject({
+        recipientEmail: makeBooking().mentor.email,
+      });
+      expect(repository.releaseReminder).not.toHaveBeenCalled();
+    });
+
+    it('releases the claim when the e-mail cannot be queued', async () => {
+      repository.claimDueReminders.mockResolvedValue([
+        makeBooking({ status: 'confirmed' }),
+      ]);
+      notifications.send.mockRejectedValue(new Error('db down'));
+
+      await service.sendDueReminders();
+
+      expect(repository.releaseReminder).toHaveBeenCalledWith('booking-1');
+    });
   });
 });

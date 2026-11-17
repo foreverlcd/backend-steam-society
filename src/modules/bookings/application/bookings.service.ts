@@ -117,6 +117,9 @@ export interface ParticipantResponse {
   timezone: string;
 }
 
+/** Reminders go out about one day before the session. */
+export const REMINDER_LEAD_MS = 24 * 3_600_000;
+
 @Injectable()
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
@@ -438,6 +441,55 @@ export class BookingsService {
     await this.notifyAccepted(updated);
 
     return toBookingResponse(updated);
+  }
+
+  /**
+   * Queues the "your session is tomorrow" e-mail for both participants of
+   * each confirmed booking starting within REMINDER_LEAD_MS.
+   */
+  async sendDueReminders(): Promise<number> {
+    const now = this.clock.now();
+    const due = await this.repository.claimDueReminders(
+      now,
+      new Date(now.getTime() + REMINDER_LEAD_MS),
+    );
+
+    for (const booking of due) {
+      const base = {
+        type: 'reminder' as const,
+        bookingId: booking.id,
+        offeringTitle: booking.offering.title,
+        startsAt: booking.session.startsAt,
+        endsAt: booking.session.endsAt,
+        expiresAt: booking.expiresAt,
+        meetingUrl: booking.session.meetingUrl,
+        reason: null,
+      };
+      try {
+        await this.notifications.send({
+          ...base,
+          recipientEmail: booking.mentee.email,
+          recipientName: displayName(booking.mentee, 'mentee'),
+          counterpartName: displayName(booking.mentor, 'tu mentora'),
+          timezone: booking.mentee.timezone,
+        });
+        await this.notifications.send({
+          ...base,
+          recipientEmail: booking.mentor.email,
+          recipientName: displayName(booking.mentor, 'mentora'),
+          counterpartName: displayName(booking.mentee, 'tu mentee'),
+          timezone: booking.mentor.timezone,
+        });
+      } catch (error) {
+        // Not queued: let the next run try again.
+        await this.repository.releaseReminder(booking.id);
+        this.logger.error(
+          `Booking reminder failed: ${error instanceof Error ? error.name : 'UnknownError'}`,
+        );
+      }
+    }
+
+    return due.length;
   }
 
   async expireDue(): Promise<number> {

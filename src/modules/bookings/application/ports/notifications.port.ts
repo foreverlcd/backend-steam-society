@@ -1,11 +1,7 @@
 export const NOTIFICATIONS_PORT = Symbol('NOTIFICATIONS_PORT');
 
 export type BookingNotificationType =
-  | 'requested'
-  | 'accepted'
-  | 'declined'
-  | 'cancelled'
-  | 'expired';
+  'requested' | 'accepted' | 'declined' | 'cancelled' | 'expired' | 'reminder';
 
 export interface BookingNotification {
   type: BookingNotificationType;

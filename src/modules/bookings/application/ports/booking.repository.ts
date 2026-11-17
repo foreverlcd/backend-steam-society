@@ -85,4 +85,11 @@ export interface BookingRepositoryPort {
   ): Promise<Booking>;
   expireById(id: string, now: Date): Promise<Booking | null>;
   expireDue(now: Date, scope?: BookingScope): Promise<Booking[]>;
+  /**
+   * Marks confirmed bookings whose session starts before `until` as reminded
+   * and returns them. Each booking is claimed once, even across instances.
+   */
+  claimDueReminders(now: Date, until: Date): Promise<Booking[]>;
+  /** Undoes a claim whose e-mails could not be queued. */
+  releaseReminder(bookingId: string): Promise<void>;
 }
