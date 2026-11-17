@@ -15,8 +15,16 @@ case "$BACKUP_KEEP" in ''|*[!0-9]*) echo "BACKUP_KEEP must be a positive integer
 
 command -v pg_dump >/dev/null || { echo "pg_dump not found (install postgresql-client)" >&2; exit 2; }
 
-# pg_dump rejects the Prisma-only ?schema= parameter; strip the query string.
-DUMP_URL="${DATABASE_URL%%\?*}"
+# Drop only Prisma's ?schema= parameter (libpq rejects it); keep the rest
+# (sslmode=require and friends are needed by hosted PostgreSQL).
+libpq_url() {
+  local url="$1" base query
+  base="${url%%\?*}"
+  [ "$url" = "$base" ] && { printf '%s' "$url"; return; }
+  query="$(printf '%s' "${url#*\?}" | tr '&' '\n' | grep -v '^schema=' | paste -sd'&' - || true)"
+  printf '%s%s' "$base" "${query:+?$query}"
+}
+DUMP_URL="$(libpq_url "$DATABASE_URL")"
 
 mkdir -p "$BACKUP_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"

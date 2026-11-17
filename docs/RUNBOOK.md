@@ -36,6 +36,8 @@ curl -i http://127.0.0.1:3000/health   # 200 {"status":"ok","db":"up"}
 ```
 La imagen corre como usuario no root y trae un `HEALTHCHECK` contra `/health`. Mantén el archivo de variables fuera del repo y con permisos `600`.
 
+⚠ **`--env-file` de Docker no quita comillas**: `SMTP_URL="smtp://…"` llega con las comillas y la API se niega a arrancar (`Invalid URL`). En el archivo de producción escribe los valores **sin comillas** (el `.env` de desarrollo sí las admite porque lo lee dotenv). Probado el 2026-11-17.
+
 ## 4. Migraciones
 Las migraciones NO se aplican al arrancar. Son un paso previo, antes de cada despliegue que cambie `prisma/migrations/`:
 ```bash
@@ -60,6 +62,10 @@ Cron diario sugerido (03:00), con la URL en un archivo `600` que el cron lee:
 ```cron
 0 3 * * * . /ruta/segura/backup.env && cd /ruta/al/repo && BACKUP_DIR=/var/backups/steam bash scripts/db-backup.sh >> /var/log/steam-backup.log 2>&1
 ```
+Sin `pg_dump` instalado en la máquina, corre el script dentro de la imagen oficial de PostgreSQL (misma versión mayor que la base):
+```bash
+docker run --rm --network host -v "$PWD:/w" -w /w -u "$(id -u)" -e DATABASE_URL postgres:18.6-alpine3.24 bash scripts/db-backup.sh
+```
 Copia los dumps fuera del servidor (otro proveedor o disco) `[verificar: almacenamiento gratuito disponible]`. Un backup que vive solo en la misma máquina no sirve ante una pérdida del servidor. Algunos proveedores gratuitos de BD ya hacen sus propios backups `[verificar]`; no los des por hechos.
 
 ## 7. Simulacro de restauración (hacer antes del piloto y cada trimestre)
@@ -67,12 +73,13 @@ Objetivo: comprobar que un backup realmente se puede restaurar.
 1. Toma un backup (sección 6) y anota la ruta del `.dump`.
 2. Crea una base temporal vacía en un PostgreSQL de pruebas (no la de producción):
    ```bash
-   psql "postgresql://USUARIO:CLAVE@HOST:PUERTO/postgres" -c "CREATE DATABASE steam_society_restore_check"
+   # La clave va en PGPASSWORD (o ~/.pgpass), nunca escrita en la URL del historial.
+   psql "postgresql://USUARIO@HOST:PUERTO/postgres" -c "CREATE DATABASE steam_society_restore_check"
    ```
 3. Restaura:
    ```bash
    bash scripts/db-restore.sh backups/AAAAMMDDTHHMMSSZ.dump \
-     "postgresql://USUARIO:CLAVE@HOST:PUERTO/steam_society_restore_check"
+     "postgresql://USUARIO@HOST:PUERTO/steam_society_restore_check"
    ```
    El script se niega si la URL destino contiene `prod`, salvo que añadas `--yes-really`.
 4. Compara conteos entre origen y restaurada:
@@ -91,13 +98,13 @@ Objetivo: comprobar que un backup realmente se puede restaurar.
 Restaurar en producción real (desastre): detén la API, restaura con `--yes-really` sobre una base vacía, corre las migraciones pendientes y arranca la API.
 
 ## 8. Rotación de secretos
-- **`SESSION_SECRET`**: cámbialo, reinicia la API. Efecto: las cookies de sesión existentes quedan inválidas si el secreto firma la cookie; todas las usuarias deberán entrar de nuevo. No afecta datos.
+- **`SESSION_SECRET`**: cámbialo, reinicia la API. Efecto: express-session firma la cookie con este secreto, así que las cookies existentes dejan de valer y todas las usuarias deben entrar de nuevo. No afecta datos.
 - **`MFA_ENCRYPTION_KEY`**: ⚠ cifra los secretos TOTP. Si la pierdes o la cambias sin migrar, no se pueden descifrar y hay que reinscribir la 2FA de todas las cuentas (el admin incluido; la recuperación es manual en la base). No hay rotación automática hoy: respáldala en un lugar seguro aparte de la base. Cambiarla exige reinscribir la 2FA.
 - Credenciales de SMTP y de la base: rota en el proveedor, actualiza el archivo de variables y reinicia.
 - Si sospechas filtración de un secreto, rótalo primero y averigua después.
 
 ## 9. La API no arranca: qué revisar
-1. `docker logs steam-api`. Los errores de entorno dicen `Invalid environment variables:` con la variable exacta.
+1. `docker logs steam-api`. Los errores de entorno dicen `Invalid environment variables:` con la variable exacta. Si dice `Invalid URL` o `Invalid email` con un valor que parece bien, revisa que no tenga comillas (ver §3).
 2. Producción exige `MFA_ENCRYPTION_KEY` válida (32 bytes en base64) y prohíbe `fake` y `THROTTLE_DISABLED=true`.
 3. La API falla rápido si la base no responde: revisa `DATABASE_URL`, firewall y que el PostgreSQL esté arriba (`psql` con la misma URL).
 4. Faltan migraciones: corre el paso de la sección 4.

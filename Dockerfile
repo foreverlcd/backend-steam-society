@@ -14,7 +14,10 @@ FROM base AS build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm db:generate && pnpm build
+# prisma.config.ts reads DATABASE_URL, but generate never connects: a
+# build-time placeholder is enough (the real URL is only given at runtime).
+RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" pnpm db:generate \
+  && pnpm build
 
 # ---- prod-deps: production node_modules only
 FROM base AS prod-deps

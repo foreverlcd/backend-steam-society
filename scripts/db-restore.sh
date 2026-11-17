@@ -15,7 +15,16 @@ if printf '%s' "$TARGET" | grep -qi 'prod' && [ "$FORCE" != "--yes-really" ]; th
   exit 3
 fi
 
-RESTORE_URL="${TARGET%%\?*}"
+# Drop only Prisma's ?schema= parameter (libpq rejects it); keep the rest
+# (sslmode=require and friends are needed by hosted PostgreSQL).
+libpq_url() {
+  local url="$1" base query
+  base="${url%%\?*}"
+  [ "$url" = "$base" ] && { printf '%s' "$url"; return; }
+  query="$(printf '%s' "${url#*\?}" | tr '&' '\n' | grep -v '^schema=' | paste -sd'&' - || true)"
+  printf '%s%s' "$base" "${query:+?$query}"
+}
+RESTORE_URL="$(libpq_url "$TARGET")"
 pg_restore --clean --if-exists --no-owner --exit-on-error --dbname="$RESTORE_URL" "$FILE" 2>/dev/null \
   || { echo "pg_restore failed (does the target database exist? are credentials correct?)" >&2; exit 1; }
 echo "restore ok: $FILE"

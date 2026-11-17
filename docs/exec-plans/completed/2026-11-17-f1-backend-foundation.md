@@ -43,3 +43,6 @@ Dejar listo en código lo que F1 necesita sin tocar cuentas externas: imagen de 
 ## Bitácora
 | Fecha | Quién | Qué pasó |
 |---|---|---|
+| 2026-11-17 | sonnet (implementador) | Escribió Dockerfile, CI, scripts y RUNBOOK; no pudo correr `docker build` ni el simulacro (requerían aprobación). |
+| 2026-11-17 | codex (revisor) | 1 hallazgo: los scripts borraban toda la query de `DATABASE_URL` (perdía `sslmode`). Arreglado: solo se quita `schema=`. |
+| 2026-11-17 | planificador | `docker build` fallaba: `prisma generate` exige `DATABASE_URL` → placeholder solo en build. Imagen runtime 587 MB, no root, `healthy`, `/health` 200 en modo producción. Imagen `migrate` aplicó 13/13 migraciones en BD vacía. Simulacro backup→restore en BD temporal: conteos idénticos (10 usuarias, 1 reserva, 5 perfiles de mentora, 9 auditorías, 13 migraciones); restaurar sobre una URL con "prod" se rechaza. Hallazgo: `--env-file` de Docker no quita comillas (anotado en RUNBOOK §3). |
