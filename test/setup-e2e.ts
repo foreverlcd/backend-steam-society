@@ -7,6 +7,8 @@ process.env.SESSION_COOKIE_SECURE ??= 'false';
 process.env.WEB_ORIGIN ??= 'http://localhost:3001';
 process.env.APP_URL ??= 'http://localhost:3001';
 process.env.SMTP_FROM ??= 'Steam Society <no-reply@steamsociety.local>';
-process.env.PAYMENTS_PROVIDER ??= 'fake';
+// The payment e2e tests drive the fake provider; force it so a CI or shell
+// value (e.g. PAYMENTS_PROVIDER=disabled) cannot silently switch it off.
+process.env.PAYMENTS_PROVIDER = 'fake';
 // The outbox sender is driven by the tests themselves (test/email-outbox).
 process.env.EMAIL_DISPATCH_INTERVAL_MS = '0';
