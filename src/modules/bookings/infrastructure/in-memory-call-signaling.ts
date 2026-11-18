@@ -21,12 +21,14 @@ export class InMemoryCallSignaling implements CallSignalingPort {
       this.calls.set(callId, participants);
     }
 
+    // Install the new connection first: closing the old one runs its
+    // teardown, which must then see it was replaced (no peer-left).
     const previous = participants.get(userId);
+    participants.set(userId, connection);
     if (previous) {
       previous.push({ type: 'replaced' });
       previous.close();
     }
-    participants.set(userId, connection);
 
     const peers = [...participants].filter(([id]) => id !== userId);
     connection.push({ type: 'ready', peerPresent: peers.length > 0 });
@@ -40,6 +42,14 @@ export class InMemoryCallSignaling implements CallSignalingPort {
       for (const [, peer] of current) peer.push({ type: 'peer-left' });
       if (current.size === 0) this.calls.delete(callId);
     };
+  }
+
+  end(callId: string): void {
+    const participants = this.calls.get(callId);
+    if (!participants) return;
+    // Removed first, so the teardowns do not announce peer-left.
+    this.calls.delete(callId);
+    for (const [, connection] of participants) connection.close();
   }
 
   send(callId: string, toUserId: string, event: CallEvent): boolean {

@@ -43,6 +43,8 @@ export interface CallSignalingPort {
   join(callId: string, userId: string, connection: CallConnection): () => void;
   /** Delivers to the participant if connected; returns whether it was. */
   send(callId: string, toUserId: string, event: CallEvent): boolean;
+  /** Closes every stream of the call (the booking is no longer confirmed). */
+  end(callId: string): void;
 }
 
 export interface IceServer {

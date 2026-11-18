@@ -1048,6 +1048,8 @@ describe('Bookings (e2e)', () => {
     interface CallStream {
       next(): Promise<Record<string, unknown>>;
       close(): void;
+      /** Resolves when the server ends the stream. */
+      ended: Promise<void>;
     }
 
     let server: http.Server;
@@ -1084,6 +1086,7 @@ describe('Bookings (e2e)', () => {
               return;
             }
             res.setEncoding('utf8');
+            const ended = new Promise<void>((done) => res.on('end', done));
             res.on('data', (chunk: string) => {
               buffer += chunk;
               let end: number;
@@ -1111,6 +1114,7 @@ describe('Bookings (e2e)', () => {
                 return new Promise((done) => waiters.push(done));
               },
               close: () => req.destroy(),
+              ended,
             });
           },
         );
@@ -1244,6 +1248,25 @@ describe('Bookings (e2e)', () => {
         .send({ kind: 'candidate', candidate: null })
         .expect(200, { delivered: false });
       menteeStream.close();
+    });
+
+    it('ends the open streams when the booking is cancelled', async () => {
+      const { mentor, mentee, booking } = await confirmedBooking();
+      await startSessionIn(booking.id, 5);
+      const menteeStream = await openStream(mentee.cookie, booking.id);
+      await menteeStream.next();
+
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/cancel`)
+        .set('Cookie', mentor.cookie)
+        .send({ reason: 'Surgió un imprevisto' })
+        .expect(200);
+
+      await menteeStream.ended;
+      await request(app.getHttpServer())
+        .get(`/v1/bookings/${booking.id}/call/events`)
+        .set('Cookie', mentee.cookie)
+        .expect(409);
     });
   });
 });

@@ -24,6 +24,9 @@ import { callSignalSchema, type CallSignalBody } from './bookings.schemas.js';
 export class CallsController {
   constructor(private readonly calls: CallsService) {}
 
+  // Each call to this endpoint may mint TURN credentials.
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get()
   @Roles('mentee', 'mentor')
   info(
