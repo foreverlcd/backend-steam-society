@@ -115,7 +115,7 @@ después de que la API ya está levantada. Cuando la base vuelve, `/health` resp
 | Método | Ruta                                                                                        | Autenticación            | Descripción                                                                       |
 | ------ | ------------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------- |
 | GET    | `/health`                                                                                   | Pública                  | Estado de la API y de la base                                                     |
-| POST   | `/v1/auth/register`                                                                         | Pública                  | Registro `mentee` o `mentor`                                                      |
+| POST   | `/v1/auth/register`                                                                         | Pública                  | Registro `mentee` o `mentor`; exige `acceptTerms: true` (y `guardianConsent` si <14) |
 | POST   | `/v1/auth/login`                                                                            | Pública                  | Crea la sesión; con 2FA activo responde `{ "mfaRequired": true }`                 |
 | POST   | `/v1/auth/login/mfa`                                                                        | Pública (reto pendiente) | Segundo paso con `{ "code" }` o `{ "recoveryCode" }`                              |
 | POST   | `/v1/auth/email/verify`                                                                     | Pública                  | Confirma el correo con `{ "token" }` (204)                                        |
@@ -177,9 +177,19 @@ curl -i -X POST http://localhost:3000/v1/auth/register \
     "email": "ada@example.com",
     "password": "correct-horse-battery",
     "role": "mentee",
-    "birthDate": "2000-01-01"
+    "birthDate": "2000-01-01",
+    "acceptTerms": true
   }'
 ```
+
+- `acceptTerms` es obligatorio y debe ser `true` (si falta o es `false`: 400 de
+  validación). Se guarda `terms_accepted_at` y `terms_version`
+  (`LEGAL_TERMS_VERSION` en `src/modules/auth/legal-terms.ts`).
+- `guardianConsent` (opcional, boolean): consentimiento de madre, padre o tutor.
+  Si la persona tiene menos de 14 años según el reloj del servidor (UTC) y no
+  llega `guardianConsent: true`, responde `400 GUARDIAN_CONSENT_REQUIRED`. Con
+  `true` se guarda `guardian_consent_at`. Los textos legales son borradores
+  pendientes de revisión legal (DA-01, DA-04).
 
 ### Sesiones, CSRF y CORS
 

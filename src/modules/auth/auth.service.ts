@@ -13,6 +13,11 @@ import { CLOCK, type Clock } from '../../shared/clock/clock.js';
 import { resolveSessionCookieName } from '../../shared/http/session-cookie.js';
 import type { AuthUser } from './auth.types.js';
 import type { RegisterInput } from './auth.schemas.js';
+import {
+  GUARDIAN_CONSENT_MIN_AGE,
+  LEGAL_TERMS_VERSION,
+  ageInYears,
+} from './legal-terms.js';
 import { MailerService } from './mailer.service.js';
 import { PasswordBreachChecker } from './password-breach-checker.js';
 import { PasswordHasher } from './password-hasher.service.js';
@@ -44,12 +49,23 @@ export class AuthService {
   async register(input: RegisterInput): Promise<AuthUser> {
     const email = normalizeEmail(input.email);
     const birthDate = new Date(`${input.birthDate}T00:00:00.000Z`);
+    const now = this.clock.now();
 
-    if (birthDate.getTime() > this.clock.now().getTime()) {
+    if (birthDate.getTime() > now.getTime()) {
       throw new BadRequestException({
         statusCode: 400,
         code: 'INVALID_BIRTH_DATE',
         message: 'Birth date cannot be in the future',
+      });
+    }
+
+    const needsGuardian =
+      ageInYears(birthDate, now) < GUARDIAN_CONSENT_MIN_AGE;
+    if (needsGuardian && input.guardianConsent !== true) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'GUARDIAN_CONSENT_REQUIRED',
+        message: 'Users under 14 need consent from a parent or guardian',
       });
     }
 
@@ -68,6 +84,9 @@ export class AuthService {
         birthDate,
         firstName: input.firstName,
         lastName: input.lastName,
+        termsAcceptedAt: now,
+        termsVersion: LEGAL_TERMS_VERSION,
+        guardianConsentAt: input.guardianConsent === true ? now : null,
       });
       // The account exists even if the e-mail provider is down; the user can
       // ask for a new link later (POST /auth/email/resend).

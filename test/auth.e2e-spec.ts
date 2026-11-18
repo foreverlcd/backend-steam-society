@@ -5,6 +5,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
+import { LEGAL_TERMS_VERSION } from '../src/modules/auth/legal-terms.js';
 import { MailerService } from '../src/modules/auth/mailer.service.js';
 import { PrismaService } from '../src/shared/prisma/prisma.service.js';
 import { currentTotp, enrollTotp } from './helpers/auth.js';
@@ -80,6 +81,7 @@ describe('Auth (e2e)', () => {
         password,
         role: 'mentee',
         birthDate: '2000-01-01',
+        acceptTerms: true,
         ...overrides,
       })
       .expect(201);
@@ -113,6 +115,7 @@ describe('Auth (e2e)', () => {
         password: 'correct-horse-battery',
         role: 'mentor',
         birthDate: '1995-05-20',
+        acceptTerms: true,
         firstName: 'Ada',
         lastName: 'Lovelace',
       })
@@ -140,6 +143,7 @@ describe('Auth (e2e)', () => {
         password,
         role: 'mentee',
         birthDate: '2000-01-01',
+        acceptTerms: true,
       })
       .expect(409);
 
@@ -154,8 +158,82 @@ describe('Auth (e2e)', () => {
         password: 'correct-horse-battery',
         role: 'admin',
         birthDate: '1990-01-01',
+        acceptTerms: true,
       })
       .expect(400);
+  });
+
+  describe('legal consent at registration', () => {
+    // Ten years ago today: always under 14 on the server clock.
+    function childBirthDate(): string {
+      const now = new Date();
+      now.setUTCFullYear(now.getUTCFullYear() - 10);
+      return now.toISOString().slice(0, 10);
+    }
+
+    it('rejects a sign-up without accepting the terms', async () => {
+      const base = {
+        email: `user-${randomUUID()}@example.com`,
+        password: 'test-only-correct-horse',
+        role: 'mentee',
+        birthDate: '2000-01-01',
+      };
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send(base)
+        .expect(400);
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send({ ...base, acceptTerms: false })
+        .expect(400);
+      expect(await prisma.user.count({ where: { email: base.email } })).toBe(0);
+    });
+
+    it('requires guardian consent under 14', async () => {
+      const email = `kid-${randomUUID()}@example.com`;
+      const response = await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send({
+          email,
+          password: 'test-only-correct-horse',
+          role: 'mentee',
+          birthDate: childBirthDate(),
+          acceptTerms: true,
+        })
+        .expect(400);
+
+      expect(response.body.code).toBe('GUARDIAN_CONSENT_REQUIRED');
+      expect(await prisma.user.count({ where: { email } })).toBe(0);
+    });
+
+    it('records guardian consent for an under-14 sign-up', async () => {
+      const email = `kid-${randomUUID()}@example.com`;
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send({
+          email,
+          password: 'test-only-correct-horse',
+          role: 'mentee',
+          birthDate: childBirthDate(),
+          acceptTerms: true,
+          guardianConsent: true,
+        })
+        .expect(201);
+
+      const stored = await prisma.user.findUniqueOrThrow({ where: { email } });
+      expect(stored.guardianConsentAt).toBeInstanceOf(Date);
+      expect(stored.termsAcceptedAt).toBeInstanceOf(Date);
+      expect(stored.termsVersion).toBe(LEGAL_TERMS_VERSION);
+    });
+
+    it('stores the accepted terms version for an adult', async () => {
+      const { email } = await registerUser();
+
+      const stored = await prisma.user.findUniqueOrThrow({ where: { email } });
+      expect(stored.termsVersion).toBe(LEGAL_TERMS_VERSION);
+      expect(stored.termsAcceptedAt).toBeInstanceOf(Date);
+      expect(stored.guardianConsentAt).toBeNull();
+    });
   });
 
   it('logs in, returns the current user and logs out', async () => {

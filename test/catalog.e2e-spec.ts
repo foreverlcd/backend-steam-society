@@ -114,6 +114,7 @@ describe('Catalog and recommendations (e2e)', () => {
         password,
         role,
         birthDate: '1998-01-01',
+        acceptTerms: true,
       })
       .expect(201);
     await markEmailVerified(prisma, email);

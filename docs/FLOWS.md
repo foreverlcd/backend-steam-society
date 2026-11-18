@@ -199,8 +199,9 @@ sequenceDiagram
   participant Mail as Mailpit o SMTP
   Usuaria->>Web: completa el registro
   Web->>A: POST /v1/auth/register
-  A->>S: register(body) tras validar Zod
-  S->>DB: INSERT user con email_verified_at nulo
+  A->>S: register(body) tras validar Zod (acceptTerms true obligatorio)
+  Note over S: menor de 14 sin guardianConsent true: 400 GUARDIAN_CONSENT_REQUIRED
+  S->>DB: INSERT user con email_verified_at nulo, terms_accepted_at, terms_version y guardian_consent_at
   S-->>Web: 201 AuthUser con emailVerified false
   S->>DB: guarda hash SHA-256 del token y expires_at
   S->>M: sendEmailVerification(email, token, horas)

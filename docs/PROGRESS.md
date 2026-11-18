@@ -14,7 +14,7 @@
 - 2026-10-25: formateo de `profiles`/e2e y auditoría/instalación de skills; commits `abd478a`, `3c44c54`, `006ec54` y `ab2c55b` en `chore/close-1.3`, sin push.
 - Identidad 1.2:
   - `user` (`user_role`, `user_status`, email único y CHECK `email = lower(email)`), `password_reset_token` y `auth_session` (tabla propia para no chocar con `session` de mentoría).
-  - `POST /v1/auth/register` (solo `mentee`/`mentor`; fecha de nacimiento; email normalizado; Argon2id), `POST /v1/auth/login`, `POST /v1/auth/logout`, `POST /v1/auth/password/forgot`, `POST /v1/auth/password/reset`, `GET /v1/me`.
+  - `POST /v1/auth/register` (solo `mentee`/`mentor`; fecha de nacimiento; `acceptTerms: true` y `guardianConsent` si <14 desde 2026-11-18; email normalizado; Argon2id), `POST /v1/auth/login`, `POST /v1/auth/logout`, `POST /v1/auth/password/forgot`, `POST /v1/auth/password/reset`, `GET /v1/me`.
   - Sesión con `express-session` + `connect-pg-simple`; cookie `__Host-sid` (`Secure`, `HttpOnly`, `SameSite=Lax`, 7 días) en producción y `sid` en desarrollo HTTP (`SESSION_COOKIE_SECURE=false`). Se regenera al entrar, se destruye al salir y se revocan todas las sesiones al cambiar la contraseña.
   - Recuperación: token aleatorio de 32 bytes, hash SHA-256 en base, TTL 1 hora, un solo uso, misma respuesta `202` exista o no el correo. El envío usa `SMTP_URL` (Mailpit en local).
   - CSRF con `enableCsrfProtection({ trustedOrigins })`; rate limit por IP + correo en login y recuperación con `@nestjs/throttler`.
@@ -314,3 +314,4 @@ Rama `feat/f2-account` (backend). Plan: `docs/exec-plans/completed/2026-11-17-f2
 | 2026-11-18 | `TRUST_PROXY` para la cookie segura detrás de Caddy; adaptador coturn (TURN REST) en `ConfiguredIceServers`; despliegue Oracle fusionado | Agente |
 | 2026-11-18 | CI: los e2e de pagos fallaban en GitHub porque el workflow fija `PAYMENTS_PROVIDER=disabled`; `test/setup-e2e.ts` ahora fuerza `fake`. Primer CI verde | Agente |
 | 2026-11-18 | Chat de texto dentro de la videollamada (web): canal de datos WebRTC negociado, sin pasar por la API ni guardarse; probado por el desarrollador en dos navegadores | Agente |
+| 2026-11-18 | Consentimiento legal en el registro (Ley 29733): `acceptTerms: true` obligatorio, `guardianConsent` obligatorio para menores de 14 (`400 GUARDIAN_CONSENT_REQUIRED`); columnas `terms_accepted_at`, `terms_version` (`LEGAL_TERMS_VERSION = '2026-11-18'`) y `guardian_consent_at` (migración `20261118152922_add_user_legal_consent`), incluidas en la exportación. Textos legales en borrador; DA-01 y DA-04 siguen abiertas | Agente |

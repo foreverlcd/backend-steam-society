@@ -54,6 +54,12 @@ model User {
   createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt               DateTime?                @map("deleted_at") @db.Timestamptz(3)
+  /// When the user accepted the terms and privacy notice at sign-up (DA-04; null for seeded/legacy rows).
+  termsAcceptedAt         DateTime?                @map("terms_accepted_at") @db.Timestamptz(3)
+  /// Version of the legal texts accepted (LEGAL_TERMS_VERSION at sign-up).
+  termsVersion            String?                  @map("terms_version")
+  /// Parent/guardian consent for under-14 sign-ups (Ley 29733 regulation); null when not given.
+  guardianConsentAt       DateTime?                @map("guardian_consent_at") @db.Timestamptz(3)
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
   totp                    UserTotp?

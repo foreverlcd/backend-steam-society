@@ -284,6 +284,7 @@ describe('E-mail outbox (e2e)', () => {
         password: 'test-only-correct-horse',
         role: 'mentee',
         birthDate: '1998-01-01',
+        acceptTerms: true,
       })
       .expect(201);
 
