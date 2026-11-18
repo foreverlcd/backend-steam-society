@@ -102,8 +102,7 @@ services:
       # fail the API's env validation).
       CALL_TURN_KEY_ID:
       CALL_TURN_API_TOKEN:
-      # Self-hosted coturn (TURN REST shared secret). Read by the API only once
-      # its adapter exists (pending); coturn already uses the secret.
+      # Self-hosted coturn (TURN REST shared secret, same value as coturn's).
       CALL_TURN_SHARED_SECRET:
       CALL_TURN_URLS:
     depends_on:

@@ -373,7 +373,9 @@ localStart, localEnd }` por slot. Los slots ocupados por sesiones no se
 - Servidores ICE: STUN público de Cloudflare (`CALL_STUN_URLS`). Con
   `CALL_TURN_KEY_ID` y `CALL_TURN_API_TOKEN` (Cloudflare Realtime, gratis hasta
   1000 GB/mes) se agregan credenciales TURN temporales (4 h) para las redes donde
-  STUN no basta (datos móviles, redes corporativas).
+  STUN no basta (datos móviles, redes corporativas). Con coturn propio
+  (`CALL_TURN_SHARED_SECRET`, mínimo 32 caracteres, y `CALL_TURN_URLS`) la API
+  firma credenciales TURN REST de 4 h; ver `docs/DEPLOY-ORACLE.md` §7.3.
 - La señalización vive en memoria del proceso: sirve mientras la API corra en
   **una sola instancia**. Para varias, cambiar `InMemoryCallSignaling` por un
   canal compartido (p. ej. Postgres `LISTEN/NOTIFY`) detrás del mismo puerto.
