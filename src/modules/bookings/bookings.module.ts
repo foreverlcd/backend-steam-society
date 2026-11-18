@@ -6,6 +6,14 @@ import { AuthModule } from '../auth/auth.module.js';
 import { ProfilesModule } from '../profiles/profiles.module.js';
 import { SchedulingModule } from '../scheduling/scheduling.module.js';
 import { BookingsService } from './application/bookings.service.js';
+import { CallsService } from './application/calls.service.js';
+import {
+  CALL_SIGNALING_PORT,
+  ICE_SERVERS_PORT,
+} from './application/ports/call-signaling.port.js';
+import { CloudflareIceServers } from './infrastructure/cloudflare-ice-servers.js';
+import { InMemoryCallSignaling } from './infrastructure/in-memory-call-signaling.js';
+import { CallsController } from './presentation/calls.controller.js';
 import { BOOKING_REPOSITORY } from './application/ports/booking.repository.js';
 import { MENTEE_PROFILE_PORT } from './application/ports/mentee-profile.port.js';
 import { NOTIFICATIONS_PORT } from './application/ports/notifications.port.js';
@@ -19,10 +27,13 @@ import { BookingsPersonalData } from './infrastructure/bookings-personal-data.js
 
 @Module({
   imports: [PrismaModule, SchedulingModule, ProfilesModule, AuthModule],
-  controllers: [BookingsController],
+  controllers: [BookingsController, CallsController],
   providers: [
     BookingsPersonalData,
     BookingsService,
+    CallsService,
+    { provide: CALL_SIGNALING_PORT, useClass: InMemoryCallSignaling },
+    { provide: ICE_SERVERS_PORT, useClass: CloudflareIceServers },
     BookingsExpirationTask,
     BookingsReminderTask,
     { provide: BOOKING_REPOSITORY, useClass: PrismaBookingRepository },

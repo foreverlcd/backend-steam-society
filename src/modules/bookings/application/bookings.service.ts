@@ -33,7 +33,6 @@ import {
   bookingSlotUnavailable,
   bookingStatusConflict,
   invalidBookingTransition,
-  meetingUrlRequired,
   menteeProfileRequired,
   mentorNotApproved,
   offeringArchived,
@@ -46,6 +45,10 @@ import type {
   DeclineBookingInput,
   ListBookingsInput,
 } from './bookings.inputs.js';
+import {
+  CALL_SIGNALING_PORT,
+  type CallSignalingPort,
+} from './ports/call-signaling.port.js';
 import {
   BOOKING_REPOSITORY,
   BookingStatusConflictError,
@@ -145,6 +148,8 @@ export class BookingsService {
     private readonly notifications: NotificationsPort,
     @Inject(CLOCK) private readonly clock: Clock,
     configService: ConfigService,
+    @Inject(CALL_SIGNALING_PORT)
+    private readonly calls: CallSignalingPort,
   ) {
     this.ttlHours = configService.getOrThrow<number>(
       'BOOKING_REQUEST_TTL_HOURS',
@@ -302,10 +307,6 @@ export class BookingsService {
       { type: 'accept', paymentRequired: booking.paymentRequired },
       now,
     );
-
-    if (next === 'confirmed' && !input.meetingUrl) {
-      throw meetingUrlRequired();
-    }
 
     const updated = await this.apply(booking, next, {
       respondedAt: now,
@@ -647,12 +648,17 @@ export class BookingsService {
     data: Omit<BookingTransitionData, 'status'>,
   ): Promise<Booking> {
     try {
-      return await this.repository.applyTransition(
+      const updated = await this.repository.applyTransition(
         booking.id,
         booking.status,
         { ...data, status: next },
         this.clock.now(),
       );
+      if (booking.status === 'confirmed' && next !== 'confirmed') {
+        // Cancelled, completed or no-show: the call is over.
+        this.calls.end(booking.id);
+      }
+      return updated;
     } catch (error) {
       if (error instanceof BookingStatusConflictError) {
         throw bookingStatusConflict();

@@ -60,3 +60,34 @@ export const cancelBookingSchema = z
   .strict();
 
 export type CancelBookingBody = z.infer<typeof cancelBookingSchema>;
+
+// WebRTC negotiation relayed between the two participants of a call.
+export const callSignalSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('description'),
+      description: z
+        .object({
+          type: z.enum(['offer', 'answer', 'rollback']),
+          sdp: z.string().max(64_000).optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('candidate'),
+      candidate: z
+        .object({
+          candidate: z.string().max(2_000),
+          sdpMid: z.string().max(64).nullable().optional(),
+          sdpMLineIndex: z.number().int().min(0).max(64).nullable().optional(),
+          usernameFragment: z.string().max(256).nullable().optional(),
+        })
+        .strict()
+        .nullable(),
+    })
+    .strict(),
+]);
+
+export type CallSignalBody = z.infer<typeof callSignalSchema>;
