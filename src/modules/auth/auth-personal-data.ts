@@ -41,6 +41,9 @@ export class AuthPersonalData implements PersonalDataContributor, OnModuleInit {
         locale: true,
         emailVerifiedAt: true,
         createdAt: true,
+        termsAcceptedAt: true,
+        termsVersion: true,
+        guardianConsentAt: true,
         totp: { select: { confirmedAt: true } },
       },
     });

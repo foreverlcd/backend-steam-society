@@ -11,6 +11,9 @@ export interface CreateUserInput {
   birthDate: Date;
   firstName?: string;
   lastName?: string;
+  termsAcceptedAt: Date;
+  termsVersion: string;
+  guardianConsentAt: Date | null;
 }
 
 /** A user row plus the one-to-one TOTP state, enough to build an AuthUser. */
@@ -72,6 +75,9 @@ export class UserRepository {
         birthDate: input.birthDate,
         firstName: input.firstName,
         lastName: input.lastName,
+        termsAcceptedAt: input.termsAcceptedAt,
+        termsVersion: input.termsVersion,
+        guardianConsentAt: input.guardianConsentAt,
       },
     });
   }

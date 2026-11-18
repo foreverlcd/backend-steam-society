@@ -109,5 +109,5 @@ Consecuencia en código hoy: `PAYMENTS_PROVIDER=disabled` y `PAYMENTS_FEE_BPS=15
 | DA-01 | Edad y menores (se guarda la fecha de nacimiento desde el registro) | Antes del primer piloto con personas externas [a confirmar con un abogado] |
 | DA-02 | Cursos en vivo y grabados | Después del MVP |
 | DA-03 | Moneda y forma jurídica frente al proveedor de pagos | Antes del Hito 2 |
-| DA-04 | Aviso de privacidad y consentimiento; derechos sobre datos personales | Antes del primer piloto [a confirmar con un abogado]. Ya existen exportar y eliminar cuenta (F2) con una retención **provisional** (`docs/03-DATA-MODEL.md`, "Eliminación de cuenta"); el consentimiento aún no. |
+| DA-04 | Aviso de privacidad y consentimiento; derechos sobre datos personales | Antes del primer piloto [a confirmar con un abogado]. Ya existen exportar y eliminar cuenta (F2) con una retención **provisional** (`docs/03-DATA-MODEL.md`, "Eliminación de cuenta"); el consentimiento aún no. Nota 2026-11-18: el registro ya **registra** el consentimiento (`terms_accepted_at`, `terms_version` = `LEGAL_TERMS_VERSION`, y `guardian_consent_at` obligatorio para menores de 14); los textos son **borradores pendientes de revisión legal**. DA-01 y DA-04 siguen abiertas. |
 | DA-05 | Política de cancelación y reembolso | Antes del Hito 2 |

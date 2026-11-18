@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { User } from '../../generated/prisma/client.js';
 import type { Clock } from '../../shared/clock/clock.js';
 import { AuthService } from './auth.service.js';
+import { LEGAL_TERMS_VERSION } from './legal-terms.js';
 import type { PasswordBreachChecker } from './password-breach-checker.js';
 import { MailerService } from './mailer.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
@@ -33,6 +34,9 @@ function makeUser(overrides: Partial<User> = {}): User {
     createdAt: NOW,
     updatedAt: NOW,
     deletedAt: null,
+    termsAcceptedAt: NOW,
+    termsVersion: LEGAL_TERMS_VERSION,
+    guardianConsentAt: null,
     ...overrides,
   };
 }
@@ -114,6 +118,7 @@ describe('AuthService', () => {
         password: TEST_PASSWORD,
         role: 'mentee',
         birthDate: '2000-01-01',
+        acceptTerms: true,
       });
       await vi.waitFor(() =>
         expect(mocks.sendEmailVerification).toHaveBeenCalled(),
@@ -141,6 +146,7 @@ describe('AuthService', () => {
           password: TEST_PASSWORD,
           role: 'mentee',
           birthDate: '2000-01-01',
+          acceptTerms: true,
         }),
       ).resolves.toMatchObject({ id: 'user-1' });
     });
@@ -213,6 +219,7 @@ describe('AuthService', () => {
       password: TEST_PASSWORD,
       role: 'mentee',
       birthDate: '2000-01-01',
+      acceptTerms: true,
     });
 
     expect(mocks.findByEmail).toHaveBeenCalledWith('mixed@example.com');
@@ -231,8 +238,74 @@ describe('AuthService', () => {
         password: TEST_PASSWORD,
         role: 'mentee',
         birthDate: '2030-01-01',
+        acceptTerms: true,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  describe('legal consent', () => {
+    // NOW is 2026-01-01: born 2012-01-02 is still 13, born 2012-01-01 is 14.
+    it('requires guardian consent under 14', async () => {
+      const { service, mocks } = makeService();
+
+      await expect(
+        service.register({
+          email: 'kid@example.com',
+          password: TEST_PASSWORD,
+          role: 'mentee',
+          birthDate: '2012-01-02',
+          acceptTerms: true,
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'GUARDIAN_CONSENT_REQUIRED' },
+      });
+      expect(mocks.create).not.toHaveBeenCalled();
+    });
+
+    it('records guardian consent for an under-14 sign-up', async () => {
+      const { service, mocks } = makeService();
+      mocks.findByEmail.mockResolvedValue(null);
+      mocks.create.mockResolvedValue(makeUser());
+
+      await service.register({
+        email: 'kid@example.com',
+        password: TEST_PASSWORD,
+        role: 'mentee',
+        birthDate: '2012-01-02',
+        acceptTerms: true,
+        guardianConsent: true,
+      });
+
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          termsAcceptedAt: NOW,
+          termsVersion: LEGAL_TERMS_VERSION,
+          guardianConsentAt: NOW,
+        }),
+      );
+    });
+
+    it('does not ask for guardian consent from the 14th birthday', async () => {
+      const { service, mocks } = makeService();
+      mocks.findByEmail.mockResolvedValue(null);
+      mocks.create.mockResolvedValue(makeUser());
+
+      await service.register({
+        email: 'teen@example.com',
+        password: TEST_PASSWORD,
+        role: 'mentee',
+        birthDate: '2012-01-01',
+        acceptTerms: true,
+      });
+
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          termsAcceptedAt: NOW,
+          termsVersion: LEGAL_TERMS_VERSION,
+          guardianConsentAt: null,
+        }),
+      );
+    });
   });
 
   it('runs a dummy verification and fails with a generic error for unknown emails', async () => {

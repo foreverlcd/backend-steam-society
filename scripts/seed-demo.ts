@@ -230,6 +230,7 @@ async function signUp(
       password: PASSWORD,
       role,
       birthDate: role === 'mentor' ? '1990-05-12' : '2004-03-08',
+      acceptTerms: true,
       firstName: person.firstName,
       lastName: person.lastName,
     },

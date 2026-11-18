@@ -21,7 +21,7 @@ Una mentora que quiera recibir mentoría necesita otra cuenta con otro correo (d
 - **R-06** Cada solicitud de sesión la aprueba la mentora. Si no responde en el plazo, la solicitud vence. Plazo: 48 h por defecto, configurable con `BOOKING_REQUEST_TTL_HOURS` (ADR-021).
 - **R-07** Las sesiones gratuitas nunca crean pagos ni asientos en el ledger.
 - **R-08** Pagos y comisiones: Hito 2. La política de cancelación y reembolso es una decisión pendiente (DA-05).
-- **R-09** La fecha de nacimiento se guarda en el registro. Aún NO hay lógica de menores (DA-01).
+- **R-09** La fecha de nacimiento se guarda en el registro. Única lógica de menores por ahora: menores de 14 necesitan el consentimiento de madre, padre o tutor (`guardianConsent`), que queda registrado; el resto sigue en DA-01.
 - **R-10** En el MVP las sesiones son 1:1. El modelo admite grupales, pero la API no las expone todavía.
 - **R-11** Antelación mínima para reservar: 24 h [PLACEHOLDER]. Anticipación máxima: 60 días [PLACEHOLDER].
 - **R-12** Una mentee no puede tener dos reservas activas que se solapen.

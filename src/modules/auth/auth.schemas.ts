@@ -10,6 +10,10 @@ export const registerSchema = z.object({
   birthDate: z.iso.date(),
   firstName: z.string().trim().min(1).max(100).optional(),
   lastName: z.string().trim().min(1).max(100).optional(),
+  /** Terms of use and privacy notice (DA-04): must be accepted to register. */
+  acceptTerms: z.literal(true),
+  /** Parent/guardian consent; required by the service when under 14. */
+  guardianConsent: z.boolean().optional(),
 });
 
 export const loginSchema = z.object({
