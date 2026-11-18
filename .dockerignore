@@ -13,3 +13,5 @@ test
 docs
 load
 backups
+# production deploy files (deploy/.env.prod holds secrets; never in an image)
+deploy

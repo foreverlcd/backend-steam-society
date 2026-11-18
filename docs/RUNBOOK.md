@@ -136,11 +136,13 @@ Restaurar en producción real (desastre): detén la API, restaura con `--yes-rea
 
 ## 10. Ejemplo de proxy (Caddy) — referencia, no probado
 
+Paquete completo de producción (compose, Caddyfile, coturn, backups; validado en local, no en Oracle): `deploy/` y [DEPLOY-ORACLE.md](DEPLOY-ORACLE.md).
+
 ```caddyfile
 # api.ejemplo.com { reverse_proxy 127.0.0.1:3000 }
 ```
 
-Caddy obtiene el certificado TLS solo `[verificar: dominio y DNS dependen del proveedor]`. Si la API queda detrás de un proxy, comprueba cómo se toma la IP del cliente para los límites de peticiones `[verificar]`.
+Caddy obtiene el certificado TLS solo `[verificar: dominio y DNS dependen del proveedor]`. Detrás de un proxy, fija `TRUST_PROXY` al número de proxies (1 con Caddy) para que la cookie segura y los límites por IP funcionen.
 
 ## 11. CI
 
