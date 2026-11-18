@@ -130,6 +130,9 @@ services:
       args:
         # Baked into the JS bundle at build time: changing it needs a rebuild.
         NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?set API_DOMAIN}/v1
+        NEXT_PUBLIC_SITE_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
+        NEXT_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+        NEXT_PUBLIC_SUPPORT_WHATSAPP: ${SUPPORT_WHATSAPP:-}
     image: steam-society-web:prod
     restart: unless-stopped
     depends_on:
