@@ -53,7 +53,7 @@ Checklist para crear uno: carpeta en `src/modules/<contexto>/` · `*.module.ts` 
 - Respuestas de auth que no revelan si un correo existe. Limitar intentos. Hash de contraseñas con algoritmo moderno y parámetros recomendados [a confirmar con la documentación oficial al implementar].
 - Entradas validadas siempre; salidas sin campos internos (hash, tokens, `deleted_at`).
 - CORS con lista explícita de orígenes (`WEB_ORIGIN`); nunca `*` con credenciales.
-- Datos personales: mínimos necesarios. La fecha de nacimiento se guarda pero la lógica de menores está aplazada (DA-01). Aviso de privacidad y consentimiento: DA-04 [a confirmar con un abogado] antes del primer piloto.
+- Datos personales: mínimos necesarios. La fecha de nacimiento se guarda; el registro exige aceptar términos (`acceptTerms`) y, a menores de 14, el consentimiento de madre, padre o tutor (`guardianConsent`); se guardan versión y fecha. El resto de la lógica de menores sigue aplazada (DA-01). Aviso de privacidad y consentimiento: DA-04 [a confirmar con un abogado] antes del primer piloto.
 - Dependencias: justificar cada una; revisar mantenimiento y licencia. Versiones fijas en el lockfile. Aprobar scripts de instalación de pnpm solo para paquetes necesarios (`pnpm-workspace.yaml`).
 
 ## Configuración

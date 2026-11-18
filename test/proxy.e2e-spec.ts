@@ -49,7 +49,7 @@ describe('behind a reverse proxy (TRUST_PROXY)', () => {
     const password = 'test-only-proxy-password';
     await request(app.getHttpServer())
       .post('/v1/auth/register')
-      .send({ email, password, role: 'mentee', birthDate: '2000-01-01' })
+      .send({ email, password, role: 'mentee', birthDate: '2000-01-01', acceptTerms: true })
       .expect(201);
     const req = request(app.getHttpServer()).post('/v1/auth/login');
     if (forwardedProto) req.set('X-Forwarded-Proto', forwardedProto);

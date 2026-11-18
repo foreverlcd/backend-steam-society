@@ -84,6 +84,7 @@ describe('Account security (e2e)', () => {
         password: TEST_PASSWORD,
         role: 'mentee',
         birthDate: '2000-01-01',
+        acceptTerms: true,
       })
       .expect(201);
     return email;
@@ -285,6 +286,7 @@ describe('Account security (e2e)', () => {
           password: TEST_PASSWORD,
           role: 'mentee',
           birthDate: '2000-01-01',
+          acceptTerms: true,
         })
         .expect(201);
 
