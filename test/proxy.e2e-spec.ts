@@ -46,7 +46,7 @@ describe('behind a reverse proxy (TRUST_PROXY)', () => {
 
   async function login(forwardedProto?: string) {
     const email = `proxy-${randomUUID()}@example.com`;
-    const password = 'correct-horse-battery';
+    const password = 'test-only-proxy-password';
     await request(app.getHttpServer())
       .post('/v1/auth/register')
       .send({ email, password, role: 'mentee', birthDate: '2000-01-01' })

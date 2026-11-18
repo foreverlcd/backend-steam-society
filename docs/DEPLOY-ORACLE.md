@@ -246,7 +246,7 @@ Mientras tanto la API usa STUN (`CALL_STUN_URLS`) y, si se configura, el TURN de
 Prueba manual de coturn (sin la API): genera una credencial temporal y pruébala en la página "Trickle ICE" de WebRTC (`https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/`):
 
 ```bash
-read -r -s -p "CALL_TURN_SHARED_SECRET: " S; echo
+read -r -s -p "Pega CALL_TURN_SHARED_SECRET y pulsa Enter " S; echo
 U="$(( $(date +%s) + 3600 )):prueba"
 echo "usuario:    $U"
 echo "contraseña: $(printf '%s' "$U" | openssl dgst -sha1 -hmac "$S" -binary | base64)"
