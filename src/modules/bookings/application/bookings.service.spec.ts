@@ -16,6 +16,7 @@ import {
 } from './ports/booking.repository.js';
 import type { MenteeProfilePort } from './ports/mentee-profile.port.js';
 import type { NotificationsPort } from './ports/notifications.port.js';
+import type { CallSignalingPort } from './ports/call-signaling.port.js';
 
 const NOW = new Date('2026-11-02T12:00:00.000Z');
 const STARTS_AT = new Date('2026-11-03T15:00:00.000Z');
@@ -147,6 +148,7 @@ describe('BookingsService', () => {
   let mentorSettings: MockPort<MentorSettingsPort>;
   let menteeProfile: MockPort<MenteeProfilePort>;
   let notifications: MockPort<NotificationsPort>;
+  let calls: MockPort<CallSignalingPort>;
   let service: BookingsService;
 
   beforeEach(() => {
@@ -177,6 +179,7 @@ describe('BookingsService', () => {
       }),
     };
     menteeProfile = { exists: vi.fn().mockResolvedValue(true) };
+    calls = { join: vi.fn(), send: vi.fn(), end: vi.fn() };
     notifications = {
       send: vi.fn().mockResolvedValue(undefined),
       withdraw: vi.fn().mockResolvedValue(undefined),
@@ -189,6 +192,7 @@ describe('BookingsService', () => {
       notifications as unknown as NotificationsPort,
       { now: () => NOW },
       { getOrThrow: () => 48 } as unknown as ConfigService,
+      calls as unknown as CallSignalingPort,
     );
   });
 
@@ -371,13 +375,17 @@ describe('BookingsService', () => {
   });
 
   describe('accept', () => {
-    it('requires a meeting URL for a free booking', async () => {
+    it('confirms a free booking without a link (in-app call)', async () => {
       repository.findById.mockResolvedValue(makeBooking());
-
-      await expect(service.accept(mentor, 'booking-1', {})).rejects.toSatisfy(
-        (error) => errorCode(error) === 'MEETING_URL_REQUIRED',
+      repository.applyTransition.mockResolvedValue(
+        makeBooking({ status: 'confirmed' }),
       );
-      expect(repository.applyTransition).not.toHaveBeenCalled();
+
+      await service.accept(mentor, 'booking-1', {});
+
+      const [, , data] = repository.applyTransition.mock.calls[0];
+      expect(data).toMatchObject({ confirmedAt: NOW });
+      expect(data).not.toHaveProperty('meetingUrl');
     });
 
     it('confirms a free booking and stores the meeting URL', async () => {

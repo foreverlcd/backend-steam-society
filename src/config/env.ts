@@ -14,6 +14,11 @@ const envSchema = z
       .string()
       .min(1)
       .default('Steam Society <no-reply@steamsociety.local>'),
+    // In-app video calls (WebRTC). STUN is enough for most networks; TURN
+    // (Cloudflare Realtime, free tier) relays the calls STUN cannot connect.
+    CALL_STUN_URLS: z.string().default('stun:stun.cloudflare.com:3478'),
+    CALL_TURN_KEY_ID: z.string().min(1).optional(),
+    CALL_TURN_API_TOKEN: z.string().min(1).optional(),
     ADMIN_EMAIL: z.email().optional(),
     ADMIN_PASSWORD: z.string().min(12).optional(),
     NODE_ENV: z.string().optional(),

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -425,7 +427,7 @@ describe('Bookings (e2e)', () => {
     expect(response.body.code).toBe('MENTEE_PROFILE_REQUIRED');
   });
 
-  it('accepts a free request only with a meeting URL', async () => {
+  it('accepts a free request with an optional https backup link', async () => {
     const { mentor, offering } = await prepareMentorWithOffering();
     const mentee = await createMentee();
     const booking = await book(
@@ -434,12 +436,12 @@ describe('Bookings (e2e)', () => {
       limaInstant(targetDate, 9),
     );
 
-    const missingUrl = await request(app.getHttpServer())
+    // The session runs in the in-app call; a backup link must be https.
+    await request(app.getHttpServer())
       .post(`/v1/bookings/${booking.id}/accept`)
       .set('Cookie', mentor.cookie)
-      .send({})
+      .send({ meetingUrl: 'http://meet.example.com/session' })
       .expect(400);
-    expect(missingUrl.body.code).toBe('MEETING_URL_REQUIRED');
 
     const accepted = await request(app.getHttpServer())
       .post(`/v1/bookings/${booking.id}/accept`)
@@ -1017,6 +1019,7 @@ describe('Bookings (e2e)', () => {
       [mentee.email, mentor.email].sort(),
     );
     expect(reminders[0].body).toContain('https://meet.example.com/abc');
+    expect(reminders[0].body).toContain(`/call/${early.id}`);
     // Not worth sending once the session has started.
     expect(reminders[0].expiresAt).toEqual(
       (
@@ -1040,5 +1043,230 @@ describe('Bookings (e2e)', () => {
       ['expired', null],
       ['expired', null],
     ]);
+  });
+  describe('in-app call', () => {
+    interface CallStream {
+      next(): Promise<Record<string, unknown>>;
+      close(): void;
+      /** Resolves when the server ends the stream. */
+      ended: Promise<void>;
+    }
+
+    let server: http.Server;
+    let port: number;
+
+    beforeAll(async () => {
+      server = app.getHttpServer() as http.Server;
+      await new Promise<void>((resolve) => server.listen(0, resolve));
+      port = (server.address() as AddressInfo).port;
+    });
+
+    afterAll(async () => {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    });
+
+    /** Opens the event stream and reads it event by event (skipping pings). */
+    function openStream(
+      cookie: string,
+      bookingId: string,
+    ): Promise<CallStream> {
+      return new Promise((resolve, reject) => {
+        const queue: Record<string, unknown>[] = [];
+        const waiters: Array<(event: Record<string, unknown>) => void> = [];
+        let buffer = '';
+        const req = http.get(
+          {
+            port,
+            path: `/v1/bookings/${bookingId}/call/events`,
+            headers: { Cookie: cookie, Accept: 'text/event-stream' },
+          },
+          (res) => {
+            if (res.statusCode !== 200) {
+              reject(new Error(`stream status ${res.statusCode}`));
+              return;
+            }
+            res.setEncoding('utf8');
+            const ended = new Promise<void>((done) => res.on('end', done));
+            res.on('data', (chunk: string) => {
+              buffer += chunk;
+              let end: number;
+              while ((end = buffer.indexOf('\n\n')) !== -1) {
+                const frame = buffer.slice(0, end);
+                buffer = buffer.slice(end + 2);
+                const data = frame
+                  .split('\n')
+                  .find((line) => line.startsWith('data: '));
+                if (!data) continue;
+                const event = JSON.parse(data.slice(6)) as Record<
+                  string,
+                  unknown
+                >;
+                if (event.type === 'ping') continue;
+                const waiter = waiters.shift();
+                if (waiter) waiter(event);
+                else queue.push(event);
+              }
+            });
+            resolve({
+              next: () => {
+                const queued = queue.shift();
+                if (queued) return Promise.resolve(queued);
+                return new Promise((done) => waiters.push(done));
+              },
+              close: () => req.destroy(),
+              ended,
+            });
+          },
+        );
+        req.on('error', () => undefined);
+      });
+    }
+
+    async function confirmedBooking() {
+      const { mentor, offering } = await prepareMentorWithOffering();
+      const mentee = await createMentee();
+      const booking = await book(
+        mentee.cookie,
+        offering.id,
+        limaInstant(targetDate, 9),
+      );
+      // No link: the session happens inside Steam Society.
+      const accepted = await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/accept`)
+        .set('Cookie', mentor.cookie)
+        .send({})
+        .expect(200);
+      expect(accepted.body).toMatchObject({ status: 'confirmed' });
+      return { mentor, mentee, booking };
+    }
+
+    async function startSessionIn(bookingId: string, minutes: number) {
+      const record = await prisma.booking.findUniqueOrThrow({
+        where: { id: bookingId },
+      });
+      const startsAt = new Date(Date.now() + minutes * 60_000);
+      await prisma.session.update({
+        where: { id: record.sessionId },
+        data: { startsAt, endsAt: new Date(startsAt.getTime() + 3_600_000) },
+      });
+    }
+
+    it('opens shortly before the session, only for its participants', async () => {
+      const { mentor, mentee, booking } = await confirmedBooking();
+      const outsider = await createMentee();
+
+      const early = await request(app.getHttpServer())
+        .get(`/v1/bookings/${booking.id}/call`)
+        .set('Cookie', mentee.cookie)
+        .expect(200);
+      expect(early.body).toMatchObject({ open: false, iceServers: [] });
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/call/signal`)
+        .set('Cookie', mentee.cookie)
+        .send({ kind: 'candidate', candidate: null })
+        .expect(409)
+        .expect(({ body }) => expect(body.code).toBe('CALL_NOT_OPEN'));
+
+      await startSessionIn(booking.id, 10);
+
+      const open = await request(app.getHttpServer())
+        .get(`/v1/bookings/${booking.id}/call`)
+        .set('Cookie', mentor.cookie)
+        .expect(200);
+      expect(open.body).toMatchObject({
+        open: true,
+        role: 'mentor',
+        meetingUrl: null,
+        iceServers: [{ urls: ['stun:stun.cloudflare.com:3478'] }],
+      });
+      await request(app.getHttpServer())
+        .get(`/v1/bookings/${booking.id}/call`)
+        .set('Cookie', outsider.cookie)
+        .expect(403);
+      await request(app.getHttpServer())
+        .get(`/v1/bookings/${booking.id}/call/events`)
+        .set('Cookie', outsider.cookie)
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/cancel`)
+        .set('Cookie', mentee.cookie)
+        .send({ reason: 'Surgió un imprevisto' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .get(`/v1/bookings/${booking.id}/call`)
+        .set('Cookie', mentee.cookie)
+        .expect(409)
+        .expect(({ body }) => expect(body.code).toBe('CALL_UNAVAILABLE'));
+    });
+
+    it('relays the negotiation between mentee and mentor', async () => {
+      const { mentor, mentee, booking } = await confirmedBooking();
+      await startSessionIn(booking.id, 5);
+
+      const menteeStream = await openStream(mentee.cookie, booking.id);
+      await expect(menteeStream.next()).resolves.toEqual({
+        type: 'ready',
+        peerPresent: false,
+      });
+
+      const mentorStream = await openStream(mentor.cookie, booking.id);
+      await expect(mentorStream.next()).resolves.toEqual({
+        type: 'ready',
+        peerPresent: true,
+      });
+      await expect(menteeStream.next()).resolves.toEqual({
+        type: 'peer-joined',
+      });
+
+      const offer = {
+        kind: 'description',
+        description: { type: 'offer', sdp: 'v=0 test-only' },
+      };
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/call/signal`)
+        .set('Cookie', mentee.cookie)
+        .send(offer)
+        .expect(200, { delivered: true });
+      await expect(mentorStream.next()).resolves.toEqual({
+        type: 'signal',
+        data: offer,
+      });
+
+      // Anything but a WebRTC signal is refused.
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/call/signal`)
+        .set('Cookie', mentor.cookie)
+        .send({ kind: 'chat', text: 'hola' })
+        .expect(400);
+
+      mentorStream.close();
+      await expect(menteeStream.next()).resolves.toEqual({ type: 'peer-left' });
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/call/signal`)
+        .set('Cookie', mentee.cookie)
+        .send({ kind: 'candidate', candidate: null })
+        .expect(200, { delivered: false });
+      menteeStream.close();
+    });
+
+    it('ends the open streams when the booking is cancelled', async () => {
+      const { mentor, mentee, booking } = await confirmedBooking();
+      await startSessionIn(booking.id, 5);
+      const menteeStream = await openStream(mentee.cookie, booking.id);
+      await menteeStream.next();
+
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/cancel`)
+        .set('Cookie', mentor.cookie)
+        .send({ reason: 'Surgió un imprevisto' })
+        .expect(200);
+
+      await menteeStream.ended;
+      await request(app.getHttpServer())
+        .get(`/v1/bookings/${booking.id}/call/events`)
+        .set('Cookie', mentee.cookie)
+        .expect(409);
+    });
   });
 });

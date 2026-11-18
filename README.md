@@ -325,9 +325,9 @@ usuaria. En local, abre `http://127.0.0.1:8025` para ver el correo de Mailpit.
   `booking` en una sola transacción; la exclusión SQL impide solapes de la
   mentora (R-15) y la comprobación transaccional impide solapes de la mentee
   (R-12).
-- Aceptar una reserva gratuita exige `{ meetingUrl }` (solo `https://`) y pasa
-  a `confirmed`. Aceptar una de pago pasa a `awaiting_payment` (el enlace es
-  opcional) y se confirma cuando el módulo de pagos acredita el cobro. Aceptar
+- Aceptar una reserva gratuita pasa a `confirmed`; la sesión ocurre en la
+  videollamada de la app. `{ meetingUrl }` (solo `https://`) es opcional, como
+  enlace alternativo. Aceptar una de pago pasa a `awaiting_payment` y se confirma cuando el módulo de pagos acredita el cobro. Aceptar
   revalida que la mentora siga `approved`. `decline` y `cancel` aceptan
   `{ reason? }`.
 - `complete` exige que la sesión haya terminado; `no-show` exige que haya
@@ -349,7 +349,33 @@ usuaria. En local, abre `http://127.0.0.1:8025` para ver el correo de Mailpit.
   `BOOKING_ROLE_NOT_ALLOWED`, `MENTEE_PROFILE_REQUIRED`,
   `BOOKING_SLOT_UNAVAILABLE`, `BOOKING_SLOT_TAKEN`,
   `BOOKING_MENTEE_OVERLAP`, `BOOKING_STATUS_CONFLICT`, `BOOKING_EXPIRED`,
-  `INVALID_BOOKING_TRANSITION`, `MEETING_URL_REQUIRED`.
+  `INVALID_BOOKING_TRANSITION`, `CALL_UNAVAILABLE`, `CALL_NOT_OPEN`.
+
+### Videollamada dentro de la app
+
+- 1:1 con WebRTC: el audio y el video van directo entre los dos navegadores
+  (cifrados por WebRTC). El servidor solo hace de **señalización**: reenvía la
+  negociación y no guarda ni graba nada.
+- `GET /v1/bookings/:id/call`: datos de la llamada (`open`, `opensAt`,
+  `closesAt`, nombre de la otra persona, `iceServers`). Solo para la mentee y la
+  mentora de una reserva `confirmed`.
+- `GET /v1/bookings/:id/call/events` (Server-Sent Events): `ready`,
+  `peer-joined`, `peer-left`, `signal`, `replaced` (la misma cuenta abrió la
+  llamada en otra pestaña) y `ping` cada 25 s.
+- `POST /v1/bookings/:id/call/signal`: `{ kind: 'description', description }`
+  o `{ kind: 'candidate', candidate }`. Responde `{ delivered }`. Límite de 300
+  por minuto.
+- La llamada abre 15 min antes de `startsAt` y cierra 30 min después de
+  `endsAt` (`CALL_NOT_OPEN` fuera de esa ventana).
+- Servidores ICE: STUN público de Cloudflare (`CALL_STUN_URLS`). Con
+  `CALL_TURN_KEY_ID` y `CALL_TURN_API_TOKEN` (Cloudflare Realtime, gratis hasta
+  1000 GB/mes) se agregan credenciales TURN temporales (4 h) para las redes donde
+  STUN no basta (datos móviles, redes corporativas).
+- La señalización vive en memoria del proceso: sirve mientras la API corra en
+  **una sola instancia**. Para varias, cambiar `InMemoryCallSignaling` por un
+  canal compartido (p. ej. Postgres `LISTEN/NOTIFY`) detrás del mismo puerto.
+- Los correos de aceptación y recordatorio llevan el enlace
+  `APP_URL/call/<bookingId>`.
 
 ### Pagos (módulo desacoplado)
 
