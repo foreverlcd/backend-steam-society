@@ -83,6 +83,9 @@ services:
       DATABASE_URL: *database_url
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
       SESSION_COOKIE_SECURE: 'true'
+      # Caddy is the only proxy in front (Cloudflare in "DNS only" mode). If
+      # Cloudflare's proxy is turned on, this must become 2.
+      TRUST_PROXY: '1'
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?set MFA_ENCRYPTION_KEY}
       WEB_ORIGIN: https://${APP_DOMAIN:?set APP_DOMAIN}
       APP_URL: https://${APP_DOMAIN}

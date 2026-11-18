@@ -24,7 +24,7 @@ Reglas que no se negocian:
 - Nada de secretos en el repo: van en `deploy/.env.prod` (ignorado por git, permisos `600`).
 - Todo es gratis: Oracle Always Free, Let's Encrypt, Brevo Free, coturn propio.
 
-> ⚠ Antes de abrir el piloto lee la sección 14: hay un cambio pendiente en la API (`trust proxy`) sin el cual el inicio de sesión no funcionaría detrás de Caddy.
+> La API confía en un solo proxy (`TRUST_PROXY=1`, fijado en el compose): Caddy. Si activas el proxy de Cloudflare (nube naranja), sube el valor a `2`; si no, la cookie de sesión y los límites por IP fallan.
 
 Archivos del paquete:
 
@@ -372,7 +372,7 @@ Los logs rotan solos (5 archivos de 10 MB por servicio).
 | Caddy no obtiene certificado | El DNS aún no apunta a la VM, el puerto 80 está cerrado o Cloudflare está en modo proxy. `dc logs caddy`. Let's Encrypt limita los reintentos: arregla la causa antes de reiniciar muchas veces. |
 | `api` se reinicia una y otra vez | `dc logs api`: `Invalid environment variables:` dice qué variable falla (p. ej. `MFA_ENCRYPTION_KEY` que no son 32 bytes o `SMTP_URL` mal codificada). |
 | `migrate` termina con error | `dc logs migrate`. La base no está lista o las credenciales no coinciden. Nunca uses `migrate dev` ni `migrate reset` en producción. |
-| Inicio de sesión que "no se guarda" | Primero, el bloqueante `trust proxy` de la sección 14. Después, que la web se abra por `https://APP_DOMAIN` exacto (`WEB_ORIGIN`), sin `www` ni HTTP. |
+| Inicio de sesión que "no se guarda" | Que `TRUST_PROXY` coincida con los proxies delante de la API (1 con Caddy solo). Después, que la web se abra por `https://APP_DOMAIN` exacto (`WEB_ORIGIN`), sin `www` ni HTTP. |
 | La web llama a otra URL de API | `NEXT_PUBLIC_API_URL` se fija al construir: `dc build --no-cache web && dc up -d web`. |
 | La videollamada se queda "conectando" | En redes estrictas falta TURN (adaptador de la API pendiente, sección 7.3). Revisa `dc logs coturn`, el rango UDP 49160-49200 en ambos firewalls y la prueba Trickle ICE. |
 | Llega la llamada tarde o el estado no cambia | El proxy no debe almacenar el SSE: ya está `flush_interval -1` en el `Caddyfile`. No agregues `encode` al bloque de la API. |
@@ -382,7 +382,6 @@ Los logs rotan solos (5 archivos de 10 MB por servicio).
 
 ## 14. Limitaciones conocidas (pendientes)
 
-- ⚠ **BLOQUEANTE: la API no confía en el proxy (`trust proxy`).** Caddy termina el HTTPS y habla con la API por HTTP interno. `express-session` con `cookie.secure: true` (producción) **no envía la cookie de sesión** si la petición no le parece segura, y sin `trust proxy` (ni `proxy: true` en la sesión) no lee `X-Forwarded-Proto`. Efecto esperado: el login responde bien pero la sesión no queda guardada. Además, los límites de peticiones (`@nestjs/throttler`) verían la IP de Caddy para todas las usuarias. Arreglo (en la API, fuera de este paquete): confiar solo en el proxy local, p. ej. `app.set('trust proxy', 1)` o la opción equivalente, con un test. [inferido de `src/app.setup.ts` y de la documentación de express-session; no probado detrás de Caddy]
 - **TURN propio:** coturn está listo, falta el adaptador de la API que genere credenciales con `CALL_TURN_SHARED_SECRET` (sección 7.3).
 - **Una sola VM:** si la VM cae, cae todo. Los backups fuera de la VM son la red de seguridad.
 - **coturn y renovación de certificado:** se resuelve con el reinicio semanal del cron.

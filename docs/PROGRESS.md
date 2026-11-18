@@ -214,7 +214,7 @@ Rama `feat/f2-account` (backend). Plan: `docs/exec-plans/completed/2026-11-17-f2
 - **Entorno local:** el puerto 5433 lo usa también `qhali-pg` (otro proyecto). Para trabajar, el desarrollador autorizó detenerlo temporalmente.
 
 ## Pendiente / riesgos para revisión con lupa
-- Despliegue (2026-11-17): la API no configura `trust proxy`; detrás de Caddy (HTTPS terminado en el proxy) `express-session` con `secure: true` no enviaría la cookie y el throttler vería una sola IP. Bloqueante antes de producción; ver `docs/DEPLOY-ORACLE.md` §14. También falta el adaptador TURN de la API (`CALL_TURN_SHARED_SECRET`, `CALL_TURN_URLS`) para el coturn propio.
+- Despliegue (2026-11-17): falta el adaptador TURN de la API (`CALL_TURN_SHARED_SECRET`, `CALL_TURN_URLS`) para el coturn propio.
 - Pagos: el webhook `fake` no lleva firma (solo desarrollo; la API no arranca con `fake` en producción). Un proveedor real **debe** verificar la firma en `parseWebhook`.
 - Pagos: si el pago se acredita cuando la reserva ya venció, el pago queda `paid` sin confirmar la reserva (se registra un error). Hace falta un reembolso (Hito 2, DA-05).
 - Pagos: el plazo de pago reutiliza el `expires_at` de la solicitud (como máximo hasta `starts_at`); se decidirá un plazo propio en el Hito 2.
@@ -252,7 +252,7 @@ Rama `feat/f2-account` (backend). Plan: `docs/exec-plans/completed/2026-11-17-f2
 - Verificación de correo: hoy el registro queda `status = active` y `email_verified_at = null`; no se implementó el flujo de verificación. Decidir si entra en 1.2 o se pospone.
 - P-05 sigue pendiente: Mailpit es solo desarrollo; el proveedor transaccional no está elegido.
 - Rate limit en memoria: se reinicia con el proceso y no se comparte entre instancias. Aceptable para el MVP de una instancia; revisar al escalar.
-- `req.ip` depende de la configuración de proxy. Si la API queda detrás de un reverse proxy, configurar `trust proxy` para no agrupar a todas las usuarias bajo la IP del proxy; no se hizo porque depende del despliegue.
+- `req.ip` depende de `TRUST_PROXY` (número de proxies delante de la API; 1 detrás de Caddy).
 - `auth_session` no tiene FK a `user` (el `userId` vive en el JSON); la revocación es SQL sobre `sess->>'userId'`. Revisar si conviene mover el `userId` a una columna propia más adelante y borrar sesiones al eliminar una cuenta.
 - El envío de correo de recuperación es fire-and-forget; si falla, se registra solo el nombre del error y el token queda válido hasta caducar. Revisar si se necesita reintento/outbox.
 - Helmet completo: se mantienen los defaults de `useSecurityHeaders()`; revisar CSP/HSTS con el frontend real.
@@ -309,4 +309,4 @@ Rama `feat/f2-account` (backend). Plan: `docs/exec-plans/completed/2026-11-17-f2
 | 2026-11-17 | Decisiones de F0 del desarrollador registradas (ADR-026); el seed demo ahora restablece la contraseña de las cuentas ficticias | Agente |
 | 2026-11-17 | F2 identidad (ADR-024): verificación de correo, 2FA TOTP obligatorio para admin, login en dos pasos, seeds adaptados y paso `tsc` en el gate; 296 unitarios y 70 e2e, gate full en verde | Agente (pendiente de revisión) |
 | 2026-11-17 | Arnés de agentes (`docs/HARNESS.md`): gate único `scripts/gate.sh` en ambos repos, `check-boundaries.mjs` dentro de `pnpm lint`, principios de oro, `exec-plans/` y deuda técnica, roles (implementador, revisor, jardinero), `delegate.sh` (sonnet/haiku/codex/agy/opencode), subagentes `.claude/agents`, `ui-shots` en el web y mapa visual `docs/FLOWS.md` + `docs/PAYMENTS.md` | Agente |
-| 2026-11-17 | Paquete de despliegue Oracle A1 (`chore/deploy-oracle`): `deploy/` (compose prod con postgres, migrate, api, web, caddy, coturn y backup; Caddyfile con `flush_interval -1`; turnserver.conf; `.env.prod.example`; `backup.sh`) y `docs/DEPLOY-ORACLE.md`. Validado: `compose config`, `caddy validate`, build amd64 de ambas imágenes, migrate + `/health`, coturn con TURN REST y TLS, backup/restore. Pendiente: `trust proxy` en la API (bloqueante para la cookie `Secure` detrás de Caddy), adaptador TURN de la API, build arm64 real | Agente (pendiente de revisión) |
+| 2026-11-17 | Paquete de despliegue Oracle A1 (`chore/deploy-oracle`): `deploy/` (compose prod con postgres, migrate, api, web, caddy, coturn y backup; Caddyfile con `flush_interval -1`; turnserver.conf; `.env.prod.example`; `backup.sh`) y `docs/DEPLOY-ORACLE.md`. Validado: `compose config`, `caddy validate`, build amd64 de ambas imágenes, migrate + `/health`, coturn con TURN REST y TLS, backup/restore. Pendiente: adaptador TURN de la API, build arm64 real (`TRUST_PROXY` resuelto en `feat/safety`) | Agente, revisado |
