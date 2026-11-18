@@ -1,0 +1,258 @@
+# Production stack for ONE VM (Oracle Cloud Always Free, Ampere A1, arm64).
+# Guide (Spanish): docs/DEPLOY-ORACLE.md
+#
+#   docker compose --env-file deploy/.env.prod -f deploy/docker-compose.prod.yml up -d --build
+#
+# Relative paths below resolve from this file's folder (deploy/).
+# Expected layout on the VM: the backend and web repos cloned side by side
+#   ~/steam/backend-steam-society   (this repo)
+#   ~/steam/frontend-steam-society  (WEB_CONTEXT, configurable)
+#
+# The API MUST run as a single instance: call signaling lives in process memory
+# (ADR-028). Do not scale `api`.
+
+name: steam
+
+# DATABASE_URL from the env file (e.g. Neon) or, by default, the local
+# container built from POSTGRES_* (interpolated at deploy time; no secret here,
+# placeholder variables only).
+x-database-url: &database_url ${DATABASE_URL:-postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public} # placeholder vars, no secret
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
+services:
+  postgres:
+    image: postgres:18.6-alpine3.24
+    restart: unless-stopped
+    # No `ports:` on purpose: only reachable inside the compose network.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=1536MB
+      - -c
+      - max_connections=50
+    volumes:
+      # PostgreSQL 18 images keep data under /var/lib/postgresql/<major>.
+      - postgres_data:/var/lib/postgresql
+    shm_size: 256m
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 2g
+    logging: *logging
+
+  # One-shot: applies pending Prisma migrations, then exits. `api` waits for it.
+  migrate:
+    build:
+      context: ..
+      target: migrate
+    image: steam-society-api-migrate:prod
+    restart: 'no'
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: *database_url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 1g
+    logging: *logging
+
+  api:
+    build:
+      context: ..
+      target: runtime
+    image: steam-society-api:prod
+    restart: unless-stopped
+    # Single instance only (in-memory call signaling). Never add `replicas`.
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      DATABASE_URL: *database_url
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      SESSION_COOKIE_SECURE: 'true'
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?set MFA_ENCRYPTION_KEY}
+      WEB_ORIGIN: https://${APP_DOMAIN:?set APP_DOMAIN}
+      APP_URL: https://${APP_DOMAIN}
+      SMTP_URL: ${SMTP_URL:?set SMTP_URL}
+      SMTP_FROM: ${SMTP_FROM:?set SMTP_FROM}
+      EMAIL_DISPATCH_INTERVAL_MS: ${EMAIL_DISPATCH_INTERVAL_MS:-10000}
+      BOOKING_REQUEST_TTL_HOURS: ${BOOKING_REQUEST_TTL_HOURS:-48}
+      EMAIL_VERIFICATION_TTL_HOURS: ${EMAIL_VERIFICATION_TTL_HOURS:-48}
+      PASSWORD_BREACH_CHECK: ${PASSWORD_BREACH_CHECK:-hibp}
+      PAYMENTS_PROVIDER: ${PAYMENTS_PROVIDER:-disabled}
+      PAYMENTS_FEE_BPS: ${PAYMENTS_FEE_BPS:-1500}
+      CALL_STUN_URLS: ${CALL_STUN_URLS:-stun:stun.cloudflare.com:3478}
+      # Optional: forwarded only when set in the env file (empty values would
+      # fail the API's env validation).
+      CALL_TURN_KEY_ID:
+      CALL_TURN_API_TOKEN:
+      # Self-hosted coturn (TURN REST shared secret). Read by the API only once
+      # its adapter exists (pending); coturn already uses the secret.
+      CALL_TURN_SHARED_SECRET:
+      CALL_TURN_URLS:
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 1g
+    logging: *logging
+
+  web:
+    build:
+      # Path to the web repo, relative to this folder (deploy/).
+      context: ${WEB_CONTEXT:-../../frontend-steam-society}
+      args:
+        # Baked into the JS bundle at build time: changing it needs a rebuild.
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?set API_DOMAIN}/v1
+    image: steam-society-web:prod
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 768m
+    logging: *logging
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp' # HTTP/3
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+      TURN_DOMAIN: ${TURN_DOMAIN:?set TURN_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - api
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:2019/config/']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 256m
+    logging: *logging
+
+  # TURN relay for 1:1 WebRTC calls on strict networks (mobile data, corporate).
+  # Host network: TURN needs many UDP ports and the real interface addresses.
+  # The config template has no secrets; the secret and IPs are appended at start.
+  coturn:
+    image: coturn/coturn:4.7.0-alpine
+    restart: unless-stopped
+    network_mode: host
+    # Starts as root only to read Caddy's certificate, then drops to nobody
+    # (proc-user / proc-group).
+    user: '0:0'
+    environment:
+      CALL_TURN_SHARED_SECRET: ${CALL_TURN_SHARED_SECRET:?set CALL_TURN_SHARED_SECRET}
+      TURN_DOMAIN: ${TURN_DOMAIN}
+      TURN_PUBLIC_IP: ${TURN_PUBLIC_IP:?set TURN_PUBLIC_IP}
+      TURN_PRIVATE_IP: ${TURN_PRIVATE_IP:?set TURN_PRIVATE_IP}
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - caddy_data:/caddy-data:ro
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -eu
+        conf=/tmp/turnserver.conf
+        cp /etc/coturn/turnserver.conf "$$conf"
+        {
+          echo "static-auth-secret=$$CALL_TURN_SHARED_SECRET"
+          echo "realm=$$TURN_DOMAIN"
+          echo "server-name=$$TURN_DOMAIN"
+          echo "external-ip=$$TURN_PUBLIC_IP/$$TURN_PRIVATE_IP"
+          echo "allowed-peer-ip=$$TURN_PRIVATE_IP"
+          echo "listening-ip=$$TURN_PRIVATE_IP"
+          echo "listening-ip=127.0.0.1"
+          echo "relay-ip=$$TURN_PRIVATE_IP"
+        } >> "$$conf"
+        crt="$$(find /caddy-data/caddy/certificates -type f -path "*/$$TURN_DOMAIN/$$TURN_DOMAIN.crt" 2>/dev/null | head -n 1)"
+        if [ -n "$$crt" ]; then
+          echo "cert=$$crt" >> "$$conf"
+          echo "pkey=$${crt%.crt}.key" >> "$$conf"
+          echo "coturn: TLS on 5349 with $$crt"
+        else
+          echo "no-tls" >> "$$conf"
+          echo "no-dtls" >> "$$conf"
+          echo "coturn: certificate for $$TURN_DOMAIN not found yet; TLS (5349) off. Restart coturn once Caddy has it."
+        fi
+        chmod 600 "$$conf"
+        exec turnserver -c "$$conf" --proc-user=nobody --proc-group=nogroup
+    depends_on:
+      - caddy
+    healthcheck:
+      test: ['CMD', 'turnutils_stunclient', '-p', '3478', '127.0.0.1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 512m
+    logging: *logging
+
+  # Tool, not a long-running service (profile `tools`): logical backup with the
+  # repo's scripts/db-backup.sh. Usage: deploy/backup.sh (cron) or
+  #   docker compose --env-file deploy/.env.prod -f deploy/docker-compose.prod.yml run --rm backup
+  backup:
+    image: postgres:18.6-alpine3.24
+    profiles: ['tools']
+    restart: 'no'
+    working_dir: /repo
+    entrypoint: ['bash', 'scripts/db-backup.sh']
+    environment:
+      DATABASE_URL: *database_url
+      # Lets db-restore.sh target URLs without a password (restore drill).
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_DIR: /backups
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - ..:/repo:ro
+      - ${BACKUP_HOST_DIR:-/var/backups/steam}:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

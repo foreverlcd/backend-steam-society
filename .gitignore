@@ -11,6 +11,7 @@ src/generated/
 .env
 .env.*
 !.env.example
+!deploy/.env.prod.example
 
 # TypeScript build cache
 *.tsbuildinfo

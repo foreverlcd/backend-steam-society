@@ -447,6 +447,8 @@ Ejecuta ese comando después de un `git clone` o de cambiar
 
 El repo incluye un `Dockerfile` (objetivos `runtime` y `migrate`), CI en `.github/workflows/ci.yml` y scripts `scripts/db-backup.sh` / `scripts/db-restore.sh`. Funciona con cualquier PostgreSQL vía `DATABASE_URL`. Pasos, variables y simulacro de restauración: [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
+Producción en una VM gratuita de Oracle Cloud (Ampere A1, ARM) con Docker Compose, Caddy (HTTPS), PostgreSQL 18, coturn (TURN) y backups diarios: archivos en [`deploy/`](deploy/) y guía paso a paso en [docs/DEPLOY-ORACLE.md](docs/DEPLOY-ORACLE.md).
+
 ## Datos demo y guion de demostración
 
 Con la API corriendo y `pnpm db:seed` hecho, crea 3 mentoras aprobadas (con

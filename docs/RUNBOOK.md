@@ -112,6 +112,7 @@ Restaurar en producción real (desastre): detén la API, restaura con `--yes-rea
 6. Cookies que no se guardan: confirma HTTPS en el proxy, `SESSION_COOKIE_SECURE=true` y que `WEB_ORIGIN` sea exactamente el origen del frontend.
 
 ## 10. Ejemplo de proxy (Caddy) — referencia, no probado
+Paquete completo de producción (compose, Caddyfile, coturn, backups; validado en local, no en Oracle): `deploy/` y [DEPLOY-ORACLE.md](DEPLOY-ORACLE.md).
 ```caddyfile
 # api.ejemplo.com { reverse_proxy 127.0.0.1:3000 }
 ```
