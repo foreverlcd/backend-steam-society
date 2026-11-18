@@ -5,6 +5,8 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { validateEnv } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
+import { AdminModule } from './modules/admin/admin.module.js';
+import { SafetyModule } from './modules/safety/safety.module.js';
 import { AccountModule } from './modules/account/account.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { BookingsModule } from './modules/bookings/bookings.module.js';
@@ -33,6 +35,8 @@ import { PrismaModule } from './shared/prisma/prisma.module.js';
     MatchingModule,
     PaymentsModule,
     AccountModule,
+    SafetyModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

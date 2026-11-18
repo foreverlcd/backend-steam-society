@@ -14,7 +14,11 @@ import {
   generateSlots,
   InvalidAvailabilityRuleError,
 } from '../../scheduling/domain/slot-generator.js';
-import type { Booking, BookingParticipant } from '../domain/booking.js';
+import type {
+  Booking,
+  BookingParticipant,
+  CancelActor,
+} from '../domain/booking.js';
 import {
   InvalidBookingTransitionError,
   transitionBooking,
@@ -512,6 +516,111 @@ export class BookingsService {
     }
 
     return reminded;
+  }
+
+  /**
+   * Trust & safety (ADR-029): cancels the open bookings of a user, or only
+   * those with `counterpartId` (a block). The other participant is told the
+   * session was cancelled; a block is never mentioned.
+   */
+  async withdrawOpenBookings(input: {
+    userId: string;
+    counterpartId: string | null;
+    cancelledBy: CancelActor;
+    reason: string | null;
+  }): Promise<number> {
+    const now = this.clock.now();
+    const open = await this.repository.findOpenForParticipant(
+      input.userId,
+      input.counterpartId,
+      now,
+    );
+    let withdrawn = 0;
+
+    for (const booking of open) {
+      const userIsMentee = booking.menteeId === input.userId;
+      const done = await this.withdrawOne(booking, {
+        cancelledBy: input.cancelledBy,
+        reason: input.reason,
+        // Only the other person: the user is the one acting or suspended.
+        notify: [userIsMentee ? 'mentor' : 'mentee'],
+        actorName:
+          input.cancelledBy === 'admin' || input.cancelledBy === 'system'
+            ? null
+            : displayName(
+                userIsMentee ? booking.mentee : booking.mentor,
+                'La otra persona',
+              ),
+      });
+      if (done) withdrawn += 1;
+    }
+
+    return withdrawn;
+  }
+
+  /** Admin cancellation of one booking; both participants are told. */
+  async cancelAsAdmin(bookingId: string, reason: string): Promise<Booking> {
+    const booking = await this.repository.findById(bookingId);
+    if (!booking) throw bookingNotFound();
+    const updated = await this.withdrawOne(booking, {
+      cancelledBy: 'admin',
+      reason,
+      notify: ['mentee', 'mentor'],
+      actorName: null,
+      rethrow: true,
+    });
+    return updated!;
+  }
+
+  private async withdrawOne(
+    booking: Booking,
+    options: {
+      cancelledBy: CancelActor;
+      reason: string | null;
+      notify: Array<'mentee' | 'mentor'>;
+      /** Shown as who cancelled; null = the Steam Society team. */
+      actorName: string | null;
+      rethrow?: boolean;
+    },
+  ): Promise<Booking | null> {
+    const now = this.clock.now();
+    let updated: Booking;
+    try {
+      const next = this.transition(booking, { type: 'withdraw' }, now);
+      updated = await this.apply(booking, next, {
+        cancelledAt: now,
+        cancelledBy: options.cancelledBy,
+        cancelReason: options.reason,
+        sessionStatus: 'cancelled',
+      });
+    } catch (error) {
+      if (options.rethrow) throw error;
+      // Changed meanwhile (e.g. the other person cancelled): nothing to do.
+      this.logger.warn(
+        `Withdraw skipped a booking: ${error instanceof Error ? error.name : 'UnknownError'}`,
+      );
+      return null;
+    }
+    await this.withdrawReminders(updated.id);
+
+    for (const side of options.notify) {
+      const recipient = side === 'mentee' ? updated.mentee : updated.mentor;
+      await this.notify({
+        type: 'cancelled',
+        bookingId: updated.id,
+        recipientEmail: recipient.email,
+        recipientName: displayName(recipient, 'hola'),
+        counterpartName: options.actorName ?? 'El equipo de Steam Society',
+        offeringTitle: updated.offering.title,
+        startsAt: updated.session.startsAt,
+        endsAt: updated.session.endsAt,
+        expiresAt: updated.expiresAt,
+        timezone: recipient.timezone,
+        meetingUrl: null,
+        reason: options.reason,
+      });
+    }
+    return updated;
   }
 
   private async withdrawReminders(bookingId: string): Promise<void> {

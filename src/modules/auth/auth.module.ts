@@ -83,6 +83,11 @@ import { AuthPersonalData } from './auth-personal-data.js';
     // Order matters: runs after the session and role checks (ADR-024).
     { provide: APP_GUARD, useClass: AccountPolicyGuard },
   ],
-  exports: [AuthService, AccountSecurityService, MailerService],
+  exports: [
+    AuthService,
+    AccountSecurityService,
+    MailerService,
+    SessionRepository,
+  ],
 })
 export class AuthModule {}

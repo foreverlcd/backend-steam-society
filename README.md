@@ -34,6 +34,9 @@ Variables principales:
   `openssl rand -base64 48`.
 - `SESSION_COOKIE_SECURE`: `false` solo en desarrollo local sobre HTTP; `true`
   en producción (cookie `__Host-sid`).
+- `TRUST_PROXY`: cuántos proxies hay delante de la API. `0` en desarrollo;
+  `1` detrás de Caddy, para que la cookie segura funcione y el límite de
+  peticiones vea la IP real.
 - `WEB_ORIGIN`: orígenes del frontend separados por coma. Se usa para CORS con
   credenciales y para la protección CSRF.
 - `APP_URL`, `SMTP_URL`, `SMTP_FROM`: enlaces de los correos y servidor SMTP
@@ -109,59 +112,59 @@ después de que la API ya está levantada. Cuando la base vuelve, `/health` resp
 
 `/health` queda fuera del prefijo de versión. El resto de rutas usa `/v1`.
 
-| Método | Ruta | Autenticación | Descripción |
-|---|---|---|---|
-| GET | `/health` | Pública | Estado de la API y de la base |
-| POST | `/v1/auth/register` | Pública | Registro `mentee` o `mentor` |
-| POST | `/v1/auth/login` | Pública | Crea la sesión; con 2FA activo responde `{ "mfaRequired": true }` |
-| POST | `/v1/auth/login/mfa` | Pública (reto pendiente) | Segundo paso con `{ "code" }` o `{ "recoveryCode" }` |
-| POST | `/v1/auth/email/verify` | Pública | Confirma el correo con `{ "token" }` (204) |
-| POST | `/v1/auth/email/resend` | Sesión | Reenvía el enlace de verificación (202; `409 EMAIL_ALREADY_VERIFIED`) |
-| POST | `/v1/auth/logout` | Sesión | Destruye la sesión |
-| POST | `/v1/auth/password/forgot` | Pública | Solicita enlace de recuperación |
-| POST | `/v1/auth/password/reset` | Pública | Consume el token y cambia la contraseña |
-| GET | `/v1/me` | Sesión | Devuelve la usuaria autenticada (incluye `emailVerified` y `mfaEnabled`) |
-| GET | `/v1/me/mfa` | Sesión | Estado del 2FA: `{ enabled, required, recoveryCodesRemaining }` |
-| POST | `/v1/me/mfa/totp/setup` | Sesión | Inicia la configuración: `{ secret, otpauthUri }` |
-| POST | `/v1/me/mfa/totp/confirm` | Sesión | Confirma con `{ "code" }` y devuelve `{ recoveryCodes }` (una sola vez) |
-| POST | `/v1/me/mfa/recovery-codes` | Sesión | Regenera los códigos con `{ "code" }` |
-| POST | `/v1/me/mfa/disable` | Sesión | Desactiva con `{ "password", "code" }` (204; no permitido al admin) |
-| GET | `/v1/me/sessions` | Sesión | Sesiones activas: `{ id, current, signedInAt, lastActiveAt, userAgent }` |
-| DELETE | `/v1/me/sessions/:id` | Sesión | Cierra una sesión (204; `404 SESSION_NOT_FOUND`, `400 INVALID_SESSION_ID`) |
-| POST | `/v1/me/sessions/revoke-others` | Sesión | Cierra todas las demás: `{ revoked }` |
-| POST | `/v1/me/password` | Sesión | Cambia la contraseña con `{ "password", "code"?, "newPassword" }` (204) |
-| POST | `/v1/me/email` | Sesión | Pide cambiar el correo con `{ "password", "code"?, "newEmail" }` (202) |
-| GET | `/v1/me/export` | Sesión | Descarga todos tus datos en JSON (`steam-society-mis-datos-AAAA-MM-DD.json`) |
-| POST | `/v1/me/delete` | Sesión | Elimina la cuenta con `{ "password", "code"?, "confirmation": "ELIMINAR" }` (204) |
-| GET | `/v1/me/profile` | Sesión `mentor`/`mentee` | Perfil propio con áreas e idiomas |
-| PUT | `/v1/me/profile` | Sesión `mentor`/`mentee` | Edita el perfil propio |
-| POST | `/v1/me/profile/submit` | Sesión `mentor` | Envía el perfil a revisión |
-| GET | `/v1/me/onboarding` | Sesión `mentor`/`mentee` | Configuración versionada, respuestas y taxonomías |
-| PUT | `/v1/me/onboarding` | Sesión `mentor`/`mentee` | Guarda respuestas del onboarding |
-| GET | `/v1/me/offerings` | Sesión `mentor` | Lista las ofertas propias |
-| POST | `/v1/me/offerings` | Sesión `mentor` | Crea una oferta 1:1 |
-| PATCH | `/v1/me/offerings/:id` | Sesión `mentor` | Edita una oferta propia |
-| POST | `/v1/me/offerings/:id/archive` | Sesión `mentor` | Archiva una oferta (borrado lógico) |
-| GET | `/v1/me/availability` | Sesión `mentor` | Devuelve las reglas de disponibilidad |
-| PUT | `/v1/me/availability` | Sesión `mentor` | Reemplaza todas las reglas de disponibilidad |
-| GET | `/v1/mentors?q=&areaId=&language=&country=&isFree=&maxPriceMinor=&currency=&limit=&cursor=` | Pública | Catálogo de mentoras aprobadas con ofertas activas |
-| GET | `/v1/mentors/:id` | Pública | Detalle público de una mentora y sus ofertas |
-| GET | `/v1/mentors/:id/slots?offeringId&from&to` | Pública | Slots reservables de una mentora |
-| GET | `/v1/me/recommendations?limit=` | Sesión `mentee` | Recomendaciones explicables (máx. 10) |
-| POST | `/v1/bookings` | Sesión `mentee` | Solicita una reserva 1:1 |
-| GET | `/v1/bookings?status=&limit=&cursor=` | Sesión `mentee`/`mentor` | Lista reservas propias con cursor |
-| GET | `/v1/bookings/:id` | Sesión `mentee`/`mentor` | Detalle de una reserva propia |
-| POST | `/v1/bookings/:id/accept` | Sesión `mentor` | Acepta una solicitud |
-| POST | `/v1/bookings/:id/decline` | Sesión `mentor` | Rechaza una solicitud |
-| POST | `/v1/bookings/:id/cancel` | Sesión `mentee`/`mentor` | Cancela una reserva |
-| POST | `/v1/bookings/:id/complete` | Sesión `mentor` | Marca la sesión como realizada |
-| POST | `/v1/bookings/:id/no-show` | Sesión `mentee`/`mentor` | Registra una ausencia |
-| GET | `/v1/admin/mentors?status=` | Sesión `admin` | Lista perfiles de mentoras |
-| GET | `/v1/admin/mentors/:id` | Sesión `admin` | Detalle con perfil y onboarding completo |
-| POST | `/v1/admin/mentors/:id/approve` | Sesión `admin` | Aprueba una mentora |
-| POST | `/v1/admin/mentors/:id/reject` | Sesión `admin` | Rechaza con `{ "reason": "..." }` |
-| POST | `/v1/admin/mentors/:id/suspend` | Sesión `admin` | Suspende una mentora aprobada |
-| POST | `/v1/admin/mentors/:id/reactivate` | Sesión `admin` | Reactiva una mentora suspendida |
+| Método | Ruta                                                                                        | Autenticación            | Descripción                                                                       |
+| ------ | ------------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------- |
+| GET    | `/health`                                                                                   | Pública                  | Estado de la API y de la base                                                     |
+| POST   | `/v1/auth/register`                                                                         | Pública                  | Registro `mentee` o `mentor`                                                      |
+| POST   | `/v1/auth/login`                                                                            | Pública                  | Crea la sesión; con 2FA activo responde `{ "mfaRequired": true }`                 |
+| POST   | `/v1/auth/login/mfa`                                                                        | Pública (reto pendiente) | Segundo paso con `{ "code" }` o `{ "recoveryCode" }`                              |
+| POST   | `/v1/auth/email/verify`                                                                     | Pública                  | Confirma el correo con `{ "token" }` (204)                                        |
+| POST   | `/v1/auth/email/resend`                                                                     | Sesión                   | Reenvía el enlace de verificación (202; `409 EMAIL_ALREADY_VERIFIED`)             |
+| POST   | `/v1/auth/logout`                                                                           | Sesión                   | Destruye la sesión                                                                |
+| POST   | `/v1/auth/password/forgot`                                                                  | Pública                  | Solicita enlace de recuperación                                                   |
+| POST   | `/v1/auth/password/reset`                                                                   | Pública                  | Consume el token y cambia la contraseña                                           |
+| GET    | `/v1/me`                                                                                    | Sesión                   | Devuelve la usuaria autenticada (incluye `emailVerified` y `mfaEnabled`)          |
+| GET    | `/v1/me/mfa`                                                                                | Sesión                   | Estado del 2FA: `{ enabled, required, recoveryCodesRemaining }`                   |
+| POST   | `/v1/me/mfa/totp/setup`                                                                     | Sesión                   | Inicia la configuración: `{ secret, otpauthUri }`                                 |
+| POST   | `/v1/me/mfa/totp/confirm`                                                                   | Sesión                   | Confirma con `{ "code" }` y devuelve `{ recoveryCodes }` (una sola vez)           |
+| POST   | `/v1/me/mfa/recovery-codes`                                                                 | Sesión                   | Regenera los códigos con `{ "code" }`                                             |
+| POST   | `/v1/me/mfa/disable`                                                                        | Sesión                   | Desactiva con `{ "password", "code" }` (204; no permitido al admin)               |
+| GET    | `/v1/me/sessions`                                                                           | Sesión                   | Sesiones activas: `{ id, current, signedInAt, lastActiveAt, userAgent }`          |
+| DELETE | `/v1/me/sessions/:id`                                                                       | Sesión                   | Cierra una sesión (204; `404 SESSION_NOT_FOUND`, `400 INVALID_SESSION_ID`)        |
+| POST   | `/v1/me/sessions/revoke-others`                                                             | Sesión                   | Cierra todas las demás: `{ revoked }`                                             |
+| POST   | `/v1/me/password`                                                                           | Sesión                   | Cambia la contraseña con `{ "password", "code"?, "newPassword" }` (204)           |
+| POST   | `/v1/me/email`                                                                              | Sesión                   | Pide cambiar el correo con `{ "password", "code"?, "newEmail" }` (202)            |
+| GET    | `/v1/me/export`                                                                             | Sesión                   | Descarga todos tus datos en JSON (`steam-society-mis-datos-AAAA-MM-DD.json`)      |
+| POST   | `/v1/me/delete`                                                                             | Sesión                   | Elimina la cuenta con `{ "password", "code"?, "confirmation": "ELIMINAR" }` (204) |
+| GET    | `/v1/me/profile`                                                                            | Sesión `mentor`/`mentee` | Perfil propio con áreas e idiomas                                                 |
+| PUT    | `/v1/me/profile`                                                                            | Sesión `mentor`/`mentee` | Edita el perfil propio                                                            |
+| POST   | `/v1/me/profile/submit`                                                                     | Sesión `mentor`          | Envía el perfil a revisión                                                        |
+| GET    | `/v1/me/onboarding`                                                                         | Sesión `mentor`/`mentee` | Configuración versionada, respuestas y taxonomías                                 |
+| PUT    | `/v1/me/onboarding`                                                                         | Sesión `mentor`/`mentee` | Guarda respuestas del onboarding                                                  |
+| GET    | `/v1/me/offerings`                                                                          | Sesión `mentor`          | Lista las ofertas propias                                                         |
+| POST   | `/v1/me/offerings`                                                                          | Sesión `mentor`          | Crea una oferta 1:1                                                               |
+| PATCH  | `/v1/me/offerings/:id`                                                                      | Sesión `mentor`          | Edita una oferta propia                                                           |
+| POST   | `/v1/me/offerings/:id/archive`                                                              | Sesión `mentor`          | Archiva una oferta (borrado lógico)                                               |
+| GET    | `/v1/me/availability`                                                                       | Sesión `mentor`          | Devuelve las reglas de disponibilidad                                             |
+| PUT    | `/v1/me/availability`                                                                       | Sesión `mentor`          | Reemplaza todas las reglas de disponibilidad                                      |
+| GET    | `/v1/mentors?q=&areaId=&language=&country=&isFree=&maxPriceMinor=&currency=&limit=&cursor=` | Pública                  | Catálogo de mentoras aprobadas con ofertas activas                                |
+| GET    | `/v1/mentors/:id`                                                                           | Pública                  | Detalle público de una mentora y sus ofertas                                      |
+| GET    | `/v1/mentors/:id/slots?offeringId&from&to`                                                  | Pública                  | Slots reservables de una mentora                                                  |
+| GET    | `/v1/me/recommendations?limit=`                                                             | Sesión `mentee`          | Recomendaciones explicables (máx. 10)                                             |
+| POST   | `/v1/bookings`                                                                              | Sesión `mentee`          | Solicita una reserva 1:1                                                          |
+| GET    | `/v1/bookings?status=&limit=&cursor=`                                                       | Sesión `mentee`/`mentor` | Lista reservas propias con cursor                                                 |
+| GET    | `/v1/bookings/:id`                                                                          | Sesión `mentee`/`mentor` | Detalle de una reserva propia                                                     |
+| POST   | `/v1/bookings/:id/accept`                                                                   | Sesión `mentor`          | Acepta una solicitud                                                              |
+| POST   | `/v1/bookings/:id/decline`                                                                  | Sesión `mentor`          | Rechaza una solicitud                                                             |
+| POST   | `/v1/bookings/:id/cancel`                                                                   | Sesión `mentee`/`mentor` | Cancela una reserva                                                               |
+| POST   | `/v1/bookings/:id/complete`                                                                 | Sesión `mentor`          | Marca la sesión como realizada                                                    |
+| POST   | `/v1/bookings/:id/no-show`                                                                  | Sesión `mentee`/`mentor` | Registra una ausencia                                                             |
+| GET    | `/v1/admin/mentors?status=`                                                                 | Sesión `admin`           | Lista perfiles de mentoras                                                        |
+| GET    | `/v1/admin/mentors/:id`                                                                     | Sesión `admin`           | Detalle con perfil y onboarding completo                                          |
+| POST   | `/v1/admin/mentors/:id/approve`                                                             | Sesión `admin`           | Aprueba una mentora                                                               |
+| POST   | `/v1/admin/mentors/:id/reject`                                                              | Sesión `admin`           | Rechaza con `{ "reason": "..." }`                                                 |
+| POST   | `/v1/admin/mentors/:id/suspend`                                                             | Sesión `admin`           | Suspende una mentora aprobada                                                     |
+| POST   | `/v1/admin/mentors/:id/reactivate`                                                          | Sesión `admin`           | Reactiva una mentora suspendida                                                   |
 
 `GET /v1/admin/mentors/:id` devuelve `{ mentor, onboarding }`. `mentor` incluye el perfil, `minNoticeHours`, `maxAdvanceDays`, áreas, idiomas y estado; `onboarding` reutiliza la configuración versionada con `steps`, `answers`, `completion` y `options`. Responde `404 MENTOR_PROFILE_NOT_FOUND` si no existe y `400` si el UUID es inválido.
 
@@ -283,12 +286,12 @@ usuaria. En local, abre `http://127.0.0.1:8025` para ver el correo de Mailpit.
   (ISO 4217, `PEN` por defecto). Una oferta gratuita normaliza `priceMinor` a 0;
   una de pago exige `priceMinor > 0`.
 - `PUT /v1/me/availability` recibe `{ rules: [{ weekday, startTime, endTime,
-  timezone, validFrom?, validTo? }] }` y reemplaza todas las reglas. `weekday`
+timezone, validFrom?, validTo? }] }` y reemplaza todas las reglas. `weekday`
   usa ISO (1 = lunes, 7 = domingo); las horas son `HH:mm`; las fechas son
   `YYYY-MM-DD`.
 - `GET /v1/mentors/:id/slots` exige `offeringId`, `from` y `to` (máximo 90 días),
   aplica antelación mínima/máxima y devuelve `{ startsAt, endsAt, timezone,
-  localStart, localEnd }` por slot. Los slots ocupados por sesiones no se
+localStart, localEnd }` por slot. Los slots ocupados por sesiones no se
   devuelven.
 
 ### Catálogo y recomendaciones (1.6)
@@ -385,10 +388,10 @@ exportados de `BookingsService` (`getPayable`, `confirmPayment`). Para quitar el
 módulo basta con sacarlo de `AppModule`; para conectar un proveedor real se
 escribe un adaptador nuevo y se mapea en `payments.module.ts`.
 
-| Variable | Valores | Uso |
-|---|---|---|
+| Variable            | Valores                          | Uso                                                                                                                                          |
+| ------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `PAYMENTS_PROVIDER` | `disabled` (por defecto), `fake` | `disabled` en el piloto (solo gratuitas). `fake` simula la pasarela en desarrollo; la API **no arranca** con `fake` y `NODE_ENV=production`. |
-| `PAYMENTS_FEE_BPS` | 0–10000 (1500 por defecto) | Comisión en puntos básicos, provisional (F0). `fee + net = amount` lo garantiza un CHECK. |
+| `PAYMENTS_FEE_BPS`  | 0–10000 (1500 por defecto)       | Comisión en puntos básicos, provisional (F0). `fee + net = amount` lo garantiza un CHECK.                                                    |
 
 - `GET /v1/payments/config` (público): `{ enabled, provider }`.
 - `POST /v1/payments/checkout` (mentee dueña): `{ bookingId }` →
@@ -407,6 +410,44 @@ escribe un adaptador nuevo y se mapea en `payments.module.ts`.
   quitar el módulo): [`docs/PAYMENTS.md`](docs/PAYMENTS.md).
   Si un pago llega cuando la reserva ya venció, el pago queda `paid`, la
   reserva no se confirma y se registra un error para seguimiento manual.
+
+### Seguridad de la comunidad (ADR-029)
+
+- **Bloquear:** `POST /v1/me/blocks { userId }` (mentee o mentora; 20 por
+  hora). Cancela las reservas abiertas entre ambas personas y desde entonces
+  ninguna puede reservar con la otra. La persona bloqueada solo ve una
+  cancelación y, al reservar, el mismo error neutro que si la mentora no
+  estuviera disponible. `GET /v1/me/blocks` lista y
+  `DELETE /v1/me/blocks/:userId` desbloquea.
+- **Reportar:** `POST /v1/reports { reportedUserId, bookingId?, reason,
+details? }` (10 por hora). `reason`: `harassment`, `inappropriate_content`,
+  `spam_or_fraud`, `safety_concern`, `no_show`, `other`. Si se indica una
+  reserva, debe ser entre ambas personas. Cada admin activo recibe un correo
+  sin nombres ni detalles, con el enlace a la cola.
+- **Moderación (admin):** `GET /v1/admin/reports?status=open|resolved|dismissed`
+  (la cola abierta, de la más antigua a la más nueva), `GET /v1/admin/reports/:id`
+  y `POST /v1/admin/reports/:id/resolve { action: dismiss|warn|suspend, note }`.
+  `warn` envía un aviso genérico a la persona reportada; `suspend` la suspende.
+- **Suspender:** `POST /v1/admin/users/:id/suspend { reason }` cierra todas sus
+  sesiones, impide el inicio de sesión y cancela sus reservas abiertas (se avisa
+  a la otra persona). `POST /v1/admin/users/:id/reactivate` la reactiva. No se
+  puede suspender a otra cuenta admin desde aquí.
+- Todo queda en `audit_log` (`report.resolved`, `user.suspended`,
+  `user.reactivated`, `booking.cancelled_by_admin`).
+- Exportar datos incluye los bloqueos hechos y los reportes **enviados**; los
+  reportes recibidos no se exportan para no exponer a quien reportó. Al borrar la
+  cuenta se borran sus bloqueos y el texto de sus reportes.
+
+### Operación del piloto (admin)
+
+- `GET /v1/admin/overview`: personas por rol y estado, altas en 30 días,
+  mentoras pendientes y aprobadas, reservas de 30 días por estado, confirmadas
+  en los próximos 7 días, reportes abiertos y correos fallidos o pendientes.
+- `GET /v1/admin/users?q=&role=&status=` (búsqueda por correo o nombre) y
+  `GET /v1/admin/users/:id` (reservas, reportes, bloqueos recibidos e historial
+  de auditoría).
+- `GET /v1/admin/bookings?status=&userId=&from=&to=` y
+  `POST /v1/admin/bookings/:id/cancel { reason }` (avisa a ambas personas).
 
 ### Perfiles, onboarding y aprobación
 
@@ -446,6 +487,8 @@ Ejecuta ese comando después de un `git clone` o de cambiar
 ## Despliegue
 
 El repo incluye un `Dockerfile` (objetivos `runtime` y `migrate`), CI en `.github/workflows/ci.yml` y scripts `scripts/db-backup.sh` / `scripts/db-restore.sh`. Funciona con cualquier PostgreSQL vía `DATABASE_URL`. Pasos, variables y simulacro de restauración: [docs/RUNBOOK.md](docs/RUNBOOK.md).
+
+Producción en una VM gratuita de Oracle Cloud (Ampere A1, ARM) con Docker Compose, Caddy (HTTPS), PostgreSQL 18, coturn (TURN) y backups diarios: archivos en [`deploy/`](deploy/) y guía paso a paso en [docs/DEPLOY-ORACLE.md](docs/DEPLOY-ORACLE.md).
 
 ## Datos demo y guion de demostración
 

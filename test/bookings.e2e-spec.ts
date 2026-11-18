@@ -10,7 +10,7 @@ import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { BookingsService } from '../src/modules/bookings/application/bookings.service.js';
 import { PrismaService } from '../src/shared/prisma/prisma.service.js';
-import { markEmailVerified } from './helpers/auth.js';
+import { enrollTotp, markEmailVerified } from './helpers/auth.js';
 
 interface AuthSession {
   cookie: string;
@@ -1267,6 +1267,327 @@ describe('Bookings (e2e)', () => {
         .get(`/v1/bookings/${booking.id}/call/events`)
         .set('Cookie', mentee.cookie)
         .expect(409);
+    });
+  });
+  describe('trust & safety', () => {
+    async function createAdmin(): Promise<{ cookie: string; id: string }> {
+      const session = await registerAndLogin('mentee');
+      const user = await prisma.user.update({
+        where: { email: session.email },
+        data: { role: 'admin' },
+      });
+      const login = await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({ email: session.email, password: session.password })
+        .expect(200);
+      const cookie = sessionCookie(login.headers['set-cookie']);
+      await enrollTotp(app, cookie);
+      return { cookie, id: user.id };
+    }
+
+    it('a block cancels the open bookings between both and stops new ones', async () => {
+      const { mentor, offering } = await prepareMentorWithOffering();
+      const mentee = await createMentee();
+      const other = await createMentee();
+      const shared = await book(
+        mentee.cookie,
+        offering.id,
+        limaInstant(targetDate, 9),
+      );
+      const unrelated = await book(
+        other.cookie,
+        offering.id,
+        limaInstant(targetDate, 11),
+      );
+      await prisma.emailOutbox.deleteMany();
+
+      const blocked = await request(app.getHttpServer())
+        .post('/v1/me/blocks')
+        .set('Cookie', mentor.cookie)
+        .send({ userId: mentee.userId })
+        .expect(201);
+      expect(blocked.body).toEqual({
+        blockedUserId: mentee.userId,
+        cancelledBookings: 1,
+      });
+
+      const after = await prisma.booking.findMany({
+        where: { id: { in: [shared.id, unrelated.id] } },
+        select: {
+          id: true,
+          status: true,
+          cancelledBy: true,
+          cancelReason: true,
+        },
+      });
+      expect(after.find((b) => b.id === shared.id)).toMatchObject({
+        status: 'cancelled',
+        cancelledBy: 'mentor',
+        cancelReason: null,
+      });
+      expect(after.find((b) => b.id === unrelated.id)?.status).toBe(
+        'requested',
+      );
+      // The blocked mentee is told about the cancellation, not the block.
+      const mail = await prisma.emailOutbox.findFirstOrThrow({
+        where: { kind: 'booking.cancelled' },
+      });
+      expect(mail.toAddress).toBe(mentee.email);
+      expect(mail.body).not.toMatch(/bloque/i);
+
+      // Same neutral error as an unavailable mentor.
+      const retry = await request(app.getHttpServer())
+        .post('/v1/bookings')
+        .set('Cookie', mentee.cookie)
+        .send({
+          offeringId: offering.id,
+          startsAt: limaInstant(targetDate, 14),
+        })
+        .expect(409);
+      expect(retry.body.code).not.toMatch(/BLOCK/);
+
+      const list = await request(app.getHttpServer())
+        .get('/v1/me/blocks')
+        .set('Cookie', mentor.cookie)
+        .expect(200);
+      expect(list.body).toMatchObject([
+        { userId: mentee.userId, role: 'mentee' },
+      ]);
+
+      await request(app.getHttpServer())
+        .delete(`/v1/me/blocks/${mentee.userId}`)
+        .set('Cookie', mentor.cookie)
+        .expect(204);
+      await book(mentee.cookie, offering.id, limaInstant(targetDate, 14));
+
+      await request(app.getHttpServer())
+        .post('/v1/me/blocks')
+        .set('Cookie', mentor.cookie)
+        .send({ userId: mentor.userId })
+        .expect(400);
+    });
+
+    it('gives the team an overview, people and bookings to operate', async () => {
+      const { mentor, offering } = await prepareMentorWithOffering();
+      const mentee = await createMentee();
+      const admin = await createAdmin();
+      const booking = await book(
+        mentee.cookie,
+        offering.id,
+        limaInstant(targetDate, 9),
+      );
+      await request(app.getHttpServer())
+        .post(`/v1/bookings/${booking.id}/accept`)
+        .set('Cookie', mentor.cookie)
+        .send({})
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get('/v1/admin/overview')
+        .set('Cookie', mentee.cookie)
+        .expect(403);
+      const overview = await request(app.getHttpServer())
+        .get('/v1/admin/overview')
+        .set('Cookie', admin.cookie)
+        .expect(200);
+      expect(overview.body).toMatchObject({
+        users: { mentee: { active: 1 }, mentor: { active: 1 } },
+        mentors: { approved: 1 },
+        bookingsLast30Days: { confirmed: 1 },
+        openReports: 0,
+      });
+
+      const search = await request(app.getHttpServer())
+        .get(
+          `/v1/admin/users?q=${encodeURIComponent(mentee.email.slice(0, 20))}`,
+        )
+        .set('Cookie', admin.cookie)
+        .expect(200);
+      expect(search.body.items).toMatchObject([
+        { id: mentee.userId, role: 'mentee', status: 'active' },
+      ]);
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/users/${mentor.userId}`)
+        .set('Cookie', admin.cookie)
+        .expect(200);
+      expect(detail.body).toMatchObject({
+        role: 'mentor',
+        mentorStatus: 'approved',
+        bookingsAsMentor: { confirmed: 1 },
+      });
+
+      const list = await request(app.getHttpServer())
+        .get(`/v1/admin/bookings?status=confirmed&userId=${mentee.userId}`)
+        .set('Cookie', admin.cookie)
+        .expect(200);
+      expect(list.body.items).toMatchObject([
+        {
+          id: booking.id,
+          mentee: { id: mentee.userId },
+          mentor: { id: mentor.userId },
+        },
+      ]);
+
+      await prisma.emailOutbox.deleteMany();
+      await request(app.getHttpServer())
+        .post(`/v1/admin/bookings/${booking.id}/cancel`)
+        .set('Cookie', admin.cookie)
+        .send({ reason: 'La mentora tuvo una emergencia.' })
+        .expect(200, { id: booking.id, status: 'cancelled' });
+      const notified = await prisma.emailOutbox.findMany({
+        where: { kind: 'booking.cancelled' },
+        select: { toAddress: true },
+      });
+      expect(notified.map((row) => row.toAddress).sort()).toEqual(
+        [mentee.email, mentor.email].sort(),
+      );
+      await request(app.getHttpServer())
+        .post(`/v1/admin/bookings/${booking.id}/cancel`)
+        .set('Cookie', admin.cookie)
+        .send({ reason: 'Otra vez' })
+        .expect(409);
+    });
+
+    it('a report reaches the queue and a suspension shuts the account out', async () => {
+      const { mentor, offering } = await prepareMentorWithOffering();
+      const mentee = await createMentee();
+      const other = await createMentee();
+      const admin = await createAdmin();
+      const booking = await book(
+        mentee.cookie,
+        offering.id,
+        limaInstant(targetDate, 9),
+      );
+      const otherBooking = await book(
+        other.cookie,
+        offering.id,
+        limaInstant(targetDate, 11),
+      );
+      await prisma.emailOutbox.deleteMany();
+
+      // The booking must be between the two people.
+      await request(app.getHttpServer())
+        .post('/v1/reports')
+        .set('Cookie', other.cookie)
+        .send({
+          reportedUserId: mentor.userId,
+          bookingId: booking.id,
+          reason: 'harassment',
+        })
+        .expect(400);
+
+      const report = await request(app.getHttpServer())
+        .post('/v1/reports')
+        .set('Cookie', mentee.cookie)
+        .send({
+          reportedUserId: mentor.userId,
+          bookingId: booking.id,
+          reason: 'harassment',
+          details: 'Me escribió mensajes fuera de lugar.',
+        })
+        .expect(201);
+      // Moderators are alerted without names or details.
+      const alert = await prisma.emailOutbox.findFirstOrThrow({
+        where: { kind: 'safety.report_received' },
+      });
+      expect(alert.body).not.toContain('fuera de lugar');
+
+      // Repeating it returns the same open report and alerts nobody again.
+      const repeat = await request(app.getHttpServer())
+        .post('/v1/reports')
+        .set('Cookie', mentee.cookie)
+        .send({
+          reportedUserId: mentor.userId,
+          bookingId: booking.id,
+          reason: 'inappropriate_content',
+        })
+        .expect(201);
+      expect(repeat.body.id).toBe(report.body.id);
+      expect(
+        await prisma.emailOutbox.count({
+          where: { kind: 'safety.report_received' },
+        }),
+      ).toBe(1);
+
+      await request(app.getHttpServer())
+        .get('/v1/admin/reports')
+        .set('Cookie', mentee.cookie)
+        .expect(403);
+      const queue = await request(app.getHttpServer())
+        .get('/v1/admin/reports')
+        .set('Cookie', admin.cookie)
+        .expect(200);
+      expect(queue.body.items).toMatchObject([
+        {
+          id: report.body.id,
+          reason: 'harassment',
+          reportedUser: { id: mentor.userId },
+        },
+      ]);
+      const detail = await request(app.getHttpServer())
+        .get(`/v1/admin/reports/${report.body.id}`)
+        .set('Cookie', admin.cookie)
+        .expect(200);
+      expect(detail.body).toMatchObject({
+        details: 'Me escribió mensajes fuera de lugar.',
+        reportedUser: { reportsTotal: 1, reportsOpen: 1 },
+        booking: { id: booking.id },
+      });
+
+      const resolved = await request(app.getHttpServer())
+        .post(`/v1/admin/reports/${report.body.id}/resolve`)
+        .set('Cookie', admin.cookie)
+        .send({ action: 'suspend', note: 'Conducta confirmada.' })
+        .expect(200);
+      expect(resolved.body).toMatchObject({
+        status: 'resolved',
+        action: 'suspended',
+      });
+      await request(app.getHttpServer())
+        .post(`/v1/admin/reports/${report.body.id}/resolve`)
+        .set('Cookie', admin.cookie)
+        .send({ action: 'dismiss', note: 'Otra vez' })
+        .expect(409);
+
+      // Signed out everywhere, cannot sign in, open bookings cancelled.
+      await request(app.getHttpServer())
+        .get('/v1/me')
+        .set('Cookie', mentor.cookie)
+        .expect(401);
+      await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({ email: mentor.email, password: mentor.password })
+        .expect(401);
+      const bookingsAfter = await prisma.booking.findMany({
+        where: { id: { in: [booking.id, otherBooking.id] } },
+        select: { status: true, cancelledBy: true },
+      });
+      expect(bookingsAfter).toEqual([
+        { status: 'cancelled', cancelledBy: 'admin' },
+        { status: 'cancelled', cancelledBy: 'admin' },
+      ]);
+      const audit = await prisma.auditLog.findMany({
+        where: { entityId: { in: [mentor.userId, report.body.id] } },
+        select: { action: true, actorUserId: true },
+      });
+      expect(audit.map((a) => a.action).sort()).toEqual([
+        'report.resolved',
+        'user.suspended',
+      ]);
+
+      await request(app.getHttpServer())
+        .post(`/v1/admin/users/${mentor.userId}/reactivate`)
+        .set('Cookie', admin.cookie)
+        .expect(200);
+      await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({ email: mentor.email, password: mentor.password })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/v1/admin/users/${admin.id}/suspend`)
+        .set('Cookie', admin.cookie)
+        .send({ reason: 'prueba' })
+        .expect(403);
     });
   });
 });

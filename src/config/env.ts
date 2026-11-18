@@ -6,6 +6,10 @@ const envSchema = z
     SESSION_SECRET: z.string().min(32),
     SESSION_COOKIE_SECURE: z.enum(['true', 'false']).default('true'),
     WEB_ORIGIN: z.string().optional(),
+    // Reverse proxies in front of the API (Caddy in production = 1). Needed so
+    // req.ip is the client (rate limits) and secure cookies work over the
+    // proxy's plain-HTTP hop. 0 trusts nothing (direct exposure).
+    TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
     PORT: z.coerce.number().int().positive().default(3000),
     SMTP_URL: z.url().optional(),
     APP_URL: z.url().default('http://localhost:3001'),

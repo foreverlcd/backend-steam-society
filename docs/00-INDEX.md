@@ -5,6 +5,7 @@ Steam Society: plataforma de mentorías STEAM para mujeres. Este repo es el back
 | Documento | Qué contiene | Léelo cuando… |
 |---|---|---|
 | `PROGRESS.md` | Estado vivo: etapa actual, hecho, pendiente, decisiones recientes | SIEMPRE, al empezar y al terminar |
+| `DEPLOY-ORACLE.md` | Despliegue de producción en una VM Oracle Always Free: puertos, Docker, compose, DNS, Brevo, backups, restauración, actualización y problemas comunes | Vas a desplegar u operar producción |
 | `DEMO.md` | Guion de demo de 5 minutos y cuentas ficticias | Al preparar o ejecutar una demo |
 | `PAYMENTS.md` | Módulo de pagos desacoplado: diagramas, invariantes, cómo conectar un proveedor real o quitarlo | Antes de tocar pagos o elegir pasarela |
 | `FLOWS.md` | Mapa visual: sistema, módulos, capas, recorridos, estados, dónde tocar qué | Antes de una tarea en un área que no conoces |
