@@ -1492,6 +1492,23 @@ describe('Bookings (e2e)', () => {
       });
       expect(alert.body).not.toContain('fuera de lugar');
 
+      // Repeating it returns the same open report and alerts nobody again.
+      const repeat = await request(app.getHttpServer())
+        .post('/v1/reports')
+        .set('Cookie', mentee.cookie)
+        .send({
+          reportedUserId: mentor.userId,
+          bookingId: booking.id,
+          reason: 'inappropriate_content',
+        })
+        .expect(201);
+      expect(repeat.body.id).toBe(report.body.id);
+      expect(
+        await prisma.emailOutbox.count({
+          where: { kind: 'safety.report_received' },
+        }),
+      ).toBe(1);
+
       await request(app.getHttpServer())
         .get('/v1/admin/reports')
         .set('Cookie', mentee.cookie)

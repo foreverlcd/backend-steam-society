@@ -151,9 +151,21 @@ export class ModerationService {
     const report = await this.prisma.$transaction(async (tx) => {
       const found = await tx.report.findUnique({
         where: { id },
-        select: { reportedUserId: true },
+        select: {
+          reportedUserId: true,
+          reportedUser: { select: { status: true, deletedAt: true } },
+        },
       });
       if (!found) throw reportNotFound();
+      // Only record a suspension that is real: the account must be active
+      // (it gets suspended below) or already suspended.
+      if (
+        input.action === 'suspend' &&
+        (found.reportedUser.deletedAt ||
+          !['active', 'suspended'].includes(found.reportedUser.status))
+      ) {
+        throw userNotActive();
+      }
       // Two moderators acting at once: only the first one wins.
       const { count } = await tx.report.updateMany({
         where: { id, status: 'open' },

@@ -101,6 +101,19 @@ export class SafetyService {
       }
     }
 
+    // One open report per reporter, person and booking is enough: repeats
+    // return the same report and do not alert the team again.
+    const existing = await this.prisma.report.findFirst({
+      where: {
+        reporterId: user.id,
+        reportedUserId: input.reportedUserId,
+        bookingId: input.bookingId ?? null,
+        status: 'open',
+      },
+      select: { id: true },
+    });
+    if (existing) return { id: existing.id, status: 'open' };
+
     const report = await this.prisma.report.create({
       data: {
         reporterId: user.id,
