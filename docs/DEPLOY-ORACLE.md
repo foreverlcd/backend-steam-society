@@ -41,7 +41,7 @@ Archivos del paquete:
 En la consola de Oracle Cloud: **Compute → Instances → Create instance**.
 
 - **Imagen:** Canonical Ubuntu 24.04 (la variante **aarch64**, para Ampere).
-- **Shape:** `VM.Standard.A1.Flex` (Ampere A1, ARM) con **2 OCPU y 12 GB** de memoria. El cupo gratis total es 4 OCPU y 24 GB por cuenta; 2/12 deja margen para otra VM.
+- **Shape:** `VM.Standard.A1.Flex` (Ampere A1, ARM) con **2 OCPU y 12 GB** de memoria. Es todo el cupo gratis: desde el 15 de junio de 2026 Oracle lo bajó de 4 OCPU/24 GB a 2 OCPU/12 GB por cuenta (1500 OCPU-horas y 9000 GB-horas al mes) y terminó las VMs que no se redujeron antes del 18 de agosto de 2026. Si la consola marca el límite como "crítico", es porque se usa el 100 %; no es un cobro. El compose reserva unos 4,5 GB, así que 12 GB alcanzan para el piloto.
 - **Disco de arranque:** 100 GB (el cupo gratis es 200 GB en total).
 - **Red:** una VCN con subred **pública** y "Assign a public IPv4 address" activado.
 - **SSH:** sube tu clave pública. El usuario será `ubuntu`.
