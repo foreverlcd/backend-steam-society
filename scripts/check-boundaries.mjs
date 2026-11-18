@@ -26,6 +26,10 @@ const ALLOWED = {
   payments: ['auth', 'bookings', 'shared', 'config', 'generated'],
   // Data rights: reads other modules only through shared/personal-data.
   account: ['auth', 'shared', 'config', 'generated'],
+  // Trust & safety cancels bookings through BookingsService (ADR-029).
+  safety: ['auth', 'bookings', 'shared', 'config', 'generated'],
+  // Pilot operations: read models + admin actions through BookingsService.
+  admin: ['auth', 'bookings', 'shared', 'config', 'generated'],
 };
 
 const LAYERS = ['domain', 'application', 'infrastructure', 'presentation'];

@@ -233,6 +233,12 @@ Enums: `user_role(mentee, mentor, admin)` · `user_status(pending_verification, 
 - CHECKs: `attempts >= 0`; solo `pending` tiene `body` y todo `pending` lo tiene; `sent_at` existe si y solo si `status = 'sent'`.
 - Retención: las filas terminadas se borran a los 30 días. Al eliminar una cuenta se borran sus filas (correo actual y correo nuevo pendiente).
 
+## Seguridad de la comunidad (`user_block`, `report`, ADR-029)
+
+- `user_block`: PK `(blocker_id, blocked_id)`, índice `blocked_id`, CHECK que no sea la misma persona; `ON DELETE CASCADE` desde `user`.
+- `report`: `id`, `reporter_id`, `reported_user_id`, `booking_id?` (FK `RESTRICT`), `reason` (`report_reason`), `details?` (≤2000), `status` (`report_status`: `open|resolved|dismissed`), `action?` (`report_action`: `none|warned|suspended`), `resolution_note?`, `resolved_by_id?`, `resolved_at?`, `created_at`. Índices `(status, created_at)`, `reported_user_id`, `reporter_id`. CHECKs: no reportarse a sí misma; abierto ⇔ sin `resolved_at` ni `action`.
+- Crear una reserva revisa `user_block` en ambos sentidos dentro de la transacción con locks.
+
 ## Pagos implementados (2026-11-16, ADR-025)
 - `payment`: `id`, `booking_id` UK (FK `RESTRICT`), `provider`, `provider_ref` UK (nulo hasta abrir el checkout), `status` (`payment_status`: `created|pending|paid|failed`), `amount_minor`, `currency`, `fee_bps`, `fee_minor`, `net_minor`, `idempotency_key` UK (`booking:<id>`), `checkout_url`, `paid_at`, `failed_at`, `created_at`, `updated_at`. CHECKs: `amount_minor > 0`, moneda `^[A-Z]{3}$`, `fee_bps` entre 0 y 10000, `fee_minor`/`net_minor` ≥ 0, `fee_minor + net_minor = amount_minor`, `(status = 'paid') = (paid_at IS NOT NULL)`. Migración `20261116213734_add_payments`.
 - `webhook_event`: `id`, `provider`, `event_id`, `payload` (jsonb), `received_at`, `processed_at`; UK `(provider, event_id)`.
@@ -288,6 +294,7 @@ SQL a mano previsto (migraciones `--create-only`): extensión `btree_gist` y res
 | Piloto | `email_outbox` + enum `email_status` + CHECKs (`20261117202424_add_email_outbox`) |
 | Piloto | `booking.reminder_sent_at` (recordatorio 24 h antes, una sola vez) |
 | Piloto | `email_outbox.dedupe_key` UK (`20261117212848_add_email_outbox_dedupe_key`) |
+| Piloto | `user_block`, `report` + enums (`20261118020105_add_trust_safety`) |
 | 2 / 3 | Ver esqueleto arriba |
 
 Regla: nunca editar una migración ya aplicada; se crea otra. Cada migración lleva un nombre descriptivo (ej. `add_area`).

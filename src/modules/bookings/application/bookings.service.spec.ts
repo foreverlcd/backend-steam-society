@@ -163,6 +163,7 @@ describe('BookingsService', () => {
       expireById: vi.fn(),
       expireDue: vi.fn(),
       findDueReminders: vi.fn().mockResolvedValue([]),
+      findOpenForParticipant: vi.fn().mockResolvedValue([]),
       markReminded: vi.fn().mockResolvedValue(undefined),
     };
     scheduling = {

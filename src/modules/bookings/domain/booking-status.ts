@@ -14,6 +14,8 @@ export type BookingEvent =
   | { type: 'accept'; paymentRequired: boolean }
   | { type: 'decline' }
   | { type: 'cancel'; actor: BookingActor }
+  /** Trust & safety: a block or a suspension ends any open booking. */
+  | { type: 'withdraw' }
   | { type: 'expire' }
   | { type: 'confirm_payment' }
   | { type: 'complete' }
@@ -84,6 +86,16 @@ export function transitionBooking(
         );
       }
 
+      return 'cancelled';
+
+    case 'withdraw':
+      assertStatus(current, event.type, [
+        'requested',
+        'awaiting_payment',
+        'confirmed',
+      ]);
+      // A session that already ended is history: completed or no-show.
+      assertBefore(current, context.now, context.endsAt, event.type, 'endsAt');
       return 'cancelled';
 
     case 'expire':

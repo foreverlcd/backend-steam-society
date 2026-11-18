@@ -408,6 +408,44 @@ escribe un adaptador nuevo y se mapea en `payments.module.ts`.
   Si un pago llega cuando la reserva ya venció, el pago queda `paid`, la
   reserva no se confirma y se registra un error para seguimiento manual.
 
+### Seguridad de la comunidad (ADR-029)
+
+- **Bloquear:** `POST /v1/me/blocks { userId }` (mentee o mentora; 20 por
+  hora). Cancela las reservas abiertas entre ambas personas y desde entonces
+  ninguna puede reservar con la otra. La persona bloqueada solo ve una
+  cancelación y, al reservar, el mismo error neutro que si la mentora no
+  estuviera disponible. `GET /v1/me/blocks` lista y
+  `DELETE /v1/me/blocks/:userId` desbloquea.
+- **Reportar:** `POST /v1/reports { reportedUserId, bookingId?, reason,
+  details? }` (10 por hora). `reason`: `harassment`, `inappropriate_content`,
+  `spam_or_fraud`, `safety_concern`, `no_show`, `other`. Si se indica una
+  reserva, debe ser entre ambas personas. Cada admin activo recibe un correo
+  sin nombres ni detalles, con el enlace a la cola.
+- **Moderación (admin):** `GET /v1/admin/reports?status=open|resolved|dismissed`
+  (la cola abierta, de la más antigua a la más nueva), `GET /v1/admin/reports/:id`
+  y `POST /v1/admin/reports/:id/resolve { action: dismiss|warn|suspend, note }`.
+  `warn` envía un aviso genérico a la persona reportada; `suspend` la suspende.
+- **Suspender:** `POST /v1/admin/users/:id/suspend { reason }` cierra todas sus
+  sesiones, impide el inicio de sesión y cancela sus reservas abiertas (se avisa
+  a la otra persona). `POST /v1/admin/users/:id/reactivate` la reactiva. No se
+  puede suspender a otra cuenta admin desde aquí.
+- Todo queda en `audit_log` (`report.resolved`, `user.suspended`,
+  `user.reactivated`, `booking.cancelled_by_admin`).
+- Exportar datos incluye los bloqueos hechos y los reportes **enviados**; los
+  reportes recibidos no se exportan para no exponer a quien reportó. Al borrar la
+  cuenta se borran sus bloqueos y el texto de sus reportes.
+
+### Operación del piloto (admin)
+
+- `GET /v1/admin/overview`: personas por rol y estado, altas en 30 días,
+  mentoras pendientes y aprobadas, reservas de 30 días por estado, confirmadas
+  en los próximos 7 días, reportes abiertos y correos fallidos o pendientes.
+- `GET /v1/admin/users?q=&role=&status=` (búsqueda por correo o nombre) y
+  `GET /v1/admin/users/:id` (reservas, reportes, bloqueos recibidos e historial
+  de auditoría).
+- `GET /v1/admin/bookings?status=&userId=&from=&to=` y
+  `POST /v1/admin/bookings/:id/cancel { reason }` (avisa a ambas personas).
+
 ### Perfiles, onboarding y aprobación
 
 - `mentor` y `mentee` editan su propio perfil; un `admin` no tiene perfil de mentoría.

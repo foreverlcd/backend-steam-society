@@ -66,14 +66,31 @@ export class PrismaBookingRepository implements BookingRepositoryPort {
         // Account deletion takes the same locks, so this sees its result: a
         // deleted mentee or an archived offering cannot get a new booking.
         const [available] = await tx.$queryRaw<
-          Array<{ mentee: boolean; mentor: boolean; offering: boolean }>
+          Array<{
+            mentee: boolean;
+            mentor: boolean;
+            offering: boolean;
+            blocked: boolean;
+          }>
         >`
           SELECT
             EXISTS (SELECT 1 FROM "user" WHERE id = ${data.menteeId}::uuid AND status = 'active' AND deleted_at IS NULL) AS mentee,
             EXISTS (SELECT 1 FROM "user" WHERE id = ${data.mentorId}::uuid AND status = 'active' AND deleted_at IS NULL) AS mentor,
-            EXISTS (SELECT 1 FROM offering WHERE id = ${data.offeringId}::uuid AND active) AS offering
+            EXISTS (SELECT 1 FROM offering WHERE id = ${data.offeringId}::uuid AND active) AS offering,
+            -- Either person blocked the other (ADR-029). Same neutral error:
+            -- the blocked person must not learn about the block.
+            EXISTS (
+              SELECT 1 FROM user_block
+              WHERE (blocker_id = ${data.menteeId}::uuid AND blocked_id = ${data.mentorId}::uuid)
+                 OR (blocker_id = ${data.mentorId}::uuid AND blocked_id = ${data.menteeId}::uuid)
+            ) AS blocked
         `;
-        if (!available?.mentee || !available.mentor || !available.offering) {
+        if (
+          !available?.mentee ||
+          !available.mentor ||
+          !available.offering ||
+          available.blocked
+        ) {
           throw new BookingPartyUnavailableError();
         }
 
@@ -268,6 +285,44 @@ export class PrismaBookingRepository implements BookingRepositoryPort {
 
       return record ? toBooking(record) : null;
     });
+  }
+
+  async findOpenForParticipant(
+    userId: string,
+    counterpartId: string | null,
+    now: Date,
+  ): Promise<Booking[]> {
+    const ids = await this.prisma.$transaction(async (tx) => {
+      // Booking creation holds these locks until it commits: waiting here
+      // means a booking being created right now is visible below.
+      await lockAsMentee(tx, userId);
+      await lockAsMentor(tx, userId);
+      return tx.booking.findMany({
+        where: {
+          status: { in: ['requested', 'awaiting_payment', 'confirmed'] },
+          session: { endsAt: { gt: now } },
+          OR: [
+            {
+              menteeId: userId,
+              ...(counterpartId
+                ? { session: { mentorId: counterpartId, endsAt: { gt: now } } }
+                : {}),
+            },
+            {
+              session: { mentorId: userId, endsAt: { gt: now } },
+              ...(counterpartId ? { menteeId: counterpartId } : {}),
+            },
+          ],
+        },
+        select: { id: true },
+      });
+    });
+    if (ids.length === 0) return [];
+    const records = await this.prisma.booking.findMany({
+      where: { id: { in: ids.map((row) => row.id) } },
+      include: bookingInclude,
+    });
+    return records.map(toBooking);
   }
 
   async findDueReminders(now: Date, until: Date): Promise<Booking[]> {

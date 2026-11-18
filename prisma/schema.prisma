@@ -64,6 +64,11 @@ model User {
   onboardingResponses     OnboardingResponse[]
   auditLogs               AuditLog[]               @relation("AuditActor")
   availabilityRules       AvailabilityRule[]
+  blocksMade              UserBlock[]              @relation("BlockBlocker")
+  blocksReceived          UserBlock[]              @relation("BlockBlocked")
+  reportsFiled            Report[]                 @relation("ReportReporter")
+  reportsReceived         Report[]                 @relation("ReportReported")
+  reportsResolved         Report[]                 @relation("ReportResolver")
 
   @@map("user")
 }
@@ -417,6 +422,7 @@ model Booking {
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
   payment         Payment?
+  reports         Report[]
 
   @@index([menteeId, status])
   @@index([sessionId, status])
@@ -506,4 +512,69 @@ model EmailOutbox {
   @@index([status, nextAttemptAt])
   @@index([toAddress])
   @@map("email_outbox")
+}
+
+// Trust & safety (ADR-029). A block stops new bookings between two people
+// and cancels the open ones; a report goes to the moderation queue.
+enum ReportReason {
+  harassment
+  inappropriate_content
+  spam_or_fraud
+  safety_concern
+  no_show
+  other
+
+  @@map("report_reason")
+}
+
+enum ReportStatus {
+  open
+  resolved
+  dismissed
+
+  @@map("report_status")
+}
+
+enum ReportAction {
+  none
+  warned
+  suspended
+
+  @@map("report_action")
+}
+
+model UserBlock {
+  blockerId String   @map("blocker_id") @db.Uuid
+  blocker   User     @relation("BlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String   @map("blocked_id") @db.Uuid
+  blocked   User     @relation("BlockBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("user_block")
+}
+
+model Report {
+  id             String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  reporterId     String        @map("reporter_id") @db.Uuid
+  reporter       User          @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  reportedUserId String        @map("reported_user_id") @db.Uuid
+  reportedUser   User          @relation("ReportReported", fields: [reportedUserId], references: [id], onDelete: Restrict)
+  bookingId      String?       @map("booking_id") @db.Uuid
+  booking        Booking?      @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  reason         ReportReason
+  details        String?
+  status         ReportStatus  @default(open)
+  action         ReportAction?
+  resolutionNote String?       @map("resolution_note")
+  resolvedById   String?       @map("resolved_by_id") @db.Uuid
+  resolvedBy     User?         @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: Restrict)
+  resolvedAt     DateTime?     @map("resolved_at") @db.Timestamptz(3)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@index([reportedUserId])
+  @@index([reporterId])
+  @@map("report")
 }
