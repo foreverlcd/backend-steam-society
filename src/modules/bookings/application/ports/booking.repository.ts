@@ -85,6 +85,15 @@ export interface BookingRepositoryPort {
   ): Promise<Booking>;
   expireById(id: string, now: Date): Promise<Booking | null>;
   expireDue(now: Date, scope?: BookingScope): Promise<Booking[]>;
+  /**
+   * Open bookings (not yet ended) where the user takes part, optionally only
+   * those with `counterpartId`. Waits for bookings being created meanwhile.
+   */
+  findOpenForParticipant(
+    userId: string,
+    counterpartId: string | null,
+    now: Date,
+  ): Promise<Booking[]>;
   /** Confirmed bookings starting before `until` not reminded yet. */
   findDueReminders(now: Date, until: Date): Promise<Booking[]>;
   /** Records that the reminders of this booking are queued. */

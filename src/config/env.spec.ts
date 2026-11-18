@@ -20,7 +20,17 @@ describe('validateEnv', () => {
       PORT: 3000,
       SESSION_COOKIE_SECURE: 'true',
       APP_URL: 'http://localhost:3001',
+      TRUST_PROXY: 0,
     });
+  });
+
+  it('accepts a small number of trusted proxy hops', () => {
+    expect(validateEnv({ ...validEnv, TRUST_PROXY: '1' })).toMatchObject({
+      TRUST_PROXY: 1,
+    });
+    expect(() => validateEnv({ ...validEnv, TRUST_PROXY: 'true' })).toThrow(
+      /TRUST_PROXY/,
+    );
   });
 
   it('defaults payments to disabled with a 15 % fee', () => {

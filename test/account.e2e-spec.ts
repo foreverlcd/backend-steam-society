@@ -301,8 +301,10 @@ describe('Account data rights (e2e)', () => {
       'account',
       'bookings',
       'profile',
+      'safety',
       'scheduling',
     ]);
+    expect(body.sections.safety).toEqual({ blocks: [], reportsFiled: [] });
     expect(body.sections.account).toMatchObject({ email: mentor.email });
     expect(JSON.stringify(body)).not.toContain('passwordHash');
   });

@@ -35,6 +35,7 @@ const events: Array<{ key: string; event: BookingEvent }> = [
   { key: 'confirm_payment', event: { type: 'confirm_payment' } },
   { key: 'complete', event: { type: 'complete' } },
   { key: 'no_show', event: { type: 'no_show', party: 'mentee' } },
+  { key: 'withdraw', event: { type: 'withdraw' } },
 ];
 
 const valid: Record<BookingStatus, Record<string, BookingStatus>> = {
@@ -44,17 +45,20 @@ const valid: Record<BookingStatus, Record<string, BookingStatus>> = {
     decline: 'declined',
     cancel_mentee: 'cancelled',
     expire: 'expired',
+    withdraw: 'cancelled',
   },
   awaiting_payment: {
     cancel_mentee: 'cancelled',
     expire: 'expired',
     confirm_payment: 'confirmed',
+    withdraw: 'cancelled',
   },
   confirmed: {
     cancel_mentee: 'cancelled',
     cancel_mentor: 'cancelled',
     complete: 'completed',
     no_show: 'no_show',
+    withdraw: 'cancelled',
   },
   declined: {},
   cancelled: {},
@@ -74,7 +78,7 @@ describe('transitionBooking', () => {
             transitionBooking(current, event, {
               ...context,
               now:
-                event.type === 'cancel'
+                event.type === 'cancel' || event.type === 'withdraw'
                   ? new Date('2026-11-01T08:00:00.000Z')
                   : context.now,
               paymentRequired:
@@ -90,7 +94,7 @@ describe('transitionBooking', () => {
             transitionBooking(current, event, {
               ...context,
               now:
-                event.type === 'cancel'
+                event.type === 'cancel' || event.type === 'withdraw'
                   ? new Date('2026-11-01T08:00:00.000Z')
                   : context.now,
               paymentRequired:
@@ -103,6 +107,23 @@ describe('transitionBooking', () => {
       }
     }
   }
+
+  it('withdraws until the session ends, never after', () => {
+    expect(() =>
+      transitionBooking(
+        'confirmed',
+        { type: 'withdraw' },
+        { ...context, now: new Date('2026-11-01T10:00:00.000Z') },
+      ),
+    ).toThrow(InvalidBookingTransitionError);
+    expect(
+      transitionBooking(
+        'confirmed',
+        { type: 'withdraw' },
+        { ...context, now: new Date('2026-11-01T09:30:00.000Z') },
+      ),
+    ).toBe('cancelled');
+  });
 
   it('rejects expiring before the deadline', () => {
     expect(() =>

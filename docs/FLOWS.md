@@ -285,3 +285,5 @@ sequenceDiagram
 | Textos y pantallas de la web | `../frontend-steam-society/src/components/*` y `src/app/*`; llamadas a la API en `src/lib/api/*.ts`; redirecciones por rol en `src/lib/auth/roles.ts` |
 | Esquema de datos / constraints | `prisma/schema.prisma`, `prisma/migrations/`; ver `docs/03-DATA-MODEL.md` |
 | Videollamada (señalización, ventana, ICE/TURN) | `bookings/application/calls.service.ts`, `bookings/presentation/calls.controller.ts`, `bookings/infrastructure/in-memory-call-signaling.ts`, `cloudflare-ice-servers.ts`; web: `src/app/(app)/call/[bookingId]/` |
+| Bloqueos, reportes, moderación, suspensión | `src/modules/safety/` (`SafetyService`, `ModerationService`); cancelación en `BookingsService.withdrawOpenBookings` |
+| Vistas admin del piloto (resumen, personas, reservas) | `src/modules/admin/` |

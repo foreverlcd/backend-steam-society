@@ -18,6 +18,14 @@ export function configureApp(app: INestApplication): void {
   app.useSecurityHeaders();
 
   const configService = app.get(ConfigService);
+
+  // Behind Caddy: take the client IP and protocol from X-Forwarded-* of the
+  // configured number of hops only, so secure cookies are issued and rate
+  // limits apply per client instead of per proxy.
+  const trustProxy = Number(configService.get('TRUST_PROXY') ?? 0);
+  if (trustProxy > 0) {
+    app.getHttpAdapter().getInstance().set('trust proxy', trustProxy);
+  }
   const webOrigins = parseWebOrigins(configService.get<string>('WEB_ORIGIN'));
 
   // CORS must run before CSRF so rejected cross-origin requests still carry
