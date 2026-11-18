@@ -33,7 +33,6 @@ import {
   bookingSlotUnavailable,
   bookingStatusConflict,
   invalidBookingTransition,
-  meetingUrlRequired,
   menteeProfileRequired,
   mentorNotApproved,
   offeringArchived,
@@ -302,10 +301,6 @@ export class BookingsService {
       { type: 'accept', paymentRequired: booking.paymentRequired },
       now,
     );
-
-    if (next === 'confirmed' && !input.meetingUrl) {
-      throw meetingUrlRequired();
-    }
 
     const updated = await this.apply(booking, next, {
       respondedAt: now,

@@ -89,12 +89,14 @@ Aplazado (sin decidir): separar `admin` en `superadmin`, `finanzas`, `soporte` y
 12. **Gasto:** todo gratis; ningún servicio de pago.
 Consecuencia en código hoy: `PAYMENTS_PROVIDER=disabled` y `PAYMENTS_FEE_BPS=1500` por defecto; nada más cambia hasta F3/F4.
 
+**ADR-027 · Cola de correo (outbox) con reintentos; Brevo como proveedor.** (2026-11-17; resuelve P-05 y lo que ADR-022 dejó para el Hito 2; proveedor elegido por el desarrollador) Por qué: con el correo best-effort se perdían avisos si el SMTP fallaba o el proceso moría, y el piloto necesita recordatorios fiables. Decisión: todo correo se guarda en `email_outbox` y un despachador lo envía con reintentos (1 min a 6 h), `FOR UPDATE SKIP LOCKED` y `dedupe_key` para encolar de forma idempotente; los enlaces que caducan no salen tarde. Proveedor: Brevo (300 correos/día gratis) por `SMTP_URL`; Mailjet como respaldo. Descartado: correo directo (se pierde), BullMQ/Redis (fuera del stack). Consecuencia: entrega al menos una vez (Message-ID fijo para reconocer duplicados); el dominio de envío necesita SPF/DKIM/DMARC.
+
+**ADR-028 · Videollamada propia 1:1 con WebRTC peer-to-peer.** (2026-11-17; resuelve P-04; pedido del desarrollador: no depender de enlaces externos ni pagar) Por qué: las sesiones son 1:1 y el piloto debe ser gratis; los servicios de video tienen cupos que se agotan. Decisión: WebRTC entre los dos navegadores; la API solo hace de señalización (SSE + POST, sin dependencias nuevas) y entrega servidores ICE: STUN público de Cloudflare y, si se configura, TURN de Cloudflare Realtime (1000 GB/mes gratis) con credenciales temporales. La llamada abre 15 min antes y cierra 30 min después de la sesión, solo para sus dos participantes. El enlace externo de la mentora queda como alternativa opcional. Descartado: Jitsi/LiveKit autoalojado (requiere un servidor que hoy no hay), Daily/LiveKit Cloud (cupos y dependencia), WebSocket (dependencia nueva; SSE alcanza para señalizar). Consecuencia: sin TURN algunas redes no conectan; la señalización en memoria exige una sola instancia de la API hasta moverla a Postgres `LISTEN/NOTIFY`; no hay grabación ni llamadas grupales.
+
 ## PENDIENTES
 | ID | Decisión | Cuándo | Notas |
 |---|---|---|---|
 | P-03 | Proveedor de pagos y de pagos salientes en Perú | Antes del Hito 2 | Spike de sandbox; requisitos KYC e impuestos con contador [a confirmar] |
-| P-04 | Video: qué se compra, qué se autoaloja, qué se construye | Antes del Hito 4 | Spike entre dos redes |
-| P-05 | Correo: SMTP local para desarrollo (ej. Mailpit) y proveedor transaccional | 1.2 | Mailpit local ya configurado en `docker-compose.yml`; la API usa `SMTP_URL` genérico. El proveedor transaccional sigue pendiente: preferir código abierto o plan gratuito real; verificar límites |
 | P-06 | Almacenamiento de archivos compatible con S3 | Antes del Hito 3 | Verificar licencias y límites vigentes |
 | P-09 | Cancelación y reembolso | Antes del Hito 2 | Equipo de producto; condiciona la máquina de estados y el ledger (= DA-05) |
 | P-10 | Comisión de la plataforma (el plazo de respuesta quedó en ADR-021) | Hito 2 | Equipo de producto |

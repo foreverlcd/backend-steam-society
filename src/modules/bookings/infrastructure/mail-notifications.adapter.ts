@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MailerService } from '../../auth/mailer.service.js';
 import type {
   BookingNotification,
@@ -7,7 +8,27 @@ import type {
 
 @Injectable()
 export class MailNotificationsAdapter implements NotificationsPort {
-  constructor(private readonly mailer: MailerService) {}
+  private readonly appUrl: string;
+
+  constructor(
+    private readonly mailer: MailerService,
+    config: ConfigService,
+  ) {
+    this.appUrl = config.getOrThrow<string>('APP_URL').replace(/\/+$/, '');
+  }
+
+  /** The in-app call, plus the external link if the mentor shared one. */
+  private callLines(notification: BookingNotification): string[] {
+    const lines = [
+      `Videollamada en Steam Society (se abre 15 minutos antes): ${this.appUrl}/call/${notification.bookingId}`,
+    ];
+    if (notification.meetingUrl) {
+      lines.push(
+        `Enlace alternativo de la mentora: ${notification.meetingUrl}`,
+      );
+    }
+    return lines;
+  }
 
   async withdraw(dedupeKeys: string[]): Promise<void> {
     await this.mailer.withdraw(dedupeKeys);
@@ -39,9 +60,7 @@ export class MailNotificationsAdapter implements NotificationsPort {
           text: [
             `Hola ${notification.recipientName}:`,
             `${notification.counterpartName} aceptó tu solicitud de mentoría "${notification.offeringTitle}" para el ${when}.`,
-            notification.meetingUrl
-              ? `Enlace de la sesión: ${notification.meetingUrl}`
-              : 'La mentora compartirá el enlace de la sesión.',
+            ...this.callLines(notification),
           ].join('\n\n'),
         });
         return;
@@ -97,9 +116,7 @@ export class MailNotificationsAdapter implements NotificationsPort {
           text: [
             `Hola ${notification.recipientName}:`,
             `Te recordamos tu mentoría "${notification.offeringTitle}" con ${notification.counterpartName} el ${when}.`,
-            notification.meetingUrl
-              ? `Enlace de la sesión: ${notification.meetingUrl}`
-              : 'El enlace de la sesión estará en tu reserva en Steam Society.',
+            ...this.callLines(notification),
             'Si no puedes asistir, cancela desde Steam Society para avisar a la otra persona.',
           ].join('\n\n'),
           // Pointless once the session has started.

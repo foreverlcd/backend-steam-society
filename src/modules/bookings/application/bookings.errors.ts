@@ -109,11 +109,19 @@ export function menteeProfileRequired(): BadRequestException {
   });
 }
 
-export function meetingUrlRequired(): BadRequestException {
-  return new BadRequestException({
-    statusCode: 400,
-    code: 'MEETING_URL_REQUIRED',
-    message: 'A meeting URL is required to confirm a free booking',
+export function callUnavailable(): ConflictException {
+  return new ConflictException({
+    statusCode: 409,
+    code: 'CALL_UNAVAILABLE',
+    message: 'Only confirmed bookings have a call',
+  });
+}
+
+export function callNotOpen(): ConflictException {
+  return new ConflictException({
+    statusCode: 409,
+    code: 'CALL_NOT_OPEN',
+    message: 'The call opens shortly before the session and closes after it',
   });
 }
 
