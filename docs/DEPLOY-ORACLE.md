@@ -234,14 +234,14 @@ unset ADMIN_PASSWORD
 
 El admin debe activar la 2FA en su primer ingreso (ADR-024).
 
-### 7.3 TURN en la API: adaptador pendiente
+### 7.3 TURN en la API
 
-coturn ya queda listo con el esquema "TURN REST" (`use-auth-secret` + `static-auth-secret`). Pero **la API todavía no entrega credenciales de este coturn** (adaptador de la API pendiente). Las variables que usará están en `.env.prod` y el compose ya se las pasa a la API:
+coturn usa el esquema "TURN REST" (`use-auth-secret` + `static-auth-secret`). La API entrega a cada participante una credencial de este coturn que vence en 4 horas, cuando están estas variables (el compose ya se las pasa):
 
-- `CALL_TURN_SHARED_SECRET`: el mismo secreto que usa coturn.
+- `CALL_TURN_SHARED_SECRET`: el mismo secreto que usa coturn (mínimo 32 caracteres; `openssl rand -hex 32`).
 - `CALL_TURN_URLS`: lista separada por comas, por ejemplo `turn:turn.example.org:3478?transport=udp,turn:turn.example.org:3478?transport=tcp,turns:turn.example.org:5349?transport=tcp`.
 
-Mientras tanto la API usa STUN (`CALL_STUN_URLS`) y, si se configura, el TURN de Cloudflare Realtime (`CALL_TURN_KEY_ID` y `CALL_TURN_API_TOKEN`), que ya está soportado.
+Siempre se entrega STUN (`CALL_STUN_URLS`). El TURN de Cloudflare Realtime (`CALL_TURN_KEY_ID` y `CALL_TURN_API_TOKEN`) es opcional y puede convivir con coturn.
 
 Prueba manual de coturn (sin la API): genera una credencial temporal y pruébala en la página "Trickle ICE" de WebRTC (`https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/`):
 
@@ -374,7 +374,7 @@ Los logs rotan solos (5 archivos de 10 MB por servicio).
 | `migrate` termina con error | `dc logs migrate`. La base no está lista o las credenciales no coinciden. Nunca uses `migrate dev` ni `migrate reset` en producción. |
 | Inicio de sesión que "no se guarda" | Que `TRUST_PROXY` coincida con los proxies delante de la API (1 con Caddy solo). Después, que la web se abra por `https://APP_DOMAIN` exacto (`WEB_ORIGIN`), sin `www` ni HTTP. |
 | La web llama a otra URL de API | `NEXT_PUBLIC_API_URL` se fija al construir: `dc build --no-cache web && dc up -d web`. |
-| La videollamada se queda "conectando" | En redes estrictas falta TURN (adaptador de la API pendiente, sección 7.3). Revisa `dc logs coturn`, el rango UDP 49160-49200 en ambos firewalls y la prueba Trickle ICE. |
+| La videollamada se queda "conectando" | En redes estrictas hace falta TURN (sección 7.3): confirma `CALL_TURN_SHARED_SECRET` y `CALL_TURN_URLS`. Revisa `dc logs coturn`, el rango UDP 49160-49200 en ambos firewalls y la prueba Trickle ICE. |
 | Llega la llamada tarde o el estado no cambia | El proxy no debe almacenar el SSE: ya está `flush_interval -1` en el `Caddyfile`. No agregues `encode` al bloque de la API. |
 | No llegan correos | `SMTP_URL` (codificación, puerto 587), cuenta Brevo activada y dominio autenticado. `dc logs api \| grep -i mail`. |
 | Se llenó el disco | `df -h`, `docker system df`, `docker image prune -f`; revisa `BACKUP_KEEP`. |
@@ -382,7 +382,6 @@ Los logs rotan solos (5 archivos de 10 MB por servicio).
 
 ## 14. Limitaciones conocidas (pendientes)
 
-- **TURN propio:** coturn está listo, falta el adaptador de la API que genere credenciales con `CALL_TURN_SHARED_SECRET` (sección 7.3).
 - **Una sola VM:** si la VM cae, cae todo. Los backups fuera de la VM son la red de seguridad.
 - **coturn y renovación de certificado:** se resuelve con el reinicio semanal del cron.
 - Los límites de los planes gratuitos cambian sin aviso; revalídalos antes del piloto (`docs/discovery/05-FREE-INFRASTRUCTURE.md`).

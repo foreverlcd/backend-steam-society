@@ -11,7 +11,7 @@ import {
   CALL_SIGNALING_PORT,
   ICE_SERVERS_PORT,
 } from './application/ports/call-signaling.port.js';
-import { CloudflareIceServers } from './infrastructure/cloudflare-ice-servers.js';
+import { ConfiguredIceServers } from './infrastructure/ice-servers.js';
 import { InMemoryCallSignaling } from './infrastructure/in-memory-call-signaling.js';
 import { CallsController } from './presentation/calls.controller.js';
 import { BOOKING_REPOSITORY } from './application/ports/booking.repository.js';
@@ -33,7 +33,7 @@ import { BookingsPersonalData } from './infrastructure/bookings-personal-data.js
     BookingsService,
     CallsService,
     { provide: CALL_SIGNALING_PORT, useClass: InMemoryCallSignaling },
-    { provide: ICE_SERVERS_PORT, useClass: CloudflareIceServers },
+    { provide: ICE_SERVERS_PORT, useClass: ConfiguredIceServers },
     BookingsExpirationTask,
     BookingsReminderTask,
     { provide: BOOKING_REPOSITORY, useClass: PrismaBookingRepository },

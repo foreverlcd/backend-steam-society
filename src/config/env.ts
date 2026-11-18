@@ -23,6 +23,10 @@ const envSchema = z
     CALL_STUN_URLS: z.string().default('stun:stun.cloudflare.com:3478'),
     CALL_TURN_KEY_ID: z.string().min(1).optional(),
     CALL_TURN_API_TOKEN: z.string().min(1).optional(),
+    // Own coturn (TURN REST): shared secret (also in turnserver) and URLs,
+    // e.g. turn:turn.example.org:3478,turns:turn.example.org:5349.
+    CALL_TURN_SHARED_SECRET: z.string().min(32).optional(),
+    CALL_TURN_URLS: z.string().min(1).optional(),
     ADMIN_EMAIL: z.email().optional(),
     ADMIN_PASSWORD: z.string().min(12).optional(),
     NODE_ENV: z.string().optional(),
