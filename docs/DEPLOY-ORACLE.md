@@ -165,7 +165,8 @@ openssl rand -hex 32      # CALL_TURN_SHARED_SECRET
 
 Qué poner en cada bloque:
 
-- **Dominios:** `APP_DOMAIN`, `API_DOMAIN`, `TURN_DOMAIN` y `ACME_EMAIL` (correo para avisos de Let's Encrypt). La API toma `WEB_ORIGIN` y `APP_URL` de `APP_DOMAIN`; la web se construye con `NEXT_PUBLIC_API_URL=https://API_DOMAIN/v1`.
+- **Dominios:** `APP_DOMAIN`, `API_DOMAIN`, `TURN_DOMAIN` y `ACME_EMAIL` (correo para avisos de Let's Encrypt). La API toma `WEB_ORIGIN` y `APP_URL` de `APP_DOMAIN`; la web se construye con `NEXT_PUBLIC_API_URL=https://API_DOMAIN/v1` y `NEXT_PUBLIC_SITE_URL=https://APP_DOMAIN` (canonical, sitemap, robots, `llms.txt`).
+- **Soporte (opcional):** `SUPPORT_EMAIL` y `SUPPORT_WHATSAPP` (solo dígitos, con código de país) se muestran en `/help`, el pie y las páginas legales. Van dentro del bundle de la web: si los cambias, `dc build web && dc up -d web`.
 - **PostgreSQL:** `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`. `DATABASE_URL` se arma sola apuntando al contenedor. **Alternativa Neon** (PostgreSQL 18 gestionado, gratis): descomenta `DATABASE_URL` con la URL de Neon (`?sslmode=require&schema=public`); el contenedor `postgres` sigue existiendo pero la API no lo usa (puedes dejarlo).
 - **Correo:** `SMTP_URL` y `SMTP_FROM` de Brevo (sección 8).
 - **TURN:** `CALL_TURN_SHARED_SECRET`, `CALL_TURN_URLS`, `TURN_PUBLIC_IP`, `TURN_PRIVATE_IP`.
