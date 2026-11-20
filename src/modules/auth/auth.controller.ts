@@ -48,6 +48,15 @@ export class AuthController {
 
   @Public()
   @Post('register')
+  @UseGuards(ThrottlerGuard)
+  // Per IP: slows down account farming and e-mail enumeration (409) while
+  // leaving room for a classroom signing up together.
+  @Throttle({
+    default: {
+      limit: () => Number(process.env.REGISTER_RATE_LIMIT ?? 30),
+      ttl: 600_000,
+    },
+  })
   register(
     @Body({ schema: registerSchema }) body: RegisterInput,
   ): Promise<AuthUser> {

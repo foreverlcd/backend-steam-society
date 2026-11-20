@@ -26,9 +26,9 @@ Obligatorias en producción:
 - `APP_URL` (URL pública del frontend, para los enlaces de los correos)
 - `SMTP_URL` y `SMTP_FROM` (sin `SMTP_URL` no se envían correos)
 
-Opcionales (con valor por defecto): `PORT` (3000), `BOOKING_REQUEST_TTL_HOURS` (48), `EMAIL_VERIFICATION_TTL_HOURS` (48), `PAYMENTS_PROVIDER` (`disabled`), `PAYMENTS_FEE_BPS` (1500). Solo para sembrar el admin: `ADMIN_EMAIL` y `ADMIN_PASSWORD` (mínimo 12).
+Opcionales (con valor por defecto): `PORT` (3000), `BOOKING_REQUEST_TTL_HOURS` (48), `EMAIL_VERIFICATION_TTL_HOURS` (48), `PAYMENTS_PROVIDER` (`disabled`), `PAYMENTS_FEE_BPS` (1500), `REGISTER_RATE_LIMIT` (30 registros por IP cada 10 min; súbelo si un colegio entero se registra a la vez desde una sola IP). Solo para sembrar el admin: `ADMIN_EMAIL` y `ADMIN_PASSWORD` (mínimo 12).
 
-Prohibidas en producción: `PAYMENTS_PROVIDER=fake` y `THROTTLE_DISABLED=true` (la API no arranca).
+Prohibidas en producción: `PAYMENTS_PROVIDER=fake`, `THROTTLE_DISABLED=true` y dejar en `SESSION_SECRET` o `CALL_TURN_SHARED_SECRET` el valor de ejemplo con `change-me` (la API no arranca).
 
 ## 3. Construir y correr la imagen
 
