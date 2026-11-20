@@ -21,6 +21,7 @@ const mentee: AuthUser = {
   birthDate: null,
   emailVerified: true,
   mfaEnabled: false,
+  guardianConsentPending: false,
 };
 
 function makePayment(overrides: Partial<Payment> = {}): Payment {

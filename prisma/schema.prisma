@@ -58,10 +58,13 @@ model User {
   termsAcceptedAt         DateTime?                @map("terms_accepted_at") @db.Timestamptz(3)
   /// Version of the legal texts accepted (LEGAL_TERMS_VERSION at sign-up).
   termsVersion            String?                  @map("terms_version")
-  /// Parent/guardian consent for under-14 sign-ups (Ley 29733 regulation); null when not given.
+  /// When the parent/guardian confirmed consent from the e-mailed link (under-14 sign-ups, Ley 29733 regulation); null until then.
   guardianConsentAt       DateTime?                @map("guardian_consent_at") @db.Timestamptz(3)
+  /// Parent/guardian address that receives the consent link (under-14 sign-ups only).
+  guardianEmail           String?                  @map("guardian_email")
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
+  guardianConsentTokens   GuardianConsentToken[]
   totp                    UserTotp?
   mfaRecoveryCodes        MfaRecoveryCode[]
   mentorProfile           MentorProfile?           @relation("MentorProfile")
@@ -92,6 +95,20 @@ model EmailVerificationToken {
 
   @@index([userId])
   @@map("email_verification_token")
+}
+
+/// One-time link sent to the parent/guardian of an under-14 user (SHA-256 hash).
+model GuardianConsentToken {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("guardian_consent_token")
 }
 
 /// TOTP second factor (ADR-024). The seed is encrypted with AES-256-GCM

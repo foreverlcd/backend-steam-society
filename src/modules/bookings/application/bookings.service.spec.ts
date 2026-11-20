@@ -33,6 +33,7 @@ const mentor: AuthUser = {
   birthDate: null,
   emailVerified: true,
   mfaEnabled: false,
+  guardianConsentPending: false,
 };
 
 const mentee: AuthUser = {
@@ -45,6 +46,7 @@ const mentee: AuthUser = {
   birthDate: null,
   emailVerified: true,
   mfaEnabled: false,
+  guardianConsentPending: false,
 };
 
 const rule: AvailabilityRule = {

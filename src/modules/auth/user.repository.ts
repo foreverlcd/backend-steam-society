@@ -3,6 +3,7 @@ import type { Prisma, User } from '../../generated/prisma/client.js';
 import type { UserRole } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../shared/prisma/prisma.service.js';
 import type { AuthUser } from './auth.types.js';
+import { GUARDIAN_CONSENT_MIN_AGE, ageInYears } from './legal-terms.js';
 
 export interface CreateUserInput {
   email: string;
@@ -13,7 +14,7 @@ export interface CreateUserInput {
   lastName?: string;
   termsAcceptedAt: Date;
   termsVersion: string;
-  guardianConsentAt: Date | null;
+  guardianEmail: string | null;
 }
 
 /** A user row plus the one-to-one TOTP state, enough to build an AuthUser. */
@@ -21,7 +22,10 @@ export type UserWithMfa = User & { totp: { confirmedAt: Date | null } | null };
 
 const WITH_MFA = { totp: { select: { confirmedAt: true } } } as const;
 
-export function toAuthUser(user: UserWithMfa): AuthUser {
+export function toAuthUser(
+  user: UserWithMfa,
+  now: Date = new Date(),
+): AuthUser {
   return {
     id: user.id,
     email: user.email,
@@ -32,7 +36,21 @@ export function toAuthUser(user: UserWithMfa): AuthUser {
     birthDate: user.birthDate,
     emailVerified: user.emailVerifiedAt !== null,
     mfaEnabled: user.totp?.confirmedAt != null,
+    guardianConsentPending: isGuardianConsentPending(user, now),
   };
+}
+
+/** Under 14 today, with a guardian address on file and no confirmation yet. */
+export function isGuardianConsentPending(
+  user: Pick<User, 'birthDate' | 'guardianEmail' | 'guardianConsentAt'>,
+  now: Date,
+): boolean {
+  return (
+    user.guardianEmail !== null &&
+    user.guardianConsentAt === null &&
+    user.birthDate !== null &&
+    ageInYears(user.birthDate, now) < GUARDIAN_CONSENT_MIN_AGE
+  );
 }
 
 export type EmailTokenOutcome =
@@ -77,7 +95,7 @@ export class UserRepository {
         lastName: input.lastName,
         termsAcceptedAt: input.termsAcceptedAt,
         termsVersion: input.termsVersion,
-        guardianConsentAt: input.guardianConsentAt,
+        guardianEmail: input.guardianEmail,
       },
     });
   }
@@ -188,6 +206,77 @@ export class UserRepository {
         previousEmail: previous.email,
         newEmail: token.newEmail,
       };
+    });
+  }
+
+  /**
+   * Replaces the user's unused consent links with a new one, optionally
+   * correcting the guardian address in the same transaction.
+   */
+  createGuardianConsentToken(
+    userId: string,
+    tokenHash: string,
+    expiresAt: Date,
+    guardianEmail?: string,
+  ): Promise<void> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM "user" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+      if (guardianEmail !== undefined) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { guardianEmail },
+        });
+      }
+      await tx.guardianConsentToken.deleteMany({
+        where: { userId, usedAt: null },
+      });
+      await tx.guardianConsentToken.create({
+        data: { userId, tokenHash, expiresAt },
+      });
+    });
+  }
+
+  /**
+   * Atomically consumes a valid consent link and records the consent once.
+   * Returns false when the link is unknown, expired or already used.
+   */
+  consumeGuardianConsentToken(tokenHash: string, now: Date): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const token = await tx.guardianConsentToken.findFirst({
+        where: { tokenHash, usedAt: null, expiresAt: { gt: now } },
+        select: { id: true, userId: true },
+      });
+      if (!token) return false;
+
+      const claimed = await tx.guardianConsentToken.updateMany({
+        where: { id: token.id, usedAt: null },
+        data: { usedAt: now },
+      });
+      if (claimed.count !== 1) return false;
+
+      const updated = await tx.user.updateMany({
+        where: {
+          id: token.userId,
+          guardianConsentAt: null,
+          deletedAt: null,
+          guardianEmail: { not: null },
+        },
+        data: { guardianConsentAt: now },
+      });
+      await tx.guardianConsentToken.deleteMany({
+        where: { userId: token.userId, usedAt: null },
+      });
+      if (updated.count === 1) {
+        await tx.auditLog.create({
+          data: {
+            actorUserId: null,
+            action: 'user.guardian_consent_given',
+            entityType: 'user',
+            entityId: token.userId,
+          },
+        });
+      }
+      return true;
     });
   }
 

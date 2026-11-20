@@ -44,6 +44,7 @@ export class AuthPersonalData implements PersonalDataContributor, OnModuleInit {
         termsAcceptedAt: true,
         termsVersion: true,
         guardianConsentAt: true,
+        guardianEmail: true,
         totp: { select: { confirmedAt: true } },
       },
     });
@@ -73,7 +74,7 @@ export class AuthPersonalData implements PersonalDataContributor, OnModuleInit {
   ): Promise<void> {
     const user = await tx.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { birthDate: true, email: true },
+      select: { birthDate: true, email: true, guardianEmail: true },
     });
     // Queued or recently sent e-mail to this person (including a pending
     // new address) holds their address and maybe a link: remove it too.
@@ -84,7 +85,11 @@ export class AuthPersonalData implements PersonalDataContributor, OnModuleInit {
     await tx.emailOutbox.deleteMany({
       where: {
         toAddress: {
-          in: [user.email, ...pendingAddresses.map((t) => t.newEmail!)],
+          in: [
+            user.email,
+            ...pendingAddresses.map((t) => t.newEmail!),
+            ...(user.guardianEmail ? [user.guardianEmail] : []),
+          ],
         },
       },
     });
@@ -92,6 +97,7 @@ export class AuthPersonalData implements PersonalDataContributor, OnModuleInit {
     await tx.mfaRecoveryCode.deleteMany({ where: { userId } });
     await tx.emailVerificationToken.deleteMany({ where: { userId } });
     await tx.passwordResetToken.deleteMany({ where: { userId } });
+    await tx.guardianConsentToken.deleteMany({ where: { userId } });
     await tx.user.update({
       where: { id: userId },
       data: {
@@ -105,6 +111,7 @@ export class AuthPersonalData implements PersonalDataContributor, OnModuleInit {
           ? new Date(Date.UTC(user.birthDate.getUTCFullYear(), 0, 1))
           : null,
         emailVerifiedAt: null,
+        guardianEmail: null,
         status: 'deleted',
         deletedAt: now,
       },

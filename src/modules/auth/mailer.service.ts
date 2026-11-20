@@ -67,6 +67,31 @@ export class MailerService {
     });
   }
 
+  /** Sent to the parent/guardian of an under-14 user (Ley 29733). */
+  async sendGuardianConsentRequest(
+    to: string,
+    childFirstName: string | null,
+    token: string,
+    validDays: number,
+  ): Promise<void> {
+    const consentUrl = `${this.appUrl}/guardian-consent?token=${encodeURIComponent(token)}`;
+    const who = childFirstName ?? 'Una persona menor de 14 años';
+
+    await this.send({
+      kind: 'auth.guardian_consent_request',
+      to,
+      subject: 'Autoriza la cuenta de tu hija o hijo en Steam Society',
+      text: [
+        `${who} creó una cuenta en Steam Society, una plataforma de mentorías 1 a 1 en ciencia, tecnología, ingeniería, arte y matemáticas, y te indicó como su madre, padre o tutor.`,
+        'Por ser menor de 14 años, la ley peruana pide tu autorización para tratar sus datos personales. Hasta que autorices, no podrá reservar sesiones.',
+        `Lee qué datos usamos y autoriza aquí (válido ${validDays} días): ${consentUrl}`,
+        `Política de privacidad: ${this.appUrl}/privacidad`,
+        'Si no conoces esta cuenta o no quieres autorizarla, ignora este correo.',
+      ].join('\n\n'),
+      expiresAt: this.validFor(validDays * 24),
+    });
+  }
+
   /** Sent to the NEW address: proves it belongs to the user. */
   async sendEmailChangeVerification(
     to: string,

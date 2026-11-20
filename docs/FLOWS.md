@@ -200,8 +200,8 @@ sequenceDiagram
   Usuaria->>Web: completa el registro
   Web->>A: POST /v1/auth/register
   A->>S: register(body) tras validar Zod (acceptTerms true obligatorio)
-  Note over S: menor de 14 sin guardianConsent true: 400 GUARDIAN_CONSENT_REQUIRED
-  S->>DB: INSERT user con email_verified_at nulo, terms_accepted_at, terms_version y guardian_consent_at
+  Note over S: menor de 14 sin guardianConsent true: 400 GUARDIAN_CONSENT_REQUIRED; sin guardianEmail o con el propio: 400
+  S->>DB: INSERT user con email_verified_at nulo, terms_accepted_at, terms_version y guardian_email (menor de 14)
   S-->>Web: 201 AuthUser con emailVerified false
   S->>DB: guarda hash SHA-256 del token y expires_at
   S->>M: sendEmailVerification(email, token, horas)
@@ -218,6 +218,29 @@ sequenceDiagram
   A->>S: resendEmailVerification(user)
   S->>DB: borra tokens sin usar y crea uno nuevo
   S-->>Web: 202 o 409 EMAIL_ALREADY_VERIFIED
+```
+
+Consentimiento de madre, padre o tutor (menores de 14):
+
+```mermaid
+sequenceDiagram
+  participant Adulto
+  participant Web
+  participant A as AuthController
+  participant S as AuthService
+  participant DB as Postgres
+  participant M as MailerService
+  S->>DB: guarda hash SHA-256 del token (7 dias) en guardian_consent_token
+  S->>M: sendGuardianConsentRequest(guardianEmail, nombre, token)
+  M->>Adulto: enlace APP_URL/guardian-consent?token=...
+  Adulto->>Web: abre el enlace y lee que autoriza
+  Note over Web: abrir el enlace no confirma nada; hace falta pulsar Autorizo
+  Adulto->>Web: pulsa Autorizo
+  Web->>A: POST /v1/auth/guardian-consent/confirm con token
+  A->>S: confirmGuardianConsent(token)
+  S->>DB: transaccion que consume el token, marca guardian_consent_at y audita
+  S-->>Web: 204 o 400 INVALID_GUARDIAN_TOKEN
+  Note over S: mientras falte, rutas con correo verificado: 403 GUARDIAN_CONSENT_PENDING
 ```
 
 - Sin verificar, la usuaria entra y navega. `AccountPolicyGuard` (`src/modules/auth/account-policy.guard.ts`) responde `403 EMAIL_NOT_VERIFIED` solo en rutas con `@RequireVerifiedEmail` (`POST /v1/bookings`, `POST /v1/me/profile/submit`).

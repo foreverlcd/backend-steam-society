@@ -6,7 +6,10 @@ import {
 import type { Reflector } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
 import { IS_PUBLIC_KEY } from '../../shared/http/public.decorator.js';
+import { REQUIRES_VERIFIED_EMAIL_KEY } from '../../shared/http/account-policy.decorators.js';
 import { ROLES_KEY } from '../../shared/http/roles.decorator.js';
+import { AccountPolicyGuard } from './account-policy.guard.js';
+import type { MfaService } from './mfa.service.js';
 import { RolesGuard } from './roles.guard.js';
 import { SessionAuthGuard } from './session-auth.guard.js';
 import type { UserRepository } from './user.repository.js';
@@ -113,5 +116,75 @@ describe('RolesGuard', () => {
     expect(() =>
       guard.canActivate(contextFor({ user: { role: 'mentee' } })),
     ).toThrow(ForbiddenException);
+  });
+});
+
+describe('AccountPolicyGuard', () => {
+  const mfa = { isRequiredFor: () => false } as unknown as MfaService;
+  const verifiedMentee = {
+    id: 'kid-1',
+    role: 'mentee',
+    emailVerified: true,
+    mfaEnabled: false,
+    guardianConsentPending: false,
+  };
+
+  it('blocks verified-email routes while guardian consent is pending', () => {
+    const guard = new AccountPolicyGuard(
+      reflectorReturning({ [REQUIRES_VERIFIED_EMAIL_KEY]: true }),
+      mfa,
+    );
+
+    expect(() =>
+      guard.canActivate(
+        contextFor({
+          user: { ...verifiedMentee, guardianConsentPending: true },
+        }),
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        response: expect.objectContaining({ code: 'GUARDIAN_CONSENT_PENDING' }),
+      }),
+    );
+  });
+
+  it('asks for the e-mail first when both are missing', () => {
+    const guard = new AccountPolicyGuard(
+      reflectorReturning({ [REQUIRES_VERIFIED_EMAIL_KEY]: true }),
+      mfa,
+    );
+
+    expect(() =>
+      guard.canActivate(
+        contextFor({
+          user: {
+            ...verifiedMentee,
+            emailVerified: false,
+            guardianConsentPending: true,
+          },
+        }),
+      ),
+    ).toThrow(
+      expect.objectContaining({
+        response: expect.objectContaining({ code: 'EMAIL_NOT_VERIFIED' }),
+      }),
+    );
+  });
+
+  it('lets a pending account use other routes and a consented one book', () => {
+    const open = new AccountPolicyGuard(reflectorReturning({}), mfa);
+    expect(
+      open.canActivate(
+        contextFor({
+          user: { ...verifiedMentee, guardianConsentPending: true },
+        }),
+      ),
+    ).toBe(true);
+
+    const gated = new AccountPolicyGuard(
+      reflectorReturning({ [REQUIRES_VERIFIED_EMAIL_KEY]: true }),
+      mfa,
+    );
+    expect(gated.canActivate(contextFor({ user: verifiedMentee }))).toBe(true);
   });
 });

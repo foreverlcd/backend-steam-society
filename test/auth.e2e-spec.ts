@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import request from 'supertest';
+import { vi } from 'vitest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
@@ -23,6 +24,15 @@ class FakeMailer {
   }
 
   readonly mfaNotices: string[] = [];
+  readonly guardianRequests: Array<{ to: string; token: string }> = [];
+
+  async sendGuardianConsentRequest(
+    to: string,
+    _childFirstName: string | null,
+    token: string,
+  ): Promise<void> {
+    this.guardianRequests.push({ to, token });
+  }
 
   async sendMfaEnabledNotice(to: string): Promise<void> {
     this.mfaNotices.push(to);
@@ -68,6 +78,7 @@ describe('Auth (e2e)', () => {
     );
     mailer.sent.length = 0;
     mailer.verifications.length = 0;
+    mailer.guardianRequests.length = 0;
   });
 
   afterAll(async () => {
@@ -212,9 +223,118 @@ describe('Auth (e2e)', () => {
       expect(await prisma.user.count({ where: { email } })).toBe(0);
     });
 
-    it('records guardian consent for an under-14 sign-up', async () => {
+    it('asks the guardian to confirm and blocks booking until then', async () => {
       const email = `kid-${randomUUID()}@example.com`;
+      const guardianEmail = `parent-${randomUUID()}@example.com`;
+      const password = 'test-only-correct-horse';
+      const registered = await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send({
+          email,
+          password,
+          role: 'mentee',
+          birthDate: childBirthDate(),
+          acceptTerms: true,
+          guardianConsent: true,
+          guardianEmail,
+        })
+        .expect(201);
+      expect(registered.body.guardianConsentPending).toBe(true);
+
+      const stored = await prisma.user.findUniqueOrThrow({ where: { email } });
+      expect(stored.guardianEmail).toBe(guardianEmail);
+      expect(stored.guardianConsentAt).toBeNull();
+      expect(stored.termsVersion).toBe(LEGAL_TERMS_VERSION);
+      await vi.waitFor(() => expect(mailer.guardianRequests).toHaveLength(1));
+      expect(mailer.guardianRequests[0].to).toBe(guardianEmail);
+
+      // Email verified, consent still pending: booking is refused.
+      await prisma.user.update({
+        where: { email },
+        data: { emailVerifiedAt: new Date() },
+      });
+      const login = await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send({ email, password })
+        .expect(200);
+      const cookie = sessionCookie(login.headers['set-cookie']);
+      const blocked = await request(app.getHttpServer())
+        .post('/v1/bookings')
+        .set('Cookie', cookie)
+        .send({})
+        .expect(403);
+      expect(blocked.body.code).toBe('GUARDIAN_CONSENT_PENDING');
+
+      // A corrected address gets a new link; the old one stops working.
+      const corrected = `parent2-${randomUUID()}@example.com`;
       await request(app.getHttpServer())
+        .post('/v1/me/guardian-consent/resend')
+        .set('Cookie', cookie)
+        .send({ guardianEmail: corrected })
+        .expect(202);
+      expect(mailer.guardianRequests.at(-1)?.to).toBe(corrected);
+      const oldToken = mailer.guardianRequests[0].token;
+      const newToken = mailer.guardianRequests.at(-1)!.token;
+      await request(app.getHttpServer())
+        .post('/v1/auth/guardian-consent/confirm')
+        .send({ token: oldToken })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/v1/auth/guardian-consent/confirm')
+        .send({ token: newToken })
+        .expect(204);
+      const reused = await request(app.getHttpServer())
+        .post('/v1/auth/guardian-consent/confirm')
+        .send({ token: newToken })
+        .expect(400);
+      expect(reused.body.code).toBe('INVALID_GUARDIAN_TOKEN');
+
+      const after = await prisma.user.findUniqueOrThrow({ where: { email } });
+      expect(after.guardianEmail).toBe(corrected);
+      expect(after.guardianConsentAt).toBeInstanceOf(Date);
+      const me = await request(app.getHttpServer())
+        .get('/v1/me')
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(me.body.guardianConsentPending).toBe(false);
+      // Past the guard now: the empty body fails validation instead.
+      await request(app.getHttpServer())
+        .post('/v1/bookings')
+        .set('Cookie', cookie)
+        .send({})
+        .expect(400);
+      await request(app.getHttpServer())
+        .post('/v1/me/guardian-consent/resend')
+        .set('Cookie', cookie)
+        .send({})
+        .expect(409);
+
+      const exported = await request(app.getHttpServer())
+        .get('/v1/me/export')
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(JSON.stringify(exported.body)).toContain(corrected);
+
+      await request(app.getHttpServer())
+        .post('/v1/me/delete')
+        .set('Cookie', cookie)
+        .send({ password, confirmation: 'ELIMINAR' })
+        .expect(204);
+      const erased = await prisma.user.findUniqueOrThrow({
+        where: { id: after.id },
+      });
+      expect(erased.guardianEmail).toBeNull();
+      expect(
+        await prisma.guardianConsentToken.count({
+          where: { userId: after.id },
+        }),
+      ).toBe(0);
+    });
+
+    it('rejects an under-14 sign-up without a guardian e-mail', async () => {
+      const email = `kid-${randomUUID()}@example.com`;
+      const response = await request(app.getHttpServer())
         .post('/v1/auth/register')
         .send({
           email,
@@ -224,12 +344,10 @@ describe('Auth (e2e)', () => {
           acceptTerms: true,
           guardianConsent: true,
         })
-        .expect(201);
+        .expect(400);
 
-      const stored = await prisma.user.findUniqueOrThrow({ where: { email } });
-      expect(stored.guardianConsentAt).toBeInstanceOf(Date);
-      expect(stored.termsAcceptedAt).toBeInstanceOf(Date);
-      expect(stored.termsVersion).toBe(LEGAL_TERMS_VERSION);
+      expect(response.body.code).toBe('GUARDIAN_EMAIL_REQUIRED');
+      expect(await prisma.user.count({ where: { email } })).toBe(0);
     });
 
     it('stores the accepted terms version for an adult', async () => {
