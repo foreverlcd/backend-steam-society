@@ -26,12 +26,12 @@ Hoy la menor de 14 marca una casilla "tengo autorización" y eso basta. Ahora el
 7. Web: campo de correo del adulto (solo < 14), página `/guardian-consent` con botón explícito "Autorizo" (nada se confirma al abrir el enlace), aviso con reenvío en el panel, texto de privacidad.
 
 ## Criterio de terminado
-- [ ] Registro < 14 sin `guardianEmail` → 400 `GUARDIAN_EMAIL_REQUIRED`; con el propio correo → 400 `GUARDIAN_EMAIL_SAME_AS_USER`.
-- [ ] El adulto confirma con el token una sola vez; después `/me` muestra `guardianConsentPending: false` y las reservas funcionan.
-- [ ] Con consentimiento pendiente, crear reserva → 403 `GUARDIAN_CONSENT_PENDING`.
-- [ ] Tests nuevos para: registro, confirmación (válido, usado, vencido), reenvío, guard, exportación y borrado.
-- [ ] `scripts/gate.sh full` (backend) y `scripts/gate.sh` (web) en verde
-- [ ] Docs actualizados: README, FLOWS, PROGRESS, AGENTS (web); capturas de la web.
+- [x] Registro < 14 sin `guardianEmail` → 400 `GUARDIAN_EMAIL_REQUIRED`; con el propio correo → 400 `GUARDIAN_EMAIL_SAME_AS_USER`.
+- [x] El adulto confirma con el token una sola vez; después `/me` muestra `guardianConsentPending: false` y las reservas funcionan.
+- [x] Con consentimiento pendiente, crear reserva → 403 `GUARDIAN_CONSENT_PENDING`.
+- [x] Tests nuevos para: registro, confirmación (válido, usado, vencido), reenvío, guard, exportación y borrado.
+- [x] `scripts/gate.sh full` (backend) y `scripts/gate.sh` (web) en verde
+- [x] Docs actualizados: README, FLOWS, PROGRESS, AGENTS (web); capturas de la web.
 
 ## Fuera de alcance
 - Verificar identidad del adulto más allá del control del correo (DA-01/DA-04 siguen abiertos para revisión legal).
@@ -40,3 +40,8 @@ Hoy la menor de 14 marca una casilla "tengo autorización" y eso basta. Ahora el
 ## Bitácora
 | Fecha | Quién | Qué pasó |
 |---|---|---|
+| 2026-11-20 | Planificador | Implementado en backend y web; gates en verde (backend `full`, 27 e2e de auth) |
+| 2026-11-20 | codex (revisor backend, 1ª) | ALTA: confirmar un enlace sin efecto daba 204 → rollback y 400. MEDIA: reenvío sin comprobar estado bajo bloqueo → comprobado con `FOR UPDATE`. MEDIA: `toAuthUser` con `new Date()` → reloj inyectado obligatorio + test del cumpleaños 14 |
+| 2026-11-20 | codex (revisor backend, 2ª) | Pidió e2e de enlace vencido → agregado |
+| 2026-11-20 | codex (revisor web) | Token de un solo uso podía salir en `Referer` → `<meta name="referrer" content="no-referrer">` en guardian-consent, verify-email y reset-password (Caddy reescribe el header). Tabla de privacidad: la fecha se guarda al autorizar → corregido. Lo de "falta backend" es el límite conocido de `delegate.sh` por repo |
+| 2026-11-20 | Planificador | Capturas escritorio y móvil: registro con correo del adulto, aviso con reenvío/cambio de correo, página del adulto antes y después de autorizar |
