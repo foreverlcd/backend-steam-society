@@ -4,11 +4,13 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { CLOCK, type Clock } from '../../shared/clock/clock.js';
 import type { AuthUser } from './auth.types.js';
+import { MailerService } from './mailer.service.js';
 import { MfaRepository } from './mfa.repository.js';
 import { PasswordHasher } from './password-hasher.service.js';
 import { SecretBox } from './secret-box.js';
@@ -43,12 +45,15 @@ export type SecondFactorProof = { code: string } | { recoveryCode: string };
 
 @Injectable()
 export class MfaService {
+  private readonly logger = new Logger(MfaService.name);
+
   constructor(
     private readonly mfa: MfaRepository,
     private readonly users: UserRepository,
     private readonly secretBox: SecretBox,
     private readonly passwordHasher: PasswordHasher,
     @Inject(CLOCK) private readonly clock: Clock,
+    private readonly mailer: MailerService,
   ) {}
 
   isRequiredFor(role: AuthUser['role']): boolean {
@@ -65,8 +70,23 @@ export class MfaService {
     };
   }
 
-  async startTotpSetup(user: AuthUser): Promise<TotpSetup> {
+  /**
+   * Needs the password again: a stolen session alone must not be able to bind
+   * an attacker's authenticator (and lock the owner out after confirming).
+   */
+  async startTotpSetup(user: AuthUser, password: string): Promise<TotpSetup> {
     if (user.mfaEnabled) throw mfaAlreadyEnabled();
+    const account = await this.users.findById(user.id);
+    const passwordOk =
+      !!account?.passwordHash &&
+      (await this.passwordHasher.verify(account.passwordHash, password));
+    if (!passwordOk) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'INVALID_CREDENTIALS',
+        message: 'Invalid email or password',
+      });
+    }
     const secret = generateTotpSecret();
     await this.mfa.saveUnconfirmedTotp(user.id, this.secretBox.encrypt(secret));
     return {
@@ -95,6 +115,13 @@ export class MfaService {
       this.clock.now(),
       codes.map(hashRecoveryCode),
     );
+    // Best effort: the factor is already on; the notice lets the owner react
+    // if it was not them.
+    void this.mailer.sendMfaEnabledNotice(user.email).catch((error) => {
+      this.logger.error(
+        `MFA enabled notice failed: ${error instanceof Error ? error.name : 'UnknownError'}`,
+      );
+    });
     return codes;
   }
 
