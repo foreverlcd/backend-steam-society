@@ -23,11 +23,11 @@
 3. PROGRESS: fila nueva y quitar este pendiente de la lista.
 
 ## Criterio de terminado
-- [ ] `turnserver.conf` tiene `no-tcp-relay` y el comentario explica el límite.
-- [ ] DEPLOY-ORACLE documenta las reglas OUTPUT, cómo verlas y por qué no ponerlas sin ACCEPT previo.
-- [ ] Tests nuevos para: ninguno (configuración; validación con `docker compose config` y `turnserver` en local si es posible)
-- [ ] `scripts/gate.sh full` en verde
-- [ ] Docs actualizados: DEPLOY-ORACLE, PROGRESS
+- [x] `turnserver.conf` tiene `no-tcp-relay` y el comentario explica el límite.
+- [x] DEPLOY-ORACLE documenta las reglas OUTPUT, cómo verlas y por qué no ponerlas sin ACCEPT previo.
+- [x] Tests nuevos para: ninguno (configuración; validación con `docker compose config` y `turnserver` en local si es posible)
+- [x] `scripts/gate.sh full` en verde
+- [x] Docs actualizados: DEPLOY-ORACLE, PROGRESS
 
 ## Fuera de alcance
 - Cambiar la topología (otra VM para TURN) o quitar `allowed-peer-ip`.
@@ -35,3 +35,5 @@
 ## Bitácora
 | Fecha | Quién | Qué pasó |
 |---|---|---|
+| 2026-11-20 | Planificador | Implementado; `turnserver` 4.7.0 acepta `no-tcp-relay` (log: "TCP relay endpoints are not allowed"); gate full en verde |
+| 2026-11-20 | codex (revisor) | Pidió mover el plan a completed/; el otro hallazgo (pendiente aún listado en PROGRESS) era falso: el diff ya lo quitaba |
