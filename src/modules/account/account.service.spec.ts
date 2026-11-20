@@ -21,6 +21,7 @@ const USER: AuthUser = {
   birthDate: null,
   emailVerified: true,
   mfaEnabled: false,
+  guardianConsentPending: false,
 };
 const PROOF = { password: 'test-only-password' };
 

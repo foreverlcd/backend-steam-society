@@ -12,9 +12,13 @@ import type { Request } from 'express';
 import { CLOCK, type Clock } from '../../shared/clock/clock.js';
 import { resolveSessionCookieName } from '../../shared/http/session-cookie.js';
 import type { AuthUser } from './auth.types.js';
-import type { RegisterInput } from './auth.schemas.js';
+import type {
+  GuardianConsentResendInput,
+  RegisterInput,
+} from './auth.schemas.js';
 import {
   GUARDIAN_CONSENT_MIN_AGE,
+  GUARDIAN_CONSENT_TOKEN_TTL_DAYS,
   LEGAL_TERMS_VERSION,
   ageInYears,
 } from './legal-terms.js';
@@ -59,8 +63,7 @@ export class AuthService {
       });
     }
 
-    const needsGuardian =
-      ageInYears(birthDate, now) < GUARDIAN_CONSENT_MIN_AGE;
+    const needsGuardian = ageInYears(birthDate, now) < GUARDIAN_CONSENT_MIN_AGE;
     if (needsGuardian && input.guardianConsent !== true) {
       throw new BadRequestException({
         statusCode: 400,
@@ -68,6 +71,9 @@ export class AuthService {
         message: 'Users under 14 need consent from a parent or guardian',
       });
     }
+    const guardianEmail = needsGuardian
+      ? this.checkGuardianEmail(input.guardianEmail, email)
+      : null;
 
     if (await this.users.findByEmail(email)) {
       throw emailTaken();
@@ -86,7 +92,7 @@ export class AuthService {
         lastName: input.lastName,
         termsAcceptedAt: now,
         termsVersion: LEGAL_TERMS_VERSION,
-        guardianConsentAt: input.guardianConsent === true ? now : null,
+        guardianEmail,
       });
       // The account exists even if the e-mail provider is down; the user can
       // ask for a new link later (POST /auth/email/resend).
@@ -95,7 +101,18 @@ export class AuthService {
           `Verification email failed: ${error instanceof Error ? error.name : 'UnknownError'}`,
         );
       });
-      return toAuthUser(user);
+      if (guardianEmail !== null) {
+        void this.sendGuardianConsentRequest(
+          user.id,
+          guardianEmail,
+          user.firstName,
+        ).catch((error) => {
+          this.logger.error(
+            `Guardian consent email failed: ${error instanceof Error ? error.name : 'UnknownError'}`,
+          );
+        });
+      }
+      return toAuthUser(user, now);
     } catch (error) {
       if (isUniqueConstraintError(error)) {
         throw emailTaken();
@@ -125,7 +142,7 @@ export class AuthService {
       throw invalidCredentials();
     }
 
-    return toAuthUser(user);
+    return toAuthUser(user, this.clock.now());
   }
 
   /** Signs the user in: a fresh session id bound to the user. */
@@ -171,7 +188,7 @@ export class AuthService {
     if (!user || user.status !== 'active' || user.deletedAt !== null) {
       throw invalidCredentials();
     }
-    return toAuthUser(user);
+    return toAuthUser(user, this.clock.now());
   }
 
   async sendEmailVerification(userId: string, email: string): Promise<void> {
@@ -197,6 +214,91 @@ export class AuthService {
       });
     }
     await this.sendEmailVerification(user.id, user.email);
+  }
+
+  /** E-mails the parent/guardian a one-time consent link (7 days). */
+  private async sendGuardianConsentRequest(
+    userId: string,
+    guardianEmail: string,
+    childFirstName: string | null,
+    correctedEmail = false,
+  ): Promise<void> {
+    const token = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(
+      this.clock.now().getTime() +
+        GUARDIAN_CONSENT_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const created = await this.users.createGuardianConsentToken(
+      userId,
+      hashToken(token),
+      expiresAt,
+      correctedEmail ? guardianEmail : undefined,
+    );
+    if (!created) throw guardianConsentNotPending();
+    await this.mailer.sendGuardianConsentRequest(
+      guardianEmail,
+      childFirstName,
+      token,
+      GUARDIAN_CONSENT_TOKEN_TTL_DAYS,
+    );
+  }
+
+  /** The user asks for a new consent link, maybe to a corrected address. */
+  async resendGuardianConsent(
+    user: AuthUser,
+    input: GuardianConsentResendInput,
+  ): Promise<void> {
+    const stored = await this.users.findById(user.id);
+    if (!user.guardianConsentPending || !stored?.guardianEmail) {
+      throw guardianConsentNotPending();
+    }
+    const corrected =
+      input.guardianEmail === undefined
+        ? undefined
+        : this.checkGuardianEmail(input.guardianEmail, user.email);
+    await this.sendGuardianConsentRequest(
+      user.id,
+      corrected ?? stored.guardianEmail,
+      user.firstName,
+      corrected !== undefined,
+    );
+  }
+
+  /** The parent/guardian authorises from the e-mailed link. */
+  async confirmGuardianConsent(token: string): Promise<void> {
+    const consumed = await this.users.consumeGuardianConsentToken(
+      hashToken(token),
+      this.clock.now(),
+    );
+    if (!consumed) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'INVALID_GUARDIAN_TOKEN',
+        message: 'Invalid or expired consent link',
+      });
+    }
+  }
+
+  private checkGuardianEmail(
+    guardianEmail: string | undefined,
+    userEmail: string,
+  ): string {
+    if (guardianEmail === undefined) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'GUARDIAN_EMAIL_REQUIRED',
+        message: 'Users under 14 must give a parent or guardian email',
+      });
+    }
+    const normalized = normalizeEmail(guardianEmail);
+    if (normalized === normalizeEmail(userEmail)) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'GUARDIAN_EMAIL_SAME_AS_USER',
+        message: 'The guardian email must be different from yours',
+      });
+    }
+    return normalized;
   }
 
   /** Confirms an address: the current one, or a requested change. */
@@ -338,6 +440,14 @@ export function invalidCredentials(): UnauthorizedException {
     statusCode: 401,
     code: 'INVALID_CREDENTIALS',
     message: 'Invalid email or password',
+  });
+}
+
+function guardianConsentNotPending(): ConflictException {
+  return new ConflictException({
+    statusCode: 409,
+    code: 'GUARDIAN_CONSENT_NOT_PENDING',
+    message: 'This account does not need guardian consent',
   });
 }
 

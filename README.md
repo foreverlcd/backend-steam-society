@@ -115,15 +115,17 @@ después de que la API ya está levantada. Cuando la base vuelve, `/health` resp
 | Método | Ruta                                                                                        | Autenticación            | Descripción                                                                       |
 | ------ | ------------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------- |
 | GET    | `/health`                                                                                   | Pública                  | Estado de la API y de la base                                                     |
-| POST   | `/v1/auth/register`                                                                         | Pública                  | Registro `mentee` o `mentor`; exige `acceptTerms: true` (y `guardianConsent` si <14) |
+| POST   | `/v1/auth/register`                                                                         | Pública                  | Registro `mentee` o `mentor`; exige `acceptTerms: true` (y `guardianConsent` + `guardianEmail` si <14) |
 | POST   | `/v1/auth/login`                                                                            | Pública                  | Crea la sesión; con 2FA activo responde `{ "mfaRequired": true }`                 |
 | POST   | `/v1/auth/login/mfa`                                                                        | Pública (reto pendiente) | Segundo paso con `{ "code" }` o `{ "recoveryCode" }`                              |
 | POST   | `/v1/auth/email/verify`                                                                     | Pública                  | Confirma el correo con `{ "token" }` (204)                                        |
 | POST   | `/v1/auth/email/resend`                                                                     | Sesión                   | Reenvía el enlace de verificación (202; `409 EMAIL_ALREADY_VERIFIED`)             |
+| POST   | `/v1/auth/guardian-consent/confirm`                                                         | Pública                  | El adulto autoriza a una menor de 14 con `{ "token" }` (204; `400 INVALID_GUARDIAN_TOKEN`) |
+| POST   | `/v1/me/guardian-consent/resend`                                                            | Sesión                   | Nuevo enlace al adulto; `{ "guardianEmail" }` opcional lo corrige (202; `409 GUARDIAN_CONSENT_NOT_PENDING`) |
 | POST   | `/v1/auth/logout`                                                                           | Sesión                   | Destruye la sesión                                                                |
 | POST   | `/v1/auth/password/forgot`                                                                  | Pública                  | Solicita enlace de recuperación                                                   |
 | POST   | `/v1/auth/password/reset`                                                                   | Pública                  | Consume el token y cambia la contraseña                                           |
-| GET    | `/v1/me`                                                                                    | Sesión                   | Devuelve la usuaria autenticada (incluye `emailVerified` y `mfaEnabled`)          |
+| GET    | `/v1/me`                                                                                    | Sesión                   | Devuelve la usuaria autenticada (incluye `emailVerified`, `mfaEnabled` y `guardianConsentPending`)          |
 | GET    | `/v1/me/mfa`                                                                                | Sesión                   | Estado del 2FA: `{ enabled, required, recoveryCodesRemaining }`                   |
 | POST   | `/v1/me/mfa/totp/setup`                                                                     | Sesión                   | Pide `{ "password" }` (401 `INVALID_CREDENTIALS` si no coincide) e inicia: `{ secret, otpauthUri }` |
 | POST   | `/v1/me/mfa/totp/confirm`                                                                   | Sesión                   | Confirma con `{ "code" }`, devuelve `{ recoveryCodes }` (una sola vez), cierra las demás sesiones y avisa por correo |
@@ -185,11 +187,21 @@ curl -i -X POST http://localhost:3000/v1/auth/register \
 - `acceptTerms` es obligatorio y debe ser `true` (si falta o es `false`: 400 de
   validación). Se guarda `terms_accepted_at` y `terms_version`
   (`LEGAL_TERMS_VERSION` en `src/modules/auth/legal-terms.ts`).
-- `guardianConsent` (opcional, boolean): consentimiento de madre, padre o tutor.
-  Si la persona tiene menos de 14 años según el reloj del servidor (UTC) y no
-  llega `guardianConsent: true`, responde `400 GUARDIAN_CONSENT_REQUIRED`. Con
-  `true` se guarda `guardian_consent_at`. Los textos legales son borradores
-  pendientes de revisión legal (DA-01, DA-04).
+- Menores de 14 años (según el reloj del servidor, UTC): deben enviar
+  `guardianConsent: true` (si no, `400 GUARDIAN_CONSENT_REQUIRED`) y
+  `guardianEmail`, el correo de su madre, padre o tutor (si falta,
+  `400 GUARDIAN_EMAIL_REQUIRED`; si es su propio correo,
+  `400 GUARDIAN_EMAIL_SAME_AS_USER`). La cuenta se crea con
+  `guardian_consent_at` nulo y el adulto recibe un enlace de un solo uso
+  (`APP_URL/guardian-consent?token=`, válido 7 días). La página pide un clic
+  explícito y llama a `POST /v1/auth/guardian-consent/confirm`. Mientras falte,
+  `/v1/me` trae `guardianConsentPending: true` y las rutas que exigen correo
+  verificado (reservar, enviar perfil) responden
+  `403 GUARDIAN_CONSENT_PENDING`. La usuaria puede pedir otro enlace o corregir
+  el correo con `POST /v1/me/guardian-consent/resend` (invalida los anteriores).
+  Al cumplir 14 deja de estar pendiente. La exportación incluye
+  `guardianEmail` y el borrado lo elimina. Los textos legales y el método de
+  verificación son borradores pendientes de revisión legal (DA-01, DA-04).
 
 ### Sesiones, CSRF y CORS
 

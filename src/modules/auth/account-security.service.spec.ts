@@ -25,6 +25,7 @@ function user(overrides: Partial<AuthUser> = {}): AuthUser {
     birthDate: null,
     emailVerified: true,
     mfaEnabled: false,
+    guardianConsentPending: false,
     ...overrides,
   };
 }

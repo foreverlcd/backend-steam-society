@@ -12,6 +12,11 @@ export interface AuthUser {
   emailVerified: boolean;
   /** True when a confirmed TOTP second factor protects the account. */
   mfaEnabled: boolean;
+  /**
+   * Under 14 and the parent/guardian has not yet confirmed from the e-mailed
+   * link: the account cannot book or submit a profile until then.
+   */
+  guardianConsentPending: boolean;
 }
 
 declare global {

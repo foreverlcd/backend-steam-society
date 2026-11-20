@@ -15,12 +15,16 @@ import { AllowWithoutMfa } from '../../shared/http/account-policy.decorators.js'
 import { Public } from '../../shared/http/public.decorator.js';
 import {
   forgotPasswordSchema,
+  guardianConsentResendSchema,
+  guardianConsentTokenSchema,
   loginMfaSchema,
   loginSchema,
   registerSchema,
   resetPasswordSchema,
   verifyEmailSchema,
   type ForgotPasswordInput,
+  type GuardianConsentResendInput,
+  type GuardianConsentTokenInput,
   type LoginInput,
   type LoginMfaInput,
   type RegisterInput,
@@ -111,6 +115,23 @@ export class AuthController {
     await this.authService.verifyEmail(body.token);
   }
 
+  /**
+   * The parent/guardian of an under-14 user authorises from the e-mailed
+   * link. Public: the adult has no account. The web page asks for an explicit
+   * click; opening the link alone never confirms.
+   */
+  @Public()
+  @Post('guardian-consent/confirm')
+  @HttpCode(204)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async confirmGuardianConsent(
+    @Body({ schema: guardianConsentTokenSchema })
+    body: GuardianConsentTokenInput,
+  ): Promise<void> {
+    await this.authService.confirmGuardianConsent(body.token);
+  }
+
   @AllowWithoutMfa()
   @Post('email/resend')
   @HttpCode(202)
@@ -171,9 +192,25 @@ export class AuthController {
 
 @Controller('me')
 export class MeController {
+  constructor(private readonly authService: AuthService) {}
+
   @AllowWithoutMfa()
   @Get()
   getMe(@CurrentUser() user: AuthUser): AuthUser {
     return user;
+  }
+
+  /** New consent link for the parent/guardian, maybe to a corrected address. */
+  @Post('guardian-consent/resend')
+  @HttpCode(202)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  async resendGuardianConsent(
+    @CurrentUser() user: AuthUser,
+    @Body({ schema: guardianConsentResendSchema })
+    body: GuardianConsentResendInput,
+  ): Promise<{ status: string }> {
+    await this.authService.resendGuardianConsent(user, body);
+    return { status: 'accepted' };
   }
 }

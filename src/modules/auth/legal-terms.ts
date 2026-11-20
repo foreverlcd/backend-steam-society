@@ -11,6 +11,9 @@ export const LEGAL_TERMS_VERSION = '2026-11-18';
  */
 export const GUARDIAN_CONSENT_MIN_AGE = 14;
 
+/** How long the parent/guardian consent link stays valid. */
+export const GUARDIAN_CONSENT_TOKEN_TTL_DAYS = 7;
+
 /** Completed years at `now`, both read as UTC calendar dates. */
 export function ageInYears(birthDate: Date, now: Date): number {
   let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
