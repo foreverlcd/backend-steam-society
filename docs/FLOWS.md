@@ -257,7 +257,7 @@ sequenceDiagram
   end
 ```
 
-- El admin sin 2FA entra, pero `AccountPolicyGuard` responde `403 MFA_ENROLLMENT_REQUIRED` en todo salvo las rutas con `@AllowWithoutMfa` (`/me`, logout, `/me/mfa/*`, reenvío de verificación). Debe activar el 2FA con `POST /v1/me/mfa/totp/setup` y `totp/confirm`.
+- El admin sin 2FA entra, pero `AccountPolicyGuard` responde `403 MFA_ENROLLMENT_REQUIRED` en todo salvo las rutas con `@AllowWithoutMfa` (`/me`, logout, `/me/mfa/*`, reenvío de verificación). Debe activar el 2FA con `POST /v1/me/mfa/totp/setup` (con su contraseña) y `totp/confirm` (aviso por correo `auth.mfa_enabled`).
 - El secreto TOTP se cifra con AES-256-GCM (`secret-box.ts`, `MFA_ENCRYPTION_KEY`). Detalle de las tablas en `docs/03-DATA-MODEL.md`.
 
 ## 11. Dónde tocar qué

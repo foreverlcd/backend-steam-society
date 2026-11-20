@@ -1282,7 +1282,7 @@ describe('Bookings (e2e)', () => {
         .send({ email: session.email, password: session.password })
         .expect(200);
       const cookie = sessionCookie(login.headers['set-cookie']);
-      await enrollTotp(app, cookie);
+      await enrollTotp(app, cookie, session.password);
       return { cookie, id: user.id };
     }
 

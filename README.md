@@ -125,8 +125,8 @@ después de que la API ya está levantada. Cuando la base vuelve, `/health` resp
 | POST   | `/v1/auth/password/reset`                                                                   | Pública                  | Consume el token y cambia la contraseña                                           |
 | GET    | `/v1/me`                                                                                    | Sesión                   | Devuelve la usuaria autenticada (incluye `emailVerified` y `mfaEnabled`)          |
 | GET    | `/v1/me/mfa`                                                                                | Sesión                   | Estado del 2FA: `{ enabled, required, recoveryCodesRemaining }`                   |
-| POST   | `/v1/me/mfa/totp/setup`                                                                     | Sesión                   | Inicia la configuración: `{ secret, otpauthUri }`                                 |
-| POST   | `/v1/me/mfa/totp/confirm`                                                                   | Sesión                   | Confirma con `{ "code" }` y devuelve `{ recoveryCodes }` (una sola vez)           |
+| POST   | `/v1/me/mfa/totp/setup`                                                                     | Sesión                   | Pide `{ "password" }` (401 `INVALID_CREDENTIALS` si no coincide) e inicia: `{ secret, otpauthUri }` |
+| POST   | `/v1/me/mfa/totp/confirm`                                                                   | Sesión                   | Confirma con `{ "code" }`, devuelve `{ recoveryCodes }` (una sola vez), cierra las demás sesiones y avisa por correo |
 | POST   | `/v1/me/mfa/recovery-codes`                                                                 | Sesión                   | Regenera los códigos con `{ "code" }`                                             |
 | POST   | `/v1/me/mfa/disable`                                                                        | Sesión                   | Desactiva con `{ "password", "code" }` (204; no permitido al admin)               |
 | GET    | `/v1/me/sessions`                                                                           | Sesión                   | Sesiones activas: `{ id, current, signedInAt, lastActiveAt, userAgent }`          |
@@ -216,8 +216,9 @@ curl -i -X POST http://localhost:3000/v1/auth/register \
   `@RequireVerifiedEmail` (`POST /v1/bookings`, `POST /v1/me/profile/submit`)
   responden `403 EMAIL_NOT_VERIFIED`.
 - 2FA con TOTP (RFC 6238: SHA-1, 6 dígitos, 30 s, tolerancia de ±1 paso), sin
-  dependencias nuevas. Configurar: `totp/setup` (muestra el secreto y el URI
-  `otpauth://`) y `totp/confirm` con el primer código; devuelve 10 códigos de
+  dependencias nuevas. Configurar: `totp/setup` con la contraseña (una sesión
+  robada no basta para atar otra app; muestra el secreto y el URI `otpauth://`)
+  y `totp/confirm` con el primer código, que avisa por correo (`auth.mfa_enabled`); devuelve 10 códigos de
   recuperación `XXXXX-XXXXX` de un solo uso. Un código TOTP no se acepta dos veces.
 - Es **obligatorio para `admin`**: sin 2FA solo puede usar `/me`, logout,
   `/me/mfa/*` y el reenvío de verificación; el resto responde

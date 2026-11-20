@@ -21,6 +21,12 @@ class FakeMailer {
   async sendEmailVerification(to: string, token: string): Promise<void> {
     this.verifications.push({ to, token });
   }
+
+  readonly mfaNotices: string[] = [];
+
+  async sendMfaEnabledNotice(to: string): Promise<void> {
+    this.mfaNotices.push(to);
+  }
 }
 
 function sessionCookie(setCookie: string | string[] | undefined): string {
@@ -548,7 +554,7 @@ describe('Auth (e2e)', () => {
       const firstCookie = sessionCookie(
         (await login(email, password)).headers['set-cookie'],
       );
-      const { secret } = await enrollTotp(app, firstCookie);
+      const { secret } = await enrollTotp(app, firstCookie, password);
 
       const challenge = await login(email, password);
       expect(challenge.body).toEqual({ mfaRequired: true });
@@ -594,7 +600,7 @@ describe('Auth (e2e)', () => {
       const cookie = sessionCookie(
         (await login(email, password)).headers['set-cookie'],
       );
-      const { recoveryCodes } = await enrollTotp(app, cookie);
+      const { recoveryCodes } = await enrollTotp(app, cookie, password);
 
       const first = sessionCookie(
         (await login(email, password)).headers['set-cookie'],
@@ -645,7 +651,20 @@ describe('Auth (e2e)', () => {
         recoveryCodesRemaining: 0,
       });
 
-      const { secret } = await enrollTotp(app, cookie);
+      // Setup asks for the password again: a stolen session is not enough.
+      await request(app.getHttpServer())
+        .post('/v1/me/mfa/totp/setup')
+        .set('Cookie', cookie)
+        .expect(400);
+      const wrong = await request(app.getHttpServer())
+        .post('/v1/me/mfa/totp/setup')
+        .set('Cookie', cookie)
+        .send({ password: 'test-only-not-the-password' })
+        .expect(401);
+      expect(wrong.body.code).toBe('INVALID_CREDENTIALS');
+
+      const { secret } = await enrollTotp(app, cookie, password);
+      expect(mailer.mfaNotices).toContain(email);
       await request(app.getHttpServer())
         .get('/v1/admin/mentors')
         .set('Cookie', cookie)
