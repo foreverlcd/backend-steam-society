@@ -21,6 +21,7 @@ import { SessionAuthGuard } from './session-auth.guard.js';
 import { SessionRepository } from './session.repository.js';
 import { UserRepository } from './user.repository.js';
 import { AuthPersonalData } from './auth-personal-data.js';
+import { throttleTracker } from './throttle-tracker.js';
 
 @Module({
   imports: [
@@ -32,29 +33,7 @@ import { AuthPersonalData } from './auth-personal-data.js';
         // Load tests from one machine would only measure the limiter. Env
         // validation refuses THROTTLE_DISABLED=true in production.
         skipIf: () => process.env.THROTTLE_DISABLED === 'true',
-        getTracker: (request: Record<string, unknown>) => {
-          // Signed-in requests are limited per account, so people sharing an
-          // IP (a school, a NAT) do not exhaust each other's quota.
-          const session = request.session as
-            { userId?: unknown; pendingMfa?: { userId?: unknown } } | undefined;
-          if (typeof session?.userId === 'string') {
-            return `user:${session.userId}`;
-          }
-          // Second-factor guesses are limited per account, whatever the IP.
-          if (typeof session?.pendingMfa?.userId === 'string') {
-            return `mfa:${session.pendingMfa.userId}`;
-          }
-
-          const email =
-            typeof request.body === 'object' &&
-            request.body !== null &&
-            'email' in request.body &&
-            typeof request.body.email === 'string'
-              ? request.body.email.trim().toLowerCase().slice(0, 254)
-              : 'anonymous';
-          const ip = typeof request.ip === 'string' ? request.ip : 'unknown';
-          return `${ip}:${email}`;
-        },
+        getTracker: throttleTracker,
       },
     ]),
   ],
