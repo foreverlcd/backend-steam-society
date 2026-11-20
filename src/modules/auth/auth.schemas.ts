@@ -45,6 +45,11 @@ export const verifyEmailSchema = z.object({
 
 export const totpCodeBodySchema = z.object({ code: totpCodeSchema }).strict();
 
+/** Starting 2FA setup needs the password again (stolen-session protection). */
+export const totpSetupSchema = z
+  .object({ password: z.string().min(1).max(128) })
+  .strict();
+
 export const disableMfaSchema = z
   .object({ password: z.string().min(1).max(128), code: totpCodeSchema })
   .strict();
@@ -68,6 +73,7 @@ export type ChangeEmailInput = z.infer<typeof changeEmailSchema>;
 export type LoginMfaInput = z.infer<typeof loginMfaSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 export type TotpCodeBody = z.infer<typeof totpCodeBodySchema>;
+export type TotpSetupInput = z.infer<typeof totpSetupSchema>;
 export type DisableMfaInput = z.infer<typeof disableMfaSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

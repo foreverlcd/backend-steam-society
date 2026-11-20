@@ -3,6 +3,7 @@ import type { ConfigService } from '@nestjs/config';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Clock } from '../../shared/clock/clock.js';
 import type { AuthUser } from './auth.types.js';
+import type { MailerService } from './mailer.service.js';
 import type { MfaRepository, TotpState } from './mfa.repository.js';
 import {
   generateRecoveryCodes,
@@ -79,6 +80,7 @@ describe('MfaService', () => {
   let service: MfaService;
   let now: Date;
   const verifyPassword = vi.fn();
+  const mfaNotice = vi.fn().mockResolvedValue(undefined);
 
   beforeEach(() => {
     repo = new FakeMfaRepository();
@@ -91,17 +93,21 @@ describe('MfaService', () => {
     } as unknown as UserRepository;
     const hasher = { verify: verifyPassword } as unknown as PasswordHasher;
     const clock: Clock = { now: () => now };
+    verifyPassword.mockReset();
+    verifyPassword.mockResolvedValue(true);
+    mfaNotice.mockClear();
     service = new MfaService(
       repo as unknown as MfaRepository,
       users,
       secretBox,
       hasher,
       clock,
+      { sendMfaEnabledNotice: mfaNotice } as unknown as MailerService,
     );
   });
 
   async function enroll(): Promise<{ secret: string; codes: string[] }> {
-    const { secret } = await service.startTotpSetup(user());
+    const { secret } = await service.startTotpSetup(user(), 'right');
     const codes = await service.confirmTotpSetup(
       user(),
       totpCodeForStep(secret, totpTimeStep(now)),
@@ -110,7 +116,7 @@ describe('MfaService', () => {
   }
 
   it('enrolls with a valid first code and returns 10 one-time recovery codes', async () => {
-    const setup = await service.startTotpSetup(user());
+    const setup = await service.startTotpSetup(user(), 'right');
     expect(setup.otpauthUri).toContain(`secret=${setup.secret}`);
     expect(repo.totp?.secretCiphertext).not.toContain(setup.secret);
 
@@ -127,8 +133,21 @@ describe('MfaService', () => {
     );
   });
 
+  it('needs the password to start the setup (stolen session)', async () => {
+    verifyPassword.mockResolvedValueOnce(false);
+    await expect(service.startTotpSetup(user(), 'wrong')).rejects.toMatchObject(
+      { response: { code: 'INVALID_CREDENTIALS' } },
+    );
+    expect(repo.totp).toBeNull();
+  });
+
+  it('e-mails the owner once 2FA is on', async () => {
+    await enroll();
+    expect(mfaNotice).toHaveBeenCalledWith('ana@example.com');
+  });
+
   it('rejects a wrong first code', async () => {
-    await service.startTotpSetup(user());
+    await service.startTotpSetup(user(), 'right');
     await expect(
       service.confirmTotpSetup(user(), '000000'),
     ).rejects.toMatchObject({
@@ -147,7 +166,7 @@ describe('MfaService', () => {
 
   it('refuses a second setup once enabled', async () => {
     await expect(
-      service.startTotpSetup(user({ mfaEnabled: true })),
+      service.startTotpSetup(user({ mfaEnabled: true }), 'right'),
     ).rejects.toMatchObject({
       response: { code: 'MFA_ALREADY_ENABLED' },
     });
@@ -179,7 +198,7 @@ describe('MfaService', () => {
   });
 
   it('never verifies against an unconfirmed factor', async () => {
-    const { secret } = await service.startTotpSetup(user());
+    const { secret } = await service.startTotpSetup(user(), 'right');
     const code = totpCodeForStep(secret, totpTimeStep(now));
     expect(await service.verifySecondFactor('user-1', { code })).toBe(false);
   });

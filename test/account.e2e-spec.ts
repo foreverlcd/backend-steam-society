@@ -425,7 +425,7 @@ describe('Account data rights (e2e)', () => {
 
   it('asks for the second factor when the account has one', async () => {
     const mentee = await createMentee();
-    const { secret } = await enrollTotp(app, mentee.cookie);
+    const { secret } = await enrollTotp(app, mentee.cookie, mentee.password);
 
     const missing = await deleteAccount(mentee.cookie, {
       password: mentee.password,
@@ -455,7 +455,7 @@ describe('Account data rights (e2e)', () => {
       .send({ email: admin.email, password: admin.password })
       .expect(200);
     const cookie = sessionCookie(login.headers['set-cookie']);
-    const { secret } = await enrollTotp(app, cookie);
+    const { secret } = await enrollTotp(app, cookie, admin.password);
 
     const response = await deleteAccount(cookie, {
       password: admin.password,

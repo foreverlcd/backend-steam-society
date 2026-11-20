@@ -31,6 +31,9 @@ class FakeMailer {
   async sendPasswordChangedNotice(to: string): Promise<void> {
     this.notices.push({ kind: 'password_changed', to });
   }
+  async sendMfaEnabledNotice(to: string): Promise<void> {
+    this.notices.push({ kind: 'mfa_enabled', to });
+  }
 }
 
 function sessionCookie(setCookie: string | string[] | undefined): string {
@@ -207,7 +210,7 @@ describe('Account security (e2e)', () => {
     it('asks for the 2FA code when enabled', async () => {
       const email = await signUp();
       const cookie = await login(email);
-      const { secret } = await enrollTotp(app, cookie);
+      const { secret } = await enrollTotp(app, cookie, TEST_PASSWORD);
 
       const missing = await http()
         .post('/v1/me/password')

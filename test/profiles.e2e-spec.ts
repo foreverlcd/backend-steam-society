@@ -103,7 +103,7 @@ describe('Profiles and onboarding (e2e)', () => {
 
     const cookie = sessionCookie(login.headers['set-cookie']);
     // Admins must enroll a second factor before using admin routes (ADR-024).
-    await enrollTotp(app, cookie);
+    await enrollTotp(app, cookie, password);
     return { cookie, id: user.id };
   }
 

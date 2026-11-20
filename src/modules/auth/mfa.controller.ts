@@ -13,8 +13,10 @@ import { AllowWithoutMfa } from '../../shared/http/account-policy.decorators.js'
 import {
   disableMfaSchema,
   totpCodeBodySchema,
+  totpSetupSchema,
   type DisableMfaInput,
   type TotpCodeBody,
+  type TotpSetupInput,
 } from './auth.schemas.js';
 import type { AuthUser } from './auth.types.js';
 import { CurrentUser } from './current-user.decorator.js';
@@ -39,8 +41,11 @@ export class MfaController {
 
   @Post('totp/setup')
   @HttpCode(200)
-  setup(@CurrentUser() user: AuthUser): Promise<TotpSetup> {
-    return this.mfaService.startTotpSetup(user);
+  setup(
+    @CurrentUser() user: AuthUser,
+    @Body({ schema: totpSetupSchema }) body: TotpSetupInput,
+  ): Promise<TotpSetup> {
+    return this.mfaService.startTotpSetup(user, body.password);
   }
 
   @Post('totp/confirm')

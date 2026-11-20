@@ -127,6 +127,18 @@ export class MailerService {
     });
   }
 
+  async sendMfaEnabledNotice(to: string): Promise<void> {
+    await this.send({
+      kind: 'auth.mfa_enabled',
+      to: to,
+      subject: 'Activaste la verificación en dos pasos',
+      text: [
+        'Tu cuenta de Steam Society ahora pide un código de tu app de autenticación al iniciar sesión, y cerramos las demás sesiones.',
+        'Si no fuiste tú, escríbenos respondiendo a este correo para recuperar tu cuenta.',
+      ].join('\n\n'),
+    });
+  }
+
   /** Queues any e-mail; other modules use it for their own templates. */
   async send(email: EmailToQueue): Promise<void> {
     await this.outbox.enqueue(email);

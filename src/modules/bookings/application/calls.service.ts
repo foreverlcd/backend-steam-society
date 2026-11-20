@@ -88,10 +88,15 @@ export class CallsService {
     };
   }
 
-  /** Event stream of one participant; leaving the call ends it. */
+  /**
+   * Event stream of one participant; leaving the call ends it. The stream
+   * re-checks the login session on every ping and ends once it is gone, so
+   * signing out elsewhere (or a password reset) also cuts the call.
+   */
   async join(
     user: AuthUser,
     bookingId: string,
+    sessionAlive: () => Promise<boolean> = async () => true,
   ): Promise<Observable<CallEvent>> {
     const access = await this.openAccess(user, bookingId);
     const closesInMs = access.closesAt.getTime() - this.clock.now().getTime();
@@ -102,10 +107,12 @@ export class CallsService {
         close: () => subscriber.complete(),
       });
       // Keeps proxies from closing an idle stream.
-      const ping = setInterval(
-        () => subscriber.next({ type: 'ping' }),
-        PING_INTERVAL_MS,
-      );
+      const ping = setInterval(() => {
+        subscriber.next({ type: 'ping' });
+        void sessionAlive().then((alive) => {
+          if (!alive) subscriber.complete();
+        });
+      }, PING_INTERVAL_MS);
       const closing = setTimeout(() => subscriber.complete(), closesInMs);
 
       return () => {
