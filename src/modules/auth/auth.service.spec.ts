@@ -37,6 +37,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     termsAcceptedAt: NOW,
     termsVersion: LEGAL_TERMS_VERSION,
     guardianConsentAt: null,
+    guardianEmail: null,
     ...overrides,
   };
 }
@@ -49,8 +50,14 @@ function makeService() {
   const consumeResetToken = vi.fn();
   const createEmailVerificationToken = vi.fn().mockResolvedValue(undefined);
   const consumeEmailVerificationToken = vi.fn();
+  const findById = vi.fn();
+  const createGuardianConsentToken = vi.fn().mockResolvedValue(true);
+  const consumeGuardianConsentToken = vi.fn();
 
   const users = {
+    findById,
+    createGuardianConsentToken,
+    consumeGuardianConsentToken,
     findByEmail,
     create,
     createResetToken,
@@ -69,7 +76,9 @@ function makeService() {
   const sendPasswordReset = vi.fn().mockResolvedValue(undefined);
   const sendEmailVerification = vi.fn().mockResolvedValue(undefined);
   const sendEmailChangedNotice = vi.fn().mockResolvedValue(undefined);
+  const sendGuardianConsentRequest = vi.fn().mockResolvedValue(undefined);
   const mailer = {
+    sendGuardianConsentRequest,
     sendPasswordReset,
     sendEmailVerification,
     sendEmailChangedNotice,
@@ -82,10 +91,19 @@ function makeService() {
 
   const clock: Clock = { now: () => NOW };
   const assertNotBreached = vi.fn().mockResolvedValue(undefined);
-  const breachChecker = { assertNotBreached } as unknown as PasswordBreachChecker;
+  const breachChecker = {
+    assertNotBreached,
+  } as unknown as PasswordBreachChecker;
 
   return {
-    service: new AuthService(users, hasher, mailer, config, breachChecker, clock),
+    service: new AuthService(
+      users,
+      hasher,
+      mailer,
+      config,
+      breachChecker,
+      clock,
+    ),
     mocks: {
       findByEmail,
       create,
@@ -102,6 +120,10 @@ function makeService() {
       configGet,
       assertNotBreached,
       sendEmailChangedNotice,
+      findById,
+      createGuardianConsentToken,
+      consumeGuardianConsentToken,
+      sendGuardianConsentRequest,
     },
   };
 }
@@ -153,7 +175,9 @@ describe('AuthService', () => {
 
     it('rejects an unknown, used or expired verification token', async () => {
       const { service, mocks } = makeService();
-      mocks.consumeEmailVerificationToken.mockResolvedValue({ status: 'invalid' });
+      mocks.consumeEmailVerificationToken.mockResolvedValue({
+        status: 'invalid',
+      });
 
       await expect(service.verifyEmail('nope')).rejects.toMatchObject({
         response: { code: 'INVALID_VERIFICATION_TOKEN' },
@@ -180,7 +204,9 @@ describe('AuthService', () => {
 
     it('refuses an email change to an address taken meanwhile', async () => {
       const { service, mocks } = makeService();
-      mocks.consumeEmailVerificationToken.mockResolvedValue({ status: 'email_taken' });
+      mocks.consumeEmailVerificationToken.mockResolvedValue({
+        status: 'email_taken',
+      });
 
       await expect(service.verifyEmail('token')).rejects.toMatchObject({
         response: { code: 'EMAIL_TAKEN' },
@@ -199,6 +225,7 @@ describe('AuthService', () => {
         birthDate: null,
         emailVerified: true,
         mfaEnabled: false,
+        guardianConsentPending: false,
       };
 
       await expect(
@@ -262,27 +289,88 @@ describe('AuthService', () => {
       expect(mocks.create).not.toHaveBeenCalled();
     });
 
-    it('records guardian consent for an under-14 sign-up', async () => {
+    it('needs the guardian e-mail under 14', async () => {
+      const { service, mocks } = makeService();
+
+      await expect(
+        service.register({
+          email: 'kid@example.com',
+          password: TEST_PASSWORD,
+          role: 'mentee',
+          birthDate: '2012-01-02',
+          acceptTerms: true,
+          guardianConsent: true,
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'GUARDIAN_EMAIL_REQUIRED' },
+      });
+      expect(mocks.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects the user own address as guardian e-mail', async () => {
+      const { service, mocks } = makeService();
+
+      await expect(
+        service.register({
+          email: 'kid@example.com',
+          password: TEST_PASSWORD,
+          role: 'mentee',
+          birthDate: '2012-01-02',
+          acceptTerms: true,
+          guardianConsent: true,
+          guardianEmail: ' KID@example.com',
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'GUARDIAN_EMAIL_SAME_AS_USER' },
+      });
+      expect(mocks.create).not.toHaveBeenCalled();
+    });
+
+    it('stores the guardian e-mail and sends the consent link', async () => {
       const { service, mocks } = makeService();
       mocks.findByEmail.mockResolvedValue(null);
-      mocks.create.mockResolvedValue(makeUser());
+      mocks.create.mockResolvedValue(
+        makeUser({
+          id: 'kid-1',
+          firstName: 'Ana',
+          birthDate: new Date('2012-01-02T00:00:00.000Z'),
+          guardianEmail: 'parent@example.com',
+        }),
+      );
 
-      await service.register({
+      const created = await service.register({
         email: 'kid@example.com',
         password: TEST_PASSWORD,
         role: 'mentee',
         birthDate: '2012-01-02',
         acceptTerms: true,
         guardianConsent: true,
+        guardianEmail: 'Parent@Example.com',
       });
 
       expect(mocks.create).toHaveBeenCalledWith(
         expect.objectContaining({
           termsAcceptedAt: NOW,
           termsVersion: LEGAL_TERMS_VERSION,
-          guardianConsentAt: NOW,
+          guardianEmail: 'parent@example.com',
         }),
       );
+      expect(created.guardianConsentPending).toBe(true);
+      await vi.waitFor(() =>
+        expect(mocks.sendGuardianConsentRequest).toHaveBeenCalledWith(
+          'parent@example.com',
+          'Ana',
+          expect.any(String),
+          7,
+        ),
+      );
+      const token = mocks.sendGuardianConsentRequest.mock.calls[0][2];
+      const [userId, tokenHash, expiresAt, corrected] =
+        mocks.createGuardianConsentToken.mock.calls[0];
+      expect(userId).toBe('kid-1');
+      expect(tokenHash).not.toBe(token);
+      expect(expiresAt).toEqual(new Date('2026-01-08T00:00:00.000Z'));
+      expect(corrected).toBeUndefined();
     });
 
     it('does not ask for guardian consent from the 14th birthday', async () => {
@@ -296,15 +384,129 @@ describe('AuthService', () => {
         role: 'mentee',
         birthDate: '2012-01-01',
         acceptTerms: true,
+        guardianEmail: 'parent@example.com',
       });
 
       expect(mocks.create).toHaveBeenCalledWith(
         expect.objectContaining({
           termsAcceptedAt: NOW,
           termsVersion: LEGAL_TERMS_VERSION,
-          guardianConsentAt: null,
+          guardianEmail: null,
         }),
       );
+      expect(mocks.sendGuardianConsentRequest).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('guardian consent', () => {
+    const pendingKid = {
+      id: 'kid-1',
+      email: 'kid@example.com',
+      role: 'mentee' as const,
+      status: 'active' as const,
+      firstName: 'Ana',
+      lastName: null,
+      birthDate: new Date('2012-01-02T00:00:00.000Z'),
+      emailVerified: true,
+      mfaEnabled: false,
+      guardianConsentPending: true,
+    };
+
+    it('confirms with a valid link', async () => {
+      const { service, mocks } = makeService();
+      mocks.consumeGuardianConsentToken.mockResolvedValue(true);
+
+      await service.confirmGuardianConsent('raw-token');
+
+      const [tokenHash, now] = mocks.consumeGuardianConsentToken.mock.calls[0];
+      expect(tokenHash).not.toBe('raw-token');
+      expect(now).toBe(NOW);
+    });
+
+    it('rejects an unknown, expired or used link', async () => {
+      const { service, mocks } = makeService();
+      mocks.consumeGuardianConsentToken.mockResolvedValue(false);
+
+      await expect(
+        service.confirmGuardianConsent('raw-token'),
+      ).rejects.toMatchObject({
+        response: { code: 'INVALID_GUARDIAN_TOKEN' },
+      });
+    });
+
+    it('resends to the stored guardian address', async () => {
+      const { service, mocks } = makeService();
+      mocks.findById.mockResolvedValue(
+        makeUser({ id: 'kid-1', guardianEmail: 'parent@example.com' }),
+      );
+
+      await service.resendGuardianConsent(pendingKid, {});
+
+      expect(mocks.createGuardianConsentToken).toHaveBeenCalledWith(
+        'kid-1',
+        expect.any(String),
+        expect.any(Date),
+        undefined,
+      );
+      expect(mocks.sendGuardianConsentRequest).toHaveBeenCalledWith(
+        'parent@example.com',
+        'Ana',
+        expect.any(String),
+        7,
+      );
+    });
+
+    it('resends to a corrected guardian address', async () => {
+      const { service, mocks } = makeService();
+      mocks.findById.mockResolvedValue(
+        makeUser({ id: 'kid-1', guardianEmail: 'typo@example.com' }),
+      );
+
+      await service.resendGuardianConsent(pendingKid, {
+        guardianEmail: 'Parent@Example.com',
+      });
+
+      expect(mocks.createGuardianConsentToken).toHaveBeenCalledWith(
+        'kid-1',
+        expect.any(String),
+        expect.any(Date),
+        'parent@example.com',
+      );
+      expect(mocks.sendGuardianConsentRequest).toHaveBeenCalledWith(
+        'parent@example.com',
+        'Ana',
+        expect.any(String),
+        7,
+      );
+    });
+
+    it('does not resend when consent was given meanwhile', async () => {
+      const { service, mocks } = makeService();
+      mocks.findById.mockResolvedValue(
+        makeUser({ id: 'kid-1', guardianEmail: 'parent@example.com' }),
+      );
+      mocks.createGuardianConsentToken.mockResolvedValue(false);
+
+      await expect(
+        service.resendGuardianConsent(pendingKid, {}),
+      ).rejects.toMatchObject({
+        response: { code: 'GUARDIAN_CONSENT_NOT_PENDING' },
+      });
+      expect(mocks.sendGuardianConsentRequest).not.toHaveBeenCalled();
+    });
+
+    it('does not resend when consent is not pending', async () => {
+      const { service, mocks } = makeService();
+
+      await expect(
+        service.resendGuardianConsent(
+          { ...pendingKid, guardianConsentPending: false },
+          {},
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'GUARDIAN_CONSENT_NOT_PENDING' },
+      });
+      expect(mocks.sendGuardianConsentRequest).not.toHaveBeenCalled();
     });
   });
 

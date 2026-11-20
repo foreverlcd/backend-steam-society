@@ -12,8 +12,10 @@ export const registerSchema = z.object({
   lastName: z.string().trim().min(1).max(100).optional(),
   /** Terms of use and privacy notice (DA-04): must be accepted to register. */
   acceptTerms: z.literal(true),
-  /** Parent/guardian consent; required by the service when under 14. */
+  /** The under-14 user says an adult is aware; required by the service. */
   guardianConsent: z.boolean().optional(),
+  /** Parent/guardian address that confirms consent; required when under 14. */
+  guardianEmail: emailSchema.optional(),
 });
 
 export const loginSchema = z.object({
@@ -43,6 +45,15 @@ export const verifyEmailSchema = z.object({
   token: z.string().min(1).max(512),
 });
 
+export const guardianConsentTokenSchema = z
+  .object({ token: z.string().min(1).max(512) })
+  .strict();
+
+/** Sends the consent link again, optionally to a corrected address. */
+export const guardianConsentResendSchema = z
+  .object({ guardianEmail: emailSchema.optional() })
+  .strict();
+
 export const totpCodeBodySchema = z.object({ code: totpCodeSchema }).strict();
 
 /** Starting 2FA setup needs the password again (stolen-session protection). */
@@ -71,6 +82,12 @@ export const changeEmailSchema = z
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ChangeEmailInput = z.infer<typeof changeEmailSchema>;
 export type LoginMfaInput = z.infer<typeof loginMfaSchema>;
+export type GuardianConsentTokenInput = z.infer<
+  typeof guardianConsentTokenSchema
+>;
+export type GuardianConsentResendInput = z.infer<
+  typeof guardianConsentResendSchema
+>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 export type TotpCodeBody = z.infer<typeof totpCodeBodySchema>;
 export type TotpSetupInput = z.infer<typeof totpSetupSchema>;

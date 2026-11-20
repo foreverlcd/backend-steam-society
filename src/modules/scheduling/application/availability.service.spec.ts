@@ -18,6 +18,7 @@ function authUser(overrides: Partial<AuthUser> = {}): AuthUser {
     birthDate: new Date('1990-01-01T00:00:00.000Z'),
     emailVerified: true,
     mfaEnabled: false,
+    guardianConsentPending: false,
     ...overrides,
   };
 }
