@@ -357,6 +357,40 @@ describe('Auth (e2e)', () => {
       ).toBeNull();
     });
 
+    it('refuses an expired guardian link without recording consent', async () => {
+      const email = `kid-${randomUUID()}@example.com`;
+      await request(app.getHttpServer())
+        .post('/v1/auth/register')
+        .send({
+          email,
+          password: 'test-only-correct-horse',
+          role: 'mentee',
+          birthDate: childBirthDate(),
+          acceptTerms: true,
+          guardianConsent: true,
+          guardianEmail: `parent-${randomUUID()}@example.com`,
+        })
+        .expect(201);
+      const kid = await prisma.user.findUniqueOrThrow({ where: { email } });
+      const expiredToken = 'test-only-expired-link';
+      await prisma.guardianConsentToken.create({
+        data: {
+          userId: kid.id,
+          tokenHash: createHash('sha256').update(expiredToken).digest('hex'),
+          expiresAt: new Date(Date.now() - 1_000),
+        },
+      });
+
+      const response = await request(app.getHttpServer())
+        .post('/v1/auth/guardian-consent/confirm')
+        .send({ token: expiredToken })
+        .expect(400);
+
+      expect(response.body.code).toBe('INVALID_GUARDIAN_TOKEN');
+      const after = await prisma.user.findUniqueOrThrow({ where: { email } });
+      expect(after.guardianConsentAt).toBeNull();
+    });
+
     it('rejects an under-14 sign-up without a guardian e-mail', async () => {
       const email = `kid-${randomUUID()}@example.com`;
       const response = await request(app.getHttpServer())
