@@ -19,9 +19,9 @@ Un `GET /bookings/:id/call/events` abierto seguía recibiendo señales hasta `cl
 2. `CallsService.join(user, id, sessionAlive)` la consulta en cada ping y completa el stream si devuelve `false`.
 
 ## Criterio de terminado
-- [ ] Con la sesión borrada, el stream se cierra en el siguiente ping (test unitario con timers falsos).
-- [ ] Sin cambios para sesiones vivas ni para errores del store.
-- [ ] `scripts/gate.sh full` en verde. Docs: FLOWS, PROGRESS.
+- [x] Con la sesión borrada, el stream se cierra en el siguiente ping (test unitario con timers falsos).
+- [x] Sin cambios para sesiones vivas ni para errores del store.
+- [x] `scripts/gate.sh full` en verde. Docs: FLOWS, PROGRESS.
 
 ## Fuera de alcance
 - Avisar al otro participante (ya recibe `peer-left` al cerrarse el stream).
@@ -30,3 +30,5 @@ Un `GET /bookings/:id/call/events` abierto seguía recibiendo señales hasta `cl
 | Fecha | Quién | Qué pasó |
 |---|---|---|
 | 2026-11-20 | Planificador | Plan creado a partir de la revisión de seguridad |
+| 2026-11-20 | Planificador | Implementado; gate full en verde |
+| 2026-11-20 | codex (revisor) | Sin hallazgos de código; pidió mover el plan a completed/ |
