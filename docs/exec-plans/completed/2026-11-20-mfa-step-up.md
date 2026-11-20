@@ -22,11 +22,11 @@ Con una sesión robada de una cuenta sin 2FA, un atacante podía enrolar su prop
 3. Web: pedir la contraseña antes de mostrar el QR.
 
 ## Criterio de terminado
-- [ ] Setup sin contraseña → 400; con contraseña incorrecta → 401 y no se guarda secreto.
-- [ ] Al confirmar se encola el aviso `auth.mfa_enabled`.
-- [ ] Tests unitarios y e2e nuevos; web con test del formulario.
-- [ ] `scripts/gate.sh full` y gate web en verde; capturas de la pantalla de seguridad.
-- [ ] Docs: README, AGENTS (web), PROGRESS.
+- [x] Setup sin contraseña → 400; con contraseña incorrecta → 401 y no se guarda secreto.
+- [x] Al confirmar se encola el aviso `auth.mfa_enabled`.
+- [x] Tests unitarios y e2e nuevos; web con test del formulario.
+- [x] `scripts/gate.sh full` y gate web en verde; capturas de la pantalla de seguridad.
+- [x] Docs: README, AGENTS (web), PROGRESS.
 
 ## Fuera de alcance
 - Cambiar el flujo de desactivación (ya pide contraseña + código).
@@ -35,3 +35,5 @@ Con una sesión robada de una cuenta sin 2FA, un atacante podía enrolar su prop
 | Fecha | Quién | Qué pasó |
 |---|---|---|
 | 2026-11-20 | Planificador | Plan creado a partir de la revisión de seguridad |
+| 2026-11-20 | Planificador | Implementado en backend y web; gates en verde |
+| 2026-11-20 | codex (revisor, dos pasadas) | Cada pasada vio un solo repo y pidió la mitad del otro; juntas, sin hallazgos de código |
