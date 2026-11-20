@@ -375,7 +375,9 @@ localStart, localEnd }` por slot. Los slots ocupados por sesiones no se
   mentora de una reserva `confirmed`.
 - `GET /v1/bookings/:id/call/events` (Server-Sent Events): `ready`,
   `peer-joined`, `peer-left`, `signal`, `replaced` (la misma cuenta abrió la
-  llamada en otra pestaña) y `ping` cada 25 s.
+  llamada en otra pestaña) y `ping` cada 25 s. En cada `ping` se comprueba la
+  sesión: si se cerró (en otro dispositivo, por cambio o reset de contraseña o
+  al activar el 2FA), el stream termina.
 - `POST /v1/bookings/:id/call/signal`: `{ kind: 'description', description }`
   o `{ kind: 'candidate', candidate }`. Responde `{ delivered }`. Límite de 300
   por minuto.

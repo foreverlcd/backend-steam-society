@@ -8,10 +8,12 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Req,
   Sse,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import type { Request } from 'express';
 import { map, type Observable } from 'rxjs';
 import { Roles } from '../../../shared/http/roles.decorator.js';
 import type { AuthUser } from '../../auth/auth.types.js';
@@ -43,8 +45,11 @@ export class CallsController {
   async events(
     @CurrentUser() user: AuthUser,
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() request: Request,
   ): Promise<Observable<MessageEvent>> {
-    const stream = await this.calls.join(user, id);
+    const stream = await this.calls.join(user, id, () =>
+      sessionStillOwnedBy(request, user.id),
+    );
     return stream.pipe(map((event) => ({ data: event })));
   }
 
@@ -61,4 +66,26 @@ export class CallsController {
   ) {
     return this.calls.signal(user, id, body);
   }
+}
+
+/**
+ * Whether the login session of this request still exists and belongs to the
+ * user (revoked sessions are deleted from the store). A store error counts as
+ * alive: a database hiccup must not drop a call in progress.
+ */
+function sessionStillOwnedBy(
+  request: Request,
+  userId: string,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    request.sessionStore.get(request.sessionID, (error, session) => {
+      if (error) {
+        resolve(true);
+        return;
+      }
+      resolve(
+        (session as { userId?: unknown } | null | undefined)?.userId === userId,
+      );
+    });
+  });
 }
