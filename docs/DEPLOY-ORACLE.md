@@ -114,6 +114,20 @@ sudo iptables -L INPUT -n --line-numbers   # el REJECT debe quedar al final
 - No actives `ufw`: choca con estas reglas.
 - Caddy (80/443) pasa por las reglas de Docker; coturn usa la red del host, así que **depende** de estas reglas INPUT.
 
+**Salida de coturn hacia la IP privada.** Para que dos personas que usan TURN se conecten entre sí, coturn permite relayar hacia la IP privada de la VM (`allowed-peer-ip`). Sin más reglas, alguien con una credencial TURN podría usar ese permiso para llegar a otros servicios de la VM por la IP privada. Estas dos reglas lo limitan al rango de relay. coturn corre como `nobody` (uid 65534) después de arrancar; las reglas solo afectan a ese usuario:
+
+```bash
+PRIV=TU_IP_PRIVADA   # la misma de TURN_PRIVATE_IP
+sudo iptables -I OUTPUT 1 -m owner --uid-owner 65534 -d "$PRIV" -p udp --dport 49160:49200 -j ACCEPT
+sudo iptables -I OUTPUT 2 -m owner --uid-owner 65534 -d "$PRIV" -j REJECT
+sudo netfilter-persistent save
+sudo iptables -L OUTPUT -n --line-numbers   # el ACCEPT (1) debe ir antes que el REJECT (2)
+```
+
+- El orden importa: si el `REJECT` queda primero, se cortan las llamadas entre dos personas que usan TURN.
+- `deploy/turnserver.conf` además trae `no-tcp-relay`: el relay es solo UDP, así que tampoco sirve como proxy TCP (SSH, HTTP).
+- Si cambia la IP privada, borra las dos reglas (`sudo iptables -D OUTPUT <número>`) y vuelve a crearlas.
+
 ## 3. Instalar Docker
 
 Repositorio oficial de Docker para Ubuntu (funciona en ARM) [verificado: docs.docker.com/engine/install/ubuntu]:
