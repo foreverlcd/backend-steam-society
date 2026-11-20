@@ -12,7 +12,13 @@ import { AccountPolicyGuard } from './account-policy.guard.js';
 import type { MfaService } from './mfa.service.js';
 import { RolesGuard } from './roles.guard.js';
 import { SessionAuthGuard } from './session-auth.guard.js';
-import type { UserRepository } from './user.repository.js';
+import type { Clock } from '../../shared/clock/clock.js';
+import {
+  isGuardianConsentPending,
+  type UserRepository,
+} from './user.repository.js';
+
+const clock: Clock = { now: () => new Date('2026-01-01T00:00:00.000Z') };
 
 function contextFor(request: Record<string, unknown>): ExecutionContext {
   return {
@@ -35,6 +41,7 @@ describe('SessionAuthGuard', () => {
     const guard = new SessionAuthGuard(
       reflectorReturning({ [IS_PUBLIC_KEY]: true }),
       users,
+      clock,
     );
 
     await expect(guard.canActivate(contextFor({}))).resolves.toBe(true);
@@ -43,7 +50,7 @@ describe('SessionAuthGuard', () => {
 
   it('rejects requests without a session', async () => {
     const users = { findById: vi.fn() } as unknown as UserRepository;
-    const guard = new SessionAuthGuard(reflectorReturning({}), users);
+    const guard = new SessionAuthGuard(reflectorReturning({}), users, clock);
 
     await expect(
       guard.canActivate(contextFor({ session: {} })),
@@ -59,7 +66,7 @@ describe('SessionAuthGuard', () => {
         deletedAt: null,
       }),
     } as unknown as UserRepository;
-    const guard = new SessionAuthGuard(reflectorReturning({}), users);
+    const guard = new SessionAuthGuard(reflectorReturning({}), users, clock);
 
     await expect(
       guard.canActivate(contextFor({ session: { userId: 'user-1', destroy } })),
@@ -81,7 +88,7 @@ describe('SessionAuthGuard', () => {
     const users = {
       findById: vi.fn().mockResolvedValue(user),
     } as unknown as UserRepository;
-    const guard = new SessionAuthGuard(reflectorReturning({}), users);
+    const guard = new SessionAuthGuard(reflectorReturning({}), users, clock);
     const request: Record<string, unknown> = {
       session: { userId: 'user-1' },
     };
@@ -186,5 +193,38 @@ describe('AccountPolicyGuard', () => {
       mfa,
     );
     expect(gated.canActivate(contextFor({ user: verifiedMentee }))).toBe(true);
+  });
+});
+
+describe('isGuardianConsentPending', () => {
+  const kid = {
+    birthDate: new Date('2012-01-02T00:00:00.000Z'),
+    guardianEmail: 'parent@example.com',
+    guardianConsentAt: null,
+  };
+
+  it('is pending under 14 until the adult confirms', () => {
+    expect(isGuardianConsentPending(kid, clock.now())).toBe(true);
+    expect(
+      isGuardianConsentPending(
+        { ...kid, guardianConsentAt: clock.now() },
+        clock.now(),
+      ),
+    ).toBe(false);
+  });
+
+  it('stops being pending on the 14th birthday', () => {
+    expect(
+      isGuardianConsentPending(kid, new Date('2026-01-01T23:59:59.000Z')),
+    ).toBe(true);
+    expect(
+      isGuardianConsentPending(kid, new Date('2026-01-02T00:00:00.000Z')),
+    ).toBe(false);
+  });
+
+  it('never applies without a guardian address', () => {
+    expect(
+      isGuardianConsentPending({ ...kid, guardianEmail: null }, clock.now()),
+    ).toBe(false);
   });
 });

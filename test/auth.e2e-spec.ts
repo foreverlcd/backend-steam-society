@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -330,6 +330,31 @@ describe('Auth (e2e)', () => {
           where: { userId: after.id },
         }),
       ).toBe(0);
+      // A link that outlives the account never records consent.
+      const lateToken = 'test-only-late-link';
+      await prisma.guardianConsentToken.create({
+        data: {
+          userId: after.id,
+          tokenHash: createHash('sha256').update(lateToken).digest('hex'),
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      });
+      await prisma.user.update({
+        where: { id: after.id },
+        data: { guardianConsentAt: null, guardianEmail: 'x@example.com' },
+      });
+      await request(app.getHttpServer())
+        .post('/v1/auth/guardian-consent/confirm')
+        .send({ token: lateToken })
+        .expect(400);
+      const late = await prisma.guardianConsentToken.findFirstOrThrow({
+        where: { userId: after.id },
+      });
+      expect(late.usedAt).toBeNull();
+      expect(
+        (await prisma.user.findUniqueOrThrow({ where: { id: after.id } }))
+          .guardianConsentAt,
+      ).toBeNull();
     });
 
     it('rejects an under-14 sign-up without a guardian e-mail', async () => {

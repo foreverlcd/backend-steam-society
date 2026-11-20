@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   UnauthorizedException,
   type CanActivate,
@@ -6,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
+import { CLOCK, type Clock } from '../../shared/clock/clock.js';
 import { IS_PUBLIC_KEY } from '../../shared/http/public.decorator.js';
 import { UserRepository, toAuthUser } from './user.repository.js';
 
@@ -14,6 +16,7 @@ export class SessionAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly userRepository: UserRepository,
+    @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -48,7 +51,7 @@ export class SessionAuthGuard implements CanActivate {
       });
     }
 
-    request.user = toAuthUser(user);
+    request.user = toAuthUser(user, this.clock.now());
     return true;
   }
 }

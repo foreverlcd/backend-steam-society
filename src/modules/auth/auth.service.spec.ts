@@ -51,7 +51,7 @@ function makeService() {
   const createEmailVerificationToken = vi.fn().mockResolvedValue(undefined);
   const consumeEmailVerificationToken = vi.fn();
   const findById = vi.fn();
-  const createGuardianConsentToken = vi.fn().mockResolvedValue(undefined);
+  const createGuardianConsentToken = vi.fn().mockResolvedValue(true);
   const consumeGuardianConsentToken = vi.fn();
 
   const users = {
@@ -478,6 +478,21 @@ describe('AuthService', () => {
         expect.any(String),
         7,
       );
+    });
+
+    it('does not resend when consent was given meanwhile', async () => {
+      const { service, mocks } = makeService();
+      mocks.findById.mockResolvedValue(
+        makeUser({ id: 'kid-1', guardianEmail: 'parent@example.com' }),
+      );
+      mocks.createGuardianConsentToken.mockResolvedValue(false);
+
+      await expect(
+        service.resendGuardianConsent(pendingKid, {}),
+      ).rejects.toMatchObject({
+        response: { code: 'GUARDIAN_CONSENT_NOT_PENDING' },
+      });
+      expect(mocks.sendGuardianConsentRequest).not.toHaveBeenCalled();
     });
 
     it('does not resend when consent is not pending', async () => {

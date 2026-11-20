@@ -228,12 +228,13 @@ export class AuthService {
       this.clock.now().getTime() +
         GUARDIAN_CONSENT_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
     );
-    await this.users.createGuardianConsentToken(
+    const created = await this.users.createGuardianConsentToken(
       userId,
       hashToken(token),
       expiresAt,
       correctedEmail ? guardianEmail : undefined,
     );
+    if (!created) throw guardianConsentNotPending();
     await this.mailer.sendGuardianConsentRequest(
       guardianEmail,
       childFirstName,
@@ -247,20 +248,9 @@ export class AuthService {
     user: AuthUser,
     input: GuardianConsentResendInput,
   ): Promise<void> {
-    if (!user.guardianConsentPending) {
-      throw new ConflictException({
-        statusCode: 409,
-        code: 'GUARDIAN_CONSENT_NOT_PENDING',
-        message: 'This account does not need guardian consent',
-      });
-    }
     const stored = await this.users.findById(user.id);
-    if (!stored?.guardianEmail) {
-      throw new ConflictException({
-        statusCode: 409,
-        code: 'GUARDIAN_CONSENT_NOT_PENDING',
-        message: 'This account does not need guardian consent',
-      });
+    if (!user.guardianConsentPending || !stored?.guardianEmail) {
+      throw guardianConsentNotPending();
     }
     const corrected =
       input.guardianEmail === undefined
@@ -450,6 +440,14 @@ export function invalidCredentials(): UnauthorizedException {
     statusCode: 401,
     code: 'INVALID_CREDENTIALS',
     message: 'Invalid email or password',
+  });
+}
+
+function guardianConsentNotPending(): ConflictException {
+  return new ConflictException({
+    statusCode: 409,
+    code: 'GUARDIAN_CONSENT_NOT_PENDING',
+    message: 'This account does not need guardian consent',
   });
 }
 

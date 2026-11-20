@@ -22,10 +22,7 @@ export type UserWithMfa = User & { totp: { confirmedAt: Date | null } | null };
 
 const WITH_MFA = { totp: { select: { confirmedAt: true } } } as const;
 
-export function toAuthUser(
-  user: UserWithMfa,
-  now: Date = new Date(),
-): AuthUser {
+export function toAuthUser(user: UserWithMfa, now: Date): AuthUser {
   return {
     id: user.id,
     email: user.email,
@@ -63,6 +60,13 @@ export type EmailTokenOutcome =
       previousEmail: string;
       newEmail: string;
     };
+
+class GuardianConsentNotApplied extends Error {
+  constructor() {
+    super('Guardian consent not applied');
+    this.name = 'GuardianConsentNotApplied';
+  }
+}
 
 export class ResetTokenAlreadyUsedError extends Error {
   constructor() {
@@ -211,16 +215,22 @@ export class UserRepository {
 
   /**
    * Replaces the user's unused consent links with a new one, optionally
-   * correcting the guardian address in the same transaction.
+   * correcting the guardian address in the same transaction. Returns false
+   * (and changes nothing) when, under the row lock, the account is gone or
+   * no longer waiting for consent.
    */
   createGuardianConsentToken(
     userId: string,
     tokenHash: string,
     expiresAt: Date,
     guardianEmail?: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT 1 FROM "user" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+      const [row] = await tx.$queryRaw<Array<{ pending: boolean }>>`
+        SELECT ("guardian_consent_at" IS NULL AND "deleted_at" IS NULL
+                AND "guardian_email" IS NOT NULL) AS pending
+        FROM "user" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+      if (!row?.pending) return false;
       if (guardianEmail !== undefined) {
         await tx.user.update({
           where: { id: userId },
@@ -233,40 +243,48 @@ export class UserRepository {
       await tx.guardianConsentToken.create({
         data: { userId, tokenHash, expiresAt },
       });
+      return true;
     });
   }
 
   /**
-   * Atomically consumes a valid consent link and records the consent once.
-   * Returns false when the link is unknown, expired or already used.
+   * Atomically consumes a valid consent link and records the consent. Returns
+   * false, leaving the link unused, when the link is unknown, expired or used,
+   * or the account no longer waits for consent (deleted, already given).
    */
-  consumeGuardianConsentToken(tokenHash: string, now: Date): Promise<boolean> {
-    return this.prisma.$transaction(async (tx) => {
-      const token = await tx.guardianConsentToken.findFirst({
-        where: { tokenHash, usedAt: null, expiresAt: { gt: now } },
-        select: { id: true, userId: true },
-      });
-      if (!token) return false;
+  async consumeGuardianConsentToken(
+    tokenHash: string,
+    now: Date,
+  ): Promise<boolean> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const token = await tx.guardianConsentToken.findFirst({
+          where: { tokenHash, usedAt: null, expiresAt: { gt: now } },
+          select: { id: true, userId: true },
+        });
+        if (!token) throw new GuardianConsentNotApplied();
 
-      const claimed = await tx.guardianConsentToken.updateMany({
-        where: { id: token.id, usedAt: null },
-        data: { usedAt: now },
-      });
-      if (claimed.count !== 1) return false;
+        const claimed = await tx.guardianConsentToken.updateMany({
+          where: { id: token.id, usedAt: null },
+          data: { usedAt: now },
+        });
+        if (claimed.count !== 1) throw new GuardianConsentNotApplied();
 
-      const updated = await tx.user.updateMany({
-        where: {
-          id: token.userId,
-          guardianConsentAt: null,
-          deletedAt: null,
-          guardianEmail: { not: null },
-        },
-        data: { guardianConsentAt: now },
-      });
-      await tx.guardianConsentToken.deleteMany({
-        where: { userId: token.userId, usedAt: null },
-      });
-      if (updated.count === 1) {
+        const updated = await tx.user.updateMany({
+          where: {
+            id: token.userId,
+            guardianConsentAt: null,
+            deletedAt: null,
+            guardianEmail: { not: null },
+          },
+          data: { guardianConsentAt: now },
+        });
+        // Rolls back the claim too: nothing was authorised.
+        if (updated.count !== 1) throw new GuardianConsentNotApplied();
+
+        await tx.guardianConsentToken.deleteMany({
+          where: { userId: token.userId, usedAt: null },
+        });
         await tx.auditLog.create({
           data: {
             actorUserId: null,
@@ -275,9 +293,12 @@ export class UserRepository {
             entityId: token.userId,
           },
         });
-      }
+      });
       return true;
-    });
+    } catch (error) {
+      if (error instanceof GuardianConsentNotApplied) return false;
+      throw error;
+    }
   }
 
   /**
