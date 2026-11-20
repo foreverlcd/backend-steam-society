@@ -65,4 +65,22 @@ describe('validateEnv', () => {
       }),
     ).toThrow(/rate limiting/);
   });
+
+  it('refuses the example placeholder secrets in production', () => {
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        NODE_ENV: 'production',
+        SESSION_SECRET: 'change-me-at-least-32-characters-long-placeholder',
+      }),
+    ).toThrow(/SESSION_SECRET: still has the example placeholder/);
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        NODE_ENV: 'production',
+        CALL_TURN_SHARED_SECRET:
+          'change-me-openssl-rand-hex-32-at-least-32-chars',
+      }),
+    ).toThrow(/CALL_TURN_SHARED_SECRET: still has the example placeholder/);
+  });
 });

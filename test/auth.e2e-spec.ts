@@ -384,6 +384,33 @@ describe('Auth (e2e)', () => {
       .expect(429);
   });
 
+  it('does not give a fresh login quota to each session cookie', async () => {
+    // Attacker signs in to throwaway accounts and rotates their cookies
+    // against one victim: the limit must still be per IP + victim e-mail.
+    const cookies: string[] = [];
+    for (let index = 0; index < 6; index += 1) {
+      const own = await registerUser();
+      const login = await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .send(own)
+        .expect(200);
+      cookies.push(sessionCookie(login.headers['set-cookie']));
+    }
+
+    const victim = `victim-${randomUUID()}@example.com`;
+    const statuses: number[] = [];
+    for (const cookie of cookies) {
+      const response = await request(app.getHttpServer())
+        .post('/v1/auth/login')
+        .set('Cookie', cookie)
+        .send({ email: victim, password: 'test-only-wrong' });
+      statuses.push(response.status);
+    }
+
+    expect(statuses.slice(0, 5)).toEqual([401, 401, 401, 401, 401]);
+    expect(statuses[5]).toBe(429);
+  });
+
   it('rejects cross-origin state changes and accepts trusted origins', async () => {
     const email = `csrf-${randomUUID()}@example.com`;
 
@@ -427,9 +454,14 @@ describe('Auth (e2e)', () => {
     it('starts unverified, blocks gated actions and verifies once with the emailed link', async () => {
       const { email, password } = await registerUser({ role: 'mentor' });
       await vi.waitFor(() => expect(mailer.verifications).toHaveLength(1));
-      const cookie = sessionCookie((await login(email, password)).headers['set-cookie']);
+      const cookie = sessionCookie(
+        (await login(email, password)).headers['set-cookie'],
+      );
 
-      const me = await request(app.getHttpServer()).get('/v1/me').set('Cookie', cookie).expect(200);
+      const me = await request(app.getHttpServer())
+        .get('/v1/me')
+        .set('Cookie', cookie)
+        .expect(200);
       expect(me.body.emailVerified).toBe(false);
 
       const blocked = await request(app.getHttpServer())
@@ -442,14 +474,20 @@ describe('Auth (e2e)', () => {
       const stored = await prisma.emailVerificationToken.findFirstOrThrow();
       expect(stored.tokenHash).not.toBe(token);
 
-      await request(app.getHttpServer()).post('/v1/auth/email/verify').send({ token }).expect(204);
+      await request(app.getHttpServer())
+        .post('/v1/auth/email/verify')
+        .send({ token })
+        .expect(204);
       const reused = await request(app.getHttpServer())
         .post('/v1/auth/email/verify')
         .send({ token })
         .expect(400);
       expect(reused.body.code).toBe('INVALID_VERIFICATION_TOKEN');
 
-      const after = await request(app.getHttpServer()).get('/v1/me').set('Cookie', cookie).expect(200);
+      const after = await request(app.getHttpServer())
+        .get('/v1/me')
+        .set('Cookie', cookie)
+        .expect(200);
       expect(after.body.emailVerified).toBe(true);
       const resend = await request(app.getHttpServer())
         .post('/v1/auth/email/resend')
@@ -461,25 +499,36 @@ describe('Auth (e2e)', () => {
     it('keeps only one valid link when resends race', async () => {
       const { email, password } = await registerUser();
       await vi.waitFor(() => expect(mailer.verifications).toHaveLength(1));
-      const cookie = sessionCookie((await login(email, password)).headers['set-cookie']);
+      const cookie = sessionCookie(
+        (await login(email, password)).headers['set-cookie'],
+      );
 
       await Promise.all(
         [1, 2, 3].map(() =>
-          request(app.getHttpServer()).post('/v1/auth/email/resend').set('Cookie', cookie),
+          request(app.getHttpServer())
+            .post('/v1/auth/email/resend')
+            .set('Cookie', cookie),
         ),
       );
       const user = await prisma.user.findUniqueOrThrow({ where: { email } });
       expect(
-        await prisma.emailVerificationToken.count({ where: { userId: user.id, usedAt: null } }),
+        await prisma.emailVerificationToken.count({
+          where: { userId: user.id, usedAt: null },
+        }),
       ).toBe(1);
     });
 
     it('resends a new link and invalidates the previous one', async () => {
       const { email, password } = await registerUser();
       await vi.waitFor(() => expect(mailer.verifications).toHaveLength(1));
-      const cookie = sessionCookie((await login(email, password)).headers['set-cookie']);
+      const cookie = sessionCookie(
+        (await login(email, password)).headers['set-cookie'],
+      );
 
-      await request(app.getHttpServer()).post('/v1/auth/email/resend').set('Cookie', cookie).expect(202);
+      await request(app.getHttpServer())
+        .post('/v1/auth/email/resend')
+        .set('Cookie', cookie)
+        .expect(202);
       expect(mailer.verifications).toHaveLength(2);
 
       await request(app.getHttpServer())
@@ -496,13 +545,18 @@ describe('Auth (e2e)', () => {
   describe('two-factor authentication (ADR-024)', () => {
     it('asks for the second factor after the password and rejects replays', async () => {
       const { email, password } = await registerUser();
-      const firstCookie = sessionCookie((await login(email, password)).headers['set-cookie']);
+      const firstCookie = sessionCookie(
+        (await login(email, password)).headers['set-cookie'],
+      );
       const { secret } = await enrollTotp(app, firstCookie);
 
       const challenge = await login(email, password);
       expect(challenge.body).toEqual({ mfaRequired: true });
       const cookie = sessionCookie(challenge.headers['set-cookie']);
-      await request(app.getHttpServer()).get('/v1/me').set('Cookie', cookie).expect(401);
+      await request(app.getHttpServer())
+        .get('/v1/me')
+        .set('Cookie', cookie)
+        .expect(401);
 
       const wrong = await request(app.getHttpServer())
         .post('/v1/auth/login/mfa')
@@ -520,9 +574,14 @@ describe('Auth (e2e)', () => {
         .expect(200);
       expect(ok.body).toMatchObject({ email, mfaEnabled: true });
       const signedIn = sessionCookie(ok.headers['set-cookie']);
-      await request(app.getHttpServer()).get('/v1/me').set('Cookie', signedIn).expect(200);
+      await request(app.getHttpServer())
+        .get('/v1/me')
+        .set('Cookie', signedIn)
+        .expect(200);
 
-      const again = sessionCookie((await login(email, password)).headers['set-cookie']);
+      const again = sessionCookie(
+        (await login(email, password)).headers['set-cookie'],
+      );
       await request(app.getHttpServer())
         .post('/v1/auth/login/mfa')
         .set('Cookie', again)
@@ -532,17 +591,23 @@ describe('Auth (e2e)', () => {
 
     it('signs in with a recovery code exactly once', async () => {
       const { email, password } = await registerUser();
-      const cookie = sessionCookie((await login(email, password)).headers['set-cookie']);
+      const cookie = sessionCookie(
+        (await login(email, password)).headers['set-cookie'],
+      );
       const { recoveryCodes } = await enrollTotp(app, cookie);
 
-      const first = sessionCookie((await login(email, password)).headers['set-cookie']);
+      const first = sessionCookie(
+        (await login(email, password)).headers['set-cookie'],
+      );
       await request(app.getHttpServer())
         .post('/v1/auth/login/mfa')
         .set('Cookie', first)
         .send({ recoveryCode: recoveryCodes[0] })
         .expect(200);
 
-      const second = sessionCookie((await login(email, password)).headers['set-cookie']);
+      const second = sessionCookie(
+        (await login(email, password)).headers['set-cookie'],
+      );
       await request(app.getHttpServer())
         .post('/v1/auth/login/mfa')
         .set('Cookie', second)
@@ -561,18 +626,30 @@ describe('Auth (e2e)', () => {
     it('makes admins enroll before using admin routes and never lets them turn it off', async () => {
       const { email, password } = await registerUser();
       await prisma.user.update({ where: { email }, data: { role: 'admin' } });
-      const cookie = sessionCookie((await login(email, password)).headers['set-cookie']);
+      const cookie = sessionCookie(
+        (await login(email, password)).headers['set-cookie'],
+      );
 
       const blocked = await request(app.getHttpServer())
         .get('/v1/admin/mentors')
         .set('Cookie', cookie)
         .expect(403);
       expect(blocked.body.code).toBe('MFA_ENROLLMENT_REQUIRED');
-      const status = await request(app.getHttpServer()).get('/v1/me/mfa').set('Cookie', cookie).expect(200);
-      expect(status.body).toEqual({ enabled: false, required: true, recoveryCodesRemaining: 0 });
+      const status = await request(app.getHttpServer())
+        .get('/v1/me/mfa')
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(status.body).toEqual({
+        enabled: false,
+        required: true,
+        recoveryCodesRemaining: 0,
+      });
 
       const { secret } = await enrollTotp(app, cookie);
-      await request(app.getHttpServer()).get('/v1/admin/mentors').set('Cookie', cookie).expect(200);
+      await request(app.getHttpServer())
+        .get('/v1/admin/mentors')
+        .set('Cookie', cookie)
+        .expect(200);
 
       const disable = await request(app.getHttpServer())
         .post('/v1/me/mfa/disable')
@@ -580,7 +657,9 @@ describe('Auth (e2e)', () => {
         .send({ password, code: currentTotp(secret, 1) })
         .expect(403);
       expect(disable.body.code).toBe('MFA_REQUIRED_FOR_ROLE');
-      const audit = await prisma.auditLog.findFirstOrThrow({ where: { action: 'user.mfa_enabled' } });
+      const audit = await prisma.auditLog.findFirstOrThrow({
+        where: { action: 'user.mfa_enabled' },
+      });
       expect(audit.entityType).toBe('user');
     });
   });

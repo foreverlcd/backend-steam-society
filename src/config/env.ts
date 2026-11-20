@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+/** deploy/.env.prod.example values all contain "change-me". */
+function isPlaceholder(value: string | undefined): boolean {
+  return typeof value === 'string' && /change-?me/i.test(value);
+}
+
 const envSchema = z
   .object({
     DATABASE_URL: z.string().min(1),
@@ -36,6 +41,8 @@ const envSchema = z
     PAYMENTS_FEE_BPS: z.coerce.number().int().min(0).max(10_000).default(1500),
     // Only for local load tests (k6 from a single IP); refused in production.
     THROTTLE_DISABLED: z.enum(['true', 'false']).default('false'),
+    // Sign-ups allowed per client IP every 10 minutes (a classroom fits).
+    REGISTER_RATE_LIMIT: z.coerce.number().int().positive().default(30),
     // 32 random bytes in base64 that encrypt TOTP secrets at rest. Required in
     // production; in development it is derived from SESSION_SECRET.
     MFA_ENCRYPTION_KEY: z
@@ -75,6 +82,25 @@ const envSchema = z
     path: ['SMTP_URL'],
     message: 'is required in production (mail would only queue up)',
   })
+  .refine(
+    (env) =>
+      !(env.NODE_ENV === 'production' && isPlaceholder(env.SESSION_SECRET)),
+    {
+      path: ['SESSION_SECRET'],
+      message: 'still has the example placeholder; generate a real secret',
+    },
+  )
+  .refine(
+    (env) =>
+      !(
+        env.NODE_ENV === 'production' &&
+        isPlaceholder(env.CALL_TURN_SHARED_SECRET)
+      ),
+    {
+      path: ['CALL_TURN_SHARED_SECRET'],
+      message: 'still has the example placeholder; generate a real secret',
+    },
+  )
   .refine(
     (env) =>
       !(env.NODE_ENV === 'production' && env.THROTTLE_DISABLED === 'true'),
